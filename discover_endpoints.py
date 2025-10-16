@@ -73,7 +73,10 @@ def test_volume_commands(session, base_url, endpoints):
     """Test volume-related commands on discovered endpoints."""
     
     volume_tests = [
-        # GET requests with parameters
+        # Correct MoOde format
+        {"endpoint": "/command/?status", "method": "GET", "params": None},
+        {"endpoint": "/command/?setvol%2050", "method": "GET", "params": None},
+        # GET requests with parameters  
         {"endpoint": "/command/", "method": "GET", "params": {"cmd": "status"}},
         {"endpoint": "/command/", "method": "GET", "params": {"cmd": "setvol", "vol": "50"}},
         {"endpoint": "/engine-mpd.php", "method": "POST", "data": {"cmd": "status"}},
@@ -85,7 +88,24 @@ def test_volume_commands(session, base_url, endpoints):
     
     for test in volume_tests:
         endpoint = test["endpoint"]
-        if endpoint in endpoints:
+        
+        # Handle both simple endpoints and full URLs with parameters
+        if "?" in endpoint:
+            # Full endpoint with parameters (like /command/?setvol%2050)
+            base_endpoint = endpoint.split("?")[0]
+            if base_endpoint in endpoints or endpoint.startswith("/command/"):
+                url = urljoin(base_url, endpoint)
+                try:
+                    response = session.get(url, timeout=5)
+                    print(f"  GET {endpoint}: Status {response.status_code}")
+                    
+                    if response.status_code == 200:
+                        content = response.text[:200]  # First 200 chars
+                        print(f"    Response: {content}")
+                        
+                except Exception as e:
+                    print(f"  ❌ GET {endpoint}: Error - {e}")
+        elif endpoint in endpoints:
             url = urljoin(base_url, endpoint)
             
             try:

@@ -79,16 +79,16 @@ class MoOdeAudioController:
     
     def get_status(self) -> Optional[Dict]:
         """
-        Get current player status using MoOde's engine-mpd.php endpoint.
+        Get current player status using MoOde's command interface.
         
         Returns:
             Dictionary containing player status information
         """
-        # Try the MPD status endpoint that MoOde uses
-        result = self._make_request("/engine-mpd.php", "POST", {"cmd": "status"})
+        # Use the correct MoOde command format
+        result = self._make_request("/command/?status")
         if result is None:
-            # Fallback to command interface
-            result = self._make_request("/command/", "GET", params={"cmd": "status"})
+            # Fallback to engine-mpd.php endpoint
+            result = self._make_request("/engine-mpd.php", "POST", {"cmd": "status"})
         return result
     
     def _send_mpd_command(self, command: str) -> bool:
@@ -125,23 +125,28 @@ class MoOdeAudioController:
     
     def play(self) -> bool:
         """Start playback."""
-        return self._send_mpd_command("play")
+        result = self._make_request("/command/?play")
+        return result is not None
     
     def pause(self) -> bool:
         """Pause playback."""
-        return self._send_mpd_command("pause")
+        result = self._make_request("/command/?pause")
+        return result is not None
     
     def stop(self) -> bool:
         """Stop playback."""
-        return self._send_mpd_command("stop")
+        result = self._make_request("/command/?stop")
+        return result is not None
     
     def next_track(self) -> bool:
         """Skip to next track."""
-        return self._send_mpd_command("next")
+        result = self._make_request("/command/?next")
+        return result is not None
     
     def previous_track(self) -> bool:
         """Skip to previous track."""
-        return self._send_mpd_command("previous")
+        result = self._make_request("/command/?previous")
+        return result is not None
     
     def set_volume(self, volume: int) -> bool:
         """
@@ -156,27 +161,9 @@ class MoOdeAudioController:
         if not 0 <= volume <= 100:
             raise ValueError("Volume must be between 0 and 100")
         
-        # Try multiple volume setting methods for MoOde compatibility
-        methods = [
-            # Method 1: Direct MPD setvol command
-            lambda: self._send_mpd_command(f"setvol {volume}"),
-            # Method 2: MoOde specific volume endpoint
-            lambda: self._make_request("/engine-cmd.php", "POST", {"cmd": f"setvol {volume}"}),
-            # Method 3: Alternative volume format
-            lambda: self._make_request("/command/", "GET", params={"cmd": "setvol", "vol": str(volume)}),
-            # Method 4: Direct volume API
-            lambda: self._make_request("/api/volume", "POST", {"volume": volume})
-        ]
-        
-        for method in methods:
-            try:
-                result = method()
-                if result is not None:
-                    return True
-            except Exception:
-                continue
-                
-        return False
+        # Use the correct MoOde Audio API syntax
+        result = self._make_request(f"/command/?setvol%20{volume}")
+        return result is not None
     
     def get_volume(self) -> Optional[int]:
         """
@@ -200,9 +187,9 @@ class MoOdeAudioController:
         Returns:
             Dictionary with song information or None if failed
         """
-        result = self._make_request("/engine-mpd.php", "POST", {"cmd": "currentsong"})
+        result = self._make_request("/command/?currentsong")
         if result is None:
-            result = self._make_request("/command/", "GET", params={"cmd": "currentsong"})
+            result = self._make_request("/engine-mpd.php", "POST", {"cmd": "currentsong"})
         return result
     
     def get_playlist(self) -> Optional[List[Dict]]:
@@ -212,9 +199,9 @@ class MoOdeAudioController:
         Returns:
             List of songs in playlist or None if failed
         """
-        result = self._make_request("/engine-mpd.php", "POST", {"cmd": "playlistinfo"})
+        result = self._make_request("/command/?playlistinfo")
         if result is None:
-            result = self._make_request("/command/", "GET", params={"cmd": "playlistinfo"})
+            result = self._make_request("/engine-mpd.php", "POST", {"cmd": "playlistinfo"})
         return result
     
     def toggle_playback(self) -> bool:
@@ -243,7 +230,8 @@ class MoOdeAudioController:
         Returns:
             True if command was successful, False otherwise
         """
-        return self._send_mpd_command(f"seekcur {position}")
+        result = self._make_request(f"/command/?seekcur%20{position}")
+        return result is not None
     
     def get_system_info(self) -> Optional[Dict]:
         """

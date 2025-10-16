@@ -70,6 +70,8 @@ def test_direct_volume_apis(controller, volume):
     
     # Test different API endpoints manually
     test_calls = [
+        # Correct MoOde format (primary)
+        lambda: controller._make_request(f"/command/?setvol%20{volume}"),
         # MPD style command
         lambda: controller._make_request("/engine-mpd.php", "POST", {"cmd": f"setvol {volume}"}),
         # Alternative command format
@@ -80,8 +82,6 @@ def test_direct_volume_apis(controller, volume):
         lambda: controller._make_request("/command/", "GET", params={"cmd": "setvol", "volume": str(volume)}),
         # Direct volume endpoint
         lambda: controller._make_request("/api/volume", "POST", {"volume": volume}),
-        # Alternative volume endpoint
-        lambda: controller._make_request("/vol.php", "POST", {"vol": volume}),
     ]
     
     for i, test_call in enumerate(test_calls, 1):
