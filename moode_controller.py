@@ -143,7 +143,7 @@ class MoOdeAudioController:
         if not 0 <= volume <= 100:
             raise ValueError("Volume must be between 0 and 100")
             
-        result = self._make_request(f"/command/?cmd=setvol&vol={volume}")
+        result = self._make_request(f"/command/?cmd=setvol%20{volume}")
         return result is not None
     
     def get_volume(self) -> Optional[int]:
