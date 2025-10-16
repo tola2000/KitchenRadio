@@ -85,7 +85,7 @@ class MoOdeAudioController:
             Dictionary containing player status information
         """
         # Use the correct MoOde command format
-        result = self._make_request("/command/?status")
+        result = self._make_request("/command/?cmd=status")
         if result is None:
             # Fallback to engine-mpd.php endpoint
             result = self._make_request("/engine-mpd.php", "POST", {"cmd": "status"})
