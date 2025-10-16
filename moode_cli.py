@@ -10,7 +10,7 @@ import argparse
 import sys
 import json
 from typing import Optional
-from moode_controller_v2 import MoOdeAudioController
+from moode_controller import MoOdeAudioController
 
 
 class MoOdeAudioCLI:
