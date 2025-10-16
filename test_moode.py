@@ -7,7 +7,7 @@ This script tests the basic functionality of the MoOde controller library.
 
 import sys
 import time
-from moode_controller import MoOdeAudioController
+from moode_controller_v2 import MoOdeAudioController
 
 
 def test_connection(host="localhost", port=80):

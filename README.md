@@ -30,29 +30,30 @@ The CLI provides simple commands for common operations:
 
 ```bash
 # Basic playback control
-python moode_cli.py play
-python moode_cli.py pause
-python moode_cli.py stop
-python moode_cli.py next
-python moode_cli.py previous
+python moode_cli_v2.py play
+python moode_cli_v2.py pause
+python moode_cli_v2.py stop
+python moode_cli_v2.py next
+python moode_cli_v2.py previous
 
 # Volume control
-python moode_cli.py volume 75        # Set volume to 75%
-python moode_cli.py volume           # Show current volume
+python moode_cli_v2.py volume 75        # Set volume to 75%
+python moode_cli_v2.py volume           # Show current volume
 
 # Status and information
-python moode_cli.py status           # Show player status
-python moode_cli.py current          # Show current song
-python moode_cli.py playlist         # Show current playlist
+python moode_cli_v2.py status           # Show player status
+python moode_cli_v2.py current          # Show current song
+python moode_cli_v2.py playlist         # Show current playlist
+python moode_cli_v2.py connection       # Test connection
 
 # Remote server control
-python moode_cli.py --host 192.168.1.100 play
+python moode_cli_v2.py --host 192.168.1.100 play
 ```
 
 ### Python Library
 
 ```python
-from moode_controller import MoOdeAudioController
+from moode_controller_v2 import MoOdeAudioController
 
 # Connect to MoOde server
 controller = MoOdeAudioController("192.168.1.100")
@@ -151,34 +152,37 @@ TIMEOUT = 15
 ### Basic Usage
 ```bash
 # Start playing music
-python moode_cli.py play
+python moode_cli_v2.py play
 
 # Set volume to 50%
-python moode_cli.py volume 50
+python moode_cli_v2.py volume 50
 
 # Show what's currently playing
-python moode_cli.py current
+python moode_cli_v2.py current
+
+# Test connection
+python moode_cli_v2.py connection
 ```
 
 ### Remote Control
 ```bash
 # Control a MoOde server on your network
-python moode_cli.py --host 192.168.1.100 status
-python moode_cli.py --host moode.local next
+python moode_cli_v2.py --host 192.168.1.100 status
+python moode_cli_v2.py --host moode.local next
 ```
 
 ### Scripting
 ```bash
 #!/bin/bash
 # Simple script to start your morning playlist
-python moode_cli.py --host kitchen.local play
-python moode_cli.py --host kitchen.local volume 60
+python moode_cli_v2.py --host kitchen.local play
+python moode_cli_v2.py --host kitchen.local volume 60
 ```
 
 ### Python Integration
 ```python
 import time
-from moode_controller import MoOdeAudioController
+from moode_controller_v2 import MoOdeAudioController
 
 # Create controller
 moode = MoOdeAudioController("192.168.1.100")
@@ -217,10 +221,10 @@ This library works with [MoOde Audio](https://moodeaudio.org/), a popular audiop
 ### Connection Issues
 ```bash
 # Test basic connectivity
-python moode_cli.py status
+python moode_cli_v2.py connection
 
 # Test with specific host
-python moode_cli.py --host 192.168.1.100 status
+python moode_cli_v2.py --host 192.168.1.100 connection
 ```
 
 ### Common Problems
@@ -244,12 +248,15 @@ python moode_cli.py --host 192.168.1.100 status
 
 ### Project Structure
 ```
-├── moode_controller.py    # Main library
-├── moode_cli.py          # Command-line interface
-├── requirements.txt      # Python dependencies
-├── config_example.py     # Configuration template
-├── README.md            # This file
-└── hello_world.py       # Original sample file
+├── moode_controller.py       # Original library
+├── moode_controller_v2.py    # Updated library (recommended)
+├── moode_cli.py             # Original CLI
+├── moode_cli_v2.py          # Updated CLI (recommended)
+├── test_moode.py            # Test script
+├── requirements.txt         # Python dependencies
+├── config_example.py        # Configuration template
+├── README.md               # This file
+└── hello_world.py          # Original sample file
 ```
 
 ### Contributing
@@ -262,10 +269,13 @@ python moode_cli.py --host 192.168.1.100 status
 ### Testing
 ```python
 # Test library functionality
-python -c "from moode_controller import MoOdeAudioController; print('Import successful')"
+python -c "from moode_controller_v2 import MoOdeAudioController; print('Import successful')"
 
 # Test CLI
-python moode_cli.py --help
+python moode_cli_v2.py --help
+
+# Test connection
+python moode_cli_v2.py connection
 ```
 
 ## License
