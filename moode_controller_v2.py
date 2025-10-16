@@ -174,40 +174,40 @@ class MoOdeAudioController:
         """
         status = self.get_status()
         if status:
-            # Try different possible volume field names
-            volume_fields = ['volume', 'vol', 'Volume', 'mixer_volume', 'audio_volume']
+            # MoOde returns status as numbered fields, look for volume in any field
+            import re
             
+            # Check all fields for volume information
+            for key, value in status.items():
+                if isinstance(value, str) and value.startswith('volume:'):
+                    # Extract volume value from "volume: 40" format
+                    match = re.search(r'volume:\s*(\d+)', value)
+                    if match:
+                        try:
+                            return int(match.group(1))
+                        except ValueError:
+                            continue
+            
+            # Fallback: look for any field containing volume info
+            for key, value in status.items():
+                if isinstance(value, str):
+                    # Look for volume pattern anywhere in the string
+                    match = re.search(r'volume.*?(\d+)', value.lower())
+                    if match:
+                        try:
+                            return int(match.group(1))
+                        except ValueError:
+                            continue
+                            
+            # Traditional volume field check (for other MoOde versions)
+            volume_fields = ['volume', 'vol', 'Volume']
             for field in volume_fields:
                 if field in status:
                     try:
-                        volume_value = status[field]
-                        # Handle string values that might contain numbers
-                        if isinstance(volume_value, str):
-                            # Extract numeric part if string contains numbers
-                            import re
-                            match = re.search(r'\d+', volume_value)
-                            if match:
-                                return int(match.group())
-                        else:
-                            return int(volume_value)
+                        return int(status[field])
                     except (ValueError, TypeError):
                         continue
-                        
-            # If volume not found in status, try direct volume command
-            volume_result = self._make_request("/command/?mixer%20volume")
-            if volume_result and isinstance(volume_result, dict):
-                for key, value in volume_result.items():
-                    try:
-                        if isinstance(value, str):
-                            import re
-                            match = re.search(r'\d+', value)
-                            if match:
-                                return int(match.group())
-                        else:
-                            return int(value)
-                    except (ValueError, TypeError):
-                        continue
-                        
+        
         return None
     
     def get_current_song(self) -> Optional[Dict]:
