@@ -173,11 +173,41 @@ class MoOdeAudioController:
             Current volume level (0-100) or None if failed
         """
         status = self.get_status()
-        if status and 'volume' in status:
-            try:
-                return int(status['volume'])
-            except (ValueError, TypeError):
-                pass
+        if status:
+            # Try different possible volume field names
+            volume_fields = ['volume', 'vol', 'Volume', 'mixer_volume', 'audio_volume']
+            
+            for field in volume_fields:
+                if field in status:
+                    try:
+                        volume_value = status[field]
+                        # Handle string values that might contain numbers
+                        if isinstance(volume_value, str):
+                            # Extract numeric part if string contains numbers
+                            import re
+                            match = re.search(r'\d+', volume_value)
+                            if match:
+                                return int(match.group())
+                        else:
+                            return int(volume_value)
+                    except (ValueError, TypeError):
+                        continue
+                        
+            # If volume not found in status, try direct volume command
+            volume_result = self._make_request("/command/?mixer%20volume")
+            if volume_result and isinstance(volume_result, dict):
+                for key, value in volume_result.items():
+                    try:
+                        if isinstance(value, str):
+                            import re
+                            match = re.search(r'\d+', value)
+                            if match:
+                                return int(match.group())
+                        else:
+                            return int(value)
+                    except (ValueError, TypeError):
+                        continue
+                        
         return None
     
     def get_current_song(self) -> Optional[Dict]:
