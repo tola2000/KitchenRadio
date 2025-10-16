@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-MoOde Audio REST API Controller Library
+MoOde Audio REST API Controller Library - Updated Version
 
 This library provides a Python interface to control MoOde Audio servers
-through their REST API endpoints.
+through their actual REST API endpoints used by the web interface.
 """
 
 import requests
@@ -17,9 +17,7 @@ class MoOdeAudioController:
     """
     A controller class for interacting with MoOde Audio server REST API.
     
-    MoOde Audio is a popular audiophile-quality music player for Raspberry Pi.
-    This class provides methods to control playback, manage playlists, and
-    retrieve system information.
+    This version uses the actual API endpoints that MoOde's web interface uses.
     """
     
     def __init__(self, host: str = "localhost", port: int = 80, timeout: int = 10):
@@ -37,7 +35,7 @@ class MoOdeAudioController:
         self.base_url = f"http://{host}:{port}"
         self.session = requests.Session()
         
-    def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict]:
+    def _make_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None, params: Optional[Dict] = None) -> Optional[Dict]:
         """
         Make a HTTP request to the MoOde API.
         
@@ -45,6 +43,7 @@ class MoOdeAudioController:
             endpoint: API endpoint path
             method: HTTP method (GET, POST, etc.)
             data: Request data for POST requests
+            params: URL parameters
             
         Returns:
             Response data as dictionary or None if request failed
@@ -53,9 +52,12 @@ class MoOdeAudioController:
         
         try:
             if method.upper() == "GET":
-                response = self.session.get(url, timeout=self.timeout)
+                response = self.session.get(url, params=params, timeout=self.timeout)
             elif method.upper() == "POST":
-                response = self.session.post(url, json=data, timeout=self.timeout)
+                if data:
+                    response = self.session.post(url, data=data, params=params, timeout=self.timeout)
+                else:
+                    response = self.session.post(url, params=params, timeout=self.timeout)
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
                 
@@ -65,7 +67,11 @@ class MoOdeAudioController:
             try:
                 return response.json()
             except json.JSONDecodeError:
-                return {"response": response.text}
+                text_response = response.text.strip()
+                if text_response:
+                    return {"response": text_response}
+                else:
+                    return {"status": "ok"}
                 
         except requests.exceptions.RequestException as e:
             print(f"Error communicating with MoOde server: {e}")
@@ -73,62 +79,53 @@ class MoOdeAudioController:
     
     def get_status(self) -> Optional[Dict]:
         """
-        Get current player status.
+        Get current player status using MoOde's engine-mpd.php endpoint.
         
         Returns:
             Dictionary containing player status information
         """
-        return self._make_request("/command/?cmd=status")
+        # Try the MPD status endpoint that MoOde uses
+        result = self._make_request("/engine-mpd.php", "POST", {"cmd": "status"})
+        if result is None:
+            # Fallback to command interface
+            result = self._make_request("/command/", "GET", params={"cmd": "status"})
+        return result
+    
+    def _send_mpd_command(self, command: str) -> bool:
+        """
+        Send a command to MPD through MoOde's engine-mpd.php interface.
+        
+        Args:
+            command: MPD command to send
+            
+        Returns:
+            True if command was successful, False otherwise
+        """
+        result = self._make_request("/engine-mpd.php", "POST", {"cmd": command})
+        if result is None:
+            # Fallback to command interface
+            result = self._make_request("/command/", "GET", params={"cmd": command})
+        return result is not None
     
     def play(self) -> bool:
-        """
-        Start playback.
-        
-        Returns:
-            True if command was successful, False otherwise
-        """
-        result = self._make_request("/command/?cmd=play")
-        return result is not None
+        """Start playback."""
+        return self._send_mpd_command("play")
     
     def pause(self) -> bool:
-        """
-        Pause playback.
-        
-        Returns:
-            True if command was successful, False otherwise
-        """
-        result = self._make_request("/command/?cmd=pause")
-        return result is not None
+        """Pause playback."""
+        return self._send_mpd_command("pause")
     
     def stop(self) -> bool:
-        """
-        Stop playback.
-        
-        Returns:
-            True if command was successful, False otherwise
-        """
-        result = self._make_request("/command/?cmd=stop")
-        return result is not None
+        """Stop playback."""
+        return self._send_mpd_command("stop")
     
     def next_track(self) -> bool:
-        """
-        Skip to next track.
-        
-        Returns:
-            True if command was successful, False otherwise
-        """
-        result = self._make_request("/command/?cmd=next")
-        return result is not None
+        """Skip to next track."""
+        return self._send_mpd_command("next")
     
     def previous_track(self) -> bool:
-        """
-        Skip to previous track.
-        
-        Returns:
-            True if command was successful, False otherwise
-        """
-        result = self._make_request("/command/?cmd=previous")
-        return result is not None
+        """Skip to previous track."""
+        return self._send_mpd_command("previous")
     
     def set_volume(self, volume: int) -> bool:
         """
@@ -143,8 +140,7 @@ class MoOdeAudioController:
         if not 0 <= volume <= 100:
             raise ValueError("Volume must be between 0 and 100")
             
-        result = self._make_request(f"/command/?cmd=setvol&vol={volume}")
-        return result is not None
+        return self._send_mpd_command(f"setvol {volume}")
     
     def get_volume(self) -> Optional[int]:
         """
@@ -155,7 +151,10 @@ class MoOdeAudioController:
         """
         status = self.get_status()
         if status and 'volume' in status:
-            return int(status['volume'])
+            try:
+                return int(status['volume'])
+            except (ValueError, TypeError):
+                pass
         return None
     
     def get_current_song(self) -> Optional[Dict]:
@@ -165,7 +164,10 @@ class MoOdeAudioController:
         Returns:
             Dictionary with song information or None if failed
         """
-        return self._make_request("/command/?cmd=currentsong")
+        result = self._make_request("/engine-mpd.php", "POST", {"cmd": "currentsong"})
+        if result is None:
+            result = self._make_request("/command/", "GET", params={"cmd": "currentsong"})
+        return result
     
     def get_playlist(self) -> Optional[List[Dict]]:
         """
@@ -174,7 +176,10 @@ class MoOdeAudioController:
         Returns:
             List of songs in playlist or None if failed
         """
-        return self._make_request("/command/?cmd=playlistinfo")
+        result = self._make_request("/engine-mpd.php", "POST", {"cmd": "playlistinfo"})
+        if result is None:
+            result = self._make_request("/command/", "GET", params={"cmd": "playlistinfo"})
+        return result
     
     def toggle_playback(self) -> bool:
         """
@@ -202,8 +207,7 @@ class MoOdeAudioController:
         Returns:
             True if command was successful, False otherwise
         """
-        result = self._make_request(f"/command/?cmd=seek&pos={position}")
-        return result is not None
+        return self._send_mpd_command(f"seekcur {position}")
     
     def get_system_info(self) -> Optional[Dict]:
         """
@@ -212,7 +216,25 @@ class MoOdeAudioController:
         Returns:
             Dictionary with system information or None if failed
         """
-        return self._make_request("/command/?cmd=get_system_info")
+        # Try to get system info through various endpoints
+        endpoints = [
+            "/engine-mpd.php",
+            "/command/",
+            "/sysinfo.php"
+        ]
+        
+        for endpoint in endpoints:
+            if endpoint == "/engine-mpd.php":
+                result = self._make_request(endpoint, "POST", {"cmd": "stats"})
+            elif endpoint == "/command/":
+                result = self._make_request(endpoint, "GET", params={"cmd": "stats"})
+            else:
+                result = self._make_request(endpoint, "GET")
+                
+            if result:
+                return result
+                
+        return None
     
     def is_connected(self) -> bool:
         """
@@ -222,8 +244,15 @@ class MoOdeAudioController:
             True if connection is successful, False otherwise
         """
         try:
+            # Try to access the main page
             response = self.session.get(f"{self.base_url}/", timeout=5)
+            if response.status_code == 200:
+                return True
+                
+            # Try alternative endpoint
+            response = self.session.get(f"{self.base_url}/index.php", timeout=5)
             return response.status_code == 200
+            
         except requests.exceptions.RequestException:
             return False
     
@@ -266,8 +295,22 @@ if __name__ == "__main__":
     
     if controller.is_connected():
         print("Connected to MoOde Audio server")
+        
+        # Test basic functionality
+        print("Testing basic commands...")
+        
         status = controller.get_status()
         if status:
-            print(f"Current status: {status}")
+            print(f"Status: {status}")
+        
+        current_song = controller.get_current_song()
+        if current_song:
+            print(f"Current song: {current_song}")
+        
+        volume = controller.get_volume()
+        if volume is not None:
+            print(f"Current volume: {volume}%")
+            
     else:
         print("Failed to connect to MoOde Audio server")
+        print("Make sure MoOde is running and accessible")
