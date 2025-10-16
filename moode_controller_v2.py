@@ -93,7 +93,7 @@ class MoOdeAudioController:
     
     def _send_mpd_command(self, command: str) -> bool:
         """
-        Send a command to MPD through MoOde's engine-mpd.php interface.
+        Send a command to MPD through MoOde's interface.
         
         Args:
             command: MPD command to send
@@ -101,11 +101,27 @@ class MoOdeAudioController:
         Returns:
             True if command was successful, False otherwise
         """
-        result = self._make_request("/engine-mpd.php", "POST", {"cmd": command})
-        if result is None:
-            # Fallback to command interface
-            result = self._make_request("/command/", "GET", params={"cmd": command})
-        return result is not None
+        # Try different MoOde API endpoints
+        attempts = [
+            # Primary endpoint - engine-mpd.php
+            lambda: self._make_request("/engine-mpd.php", "POST", {"cmd": command}),
+            # Alternative endpoint - engine-cmd.php  
+            lambda: self._make_request("/engine-cmd.php", "POST", {"cmd": command}),
+            # Command interface with GET
+            lambda: self._make_request("/command/", "GET", params={"cmd": command}),
+            # Command interface with POST
+            lambda: self._make_request("/command/", "POST", {"cmd": command}),
+        ]
+        
+        for attempt in attempts:
+            try:
+                result = attempt()
+                if result is not None:
+                    return True
+            except Exception:
+                continue
+                
+        return False
     
     def play(self) -> bool:
         """Start playback."""
@@ -139,8 +155,28 @@ class MoOdeAudioController:
         """
         if not 0 <= volume <= 100:
             raise ValueError("Volume must be between 0 and 100")
-            
-        return self._send_mpd_command(f"setvol {volume}")
+        
+        # Try multiple volume setting methods for MoOde compatibility
+        methods = [
+            # Method 1: Direct MPD setvol command
+            lambda: self._send_mpd_command(f"setvol {volume}"),
+            # Method 2: MoOde specific volume endpoint
+            lambda: self._make_request("/engine-cmd.php", "POST", {"cmd": f"setvol {volume}"}),
+            # Method 3: Alternative volume format
+            lambda: self._make_request("/command/", "GET", params={"cmd": "setvol", "vol": str(volume)}),
+            # Method 4: Direct volume API
+            lambda: self._make_request("/api/volume", "POST", {"volume": volume})
+        ]
+        
+        for method in methods:
+            try:
+                result = method()
+                if result is not None:
+                    return True
+            except Exception:
+                continue
+                
+        return False
     
     def get_volume(self) -> Optional[int]:
         """
