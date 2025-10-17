@@ -38,17 +38,12 @@ def main():
     parser.add_argument('--debug', '-d',
                         action='store_true',
                         help='Enable debug logging')
-    parser.add_argument('--verbose', '-v',
-                        action='store_true',
-                        help='Enable verbose output')
     
     args = parser.parse_args()
     
     # Setup logging
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
-    elif args.verbose:
-        logging.basicConfig(level=logging.INFO)
     
     # Construct WebSocket URL
     ws_url = f'ws://{args.host}:{args.port}/mopidy/ws'
@@ -67,55 +62,30 @@ def main():
     
     # Wait for connection to be established
     print('Waiting for connection...')
-    if not mopidy.connect(wait_secs=15):
+    if not mopidy.connect(wait_secs=10):
         print('Failed to connect to Mopidy server!')
         print('Make sure Mopidy is running and the HTTP extension is enabled.')
         return
     
     print('Connected successfully!')
     
-    # Bind multiple events for better coverage
+    # Bind events - focus on the essential ones
+    print('Setting up event listeners...')
     mopidy.bind_event('track_playback_started', print_track_info)
     mopidy.bind_event('track_playback_resumed', print_track_info)
     mopidy.bind_event('track_playback_paused', lambda tl_track: print('⏸ Track paused'))
     mopidy.bind_event('track_playback_ended', lambda tl_track: print('⏹ Track ended'))
-    
-    if args.verbose:
-        # Bind additional events for verbose mode
-        mopidy.bind_event('playback_state_changed', 
-                         lambda old_state, new_state: print(f'State: {old_state} → {new_state}'))
-        mopidy.bind_event('volume_changed', 
-                         lambda volume: print(f'Volume: {volume}%'))
-    
-    # Get current track if already playing (with better error handling)
-    try:
-        print('Getting current track...')
-        current_track = mopidy.playback.get_current_tl_track(timeout=5)
-        if current_track:
-            print('\nCurrently playing:')
-            print_track_info(current_track)
-            
-            # Get playback state
-            try:
-                state = mopidy.playback.get_state(timeout=5)
-                print(f'State: {state}')
-            except Exception as e:
-                print(f'Could not get playback state: {e}')
-        else:
-            print('No track currently playing')
-    except Exception as e:
-        print(f'Could not get current track (this is normal if nothing is playing): {type(e).__name__}')
+    mopidy.bind_event('playback_state_changed', 
+                     lambda old_state, new_state: print(f'State changed: {old_state} → {new_state}'))
     
     print('\n' + '='*50)
-    print('Monitoring events... Press Ctrl+C to stop.')
+    print('Monitoring events... Start playing music to see events.')
+    print('Press Ctrl+C to stop.')
     print('='*50)
     
-    # Main loop
+    # Main loop - simplified
     try:
         while True:
-            # Check connection status periodically
-            if not mopidy.is_connected():
-                print('Warning: Connection lost, attempting to reconnect...')
             time.sleep(1.0)
     except KeyboardInterrupt:
         print('\nStopping...')
