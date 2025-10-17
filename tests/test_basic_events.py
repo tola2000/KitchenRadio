@@ -37,14 +37,10 @@ def main():
     print('🎧 Event listeners ready!')
     
     try:
-        # Get available backends
-        print('📋 Checking available URI schemes...')
-        schemes = mopidy.core.get_uri_schemes(timeout=3)
-        print(f'Available: {", ".join(schemes)}')
-        
-        # Try to get current volume to test basic API
+        # Get current volume to test basic API
+        print('🔊 Testing mixer API...')
         volume = mopidy.mixer.get_volume(timeout=3)
-        print(f'🔊 Current volume: {volume}%')
+        print(f'Current volume: {volume}%')
         
         # Test volume change to trigger an event
         print('🔧 Testing volume change to trigger event...')
@@ -58,6 +54,14 @@ def main():
             # Change it back
             mopidy.mixer.set_volume(volume)
             print(f'🔊 Restored volume to {volume}%')
+        
+        # Test playback state
+        print('📊 Testing playback API...')
+        try:
+            state = mopidy.playback.get_state(timeout=3)
+            print(f'Playback state: {state}')
+        except Exception as e:
+            print(f'Could not get playback state: {e}')
         
         print('\n' + '='*40)
         print('🎵 Monitoring for events...')

@@ -123,12 +123,10 @@ def main():
                 
         else:
             print('❌ Could not add tracks. Check if the URI is valid and accessible.')
-            print('Available URI schemes:')
-            try:
-                schemes = mopidy.core.get_uri_schemes(timeout=3)
-                print(f'📋 Supported schemes: {", ".join(schemes)}')
-            except:
-                print('Could not get URI schemes')
+            print('💡 Common URI formats:')
+            print('  - file:///path/to/music.mp3 (local file)')
+            print('  - http://stream-url (radio stream)')
+            print('  - spotify:track:ID (if Spotify is configured)')
                 
     except Exception as e:
         print(f'❌ Error during playback setup: {e}')

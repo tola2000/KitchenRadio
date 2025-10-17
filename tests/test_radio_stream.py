@@ -79,12 +79,11 @@ def main():
                 print(f'❌ Failed to add stream {i}: {e}')
                 continue
         else:
-            print('❌ Could not add any streams. Let\'s check what backends are available:')
-            try:
-                schemes = mopidy.core.get_uri_schemes(timeout=5)
-                print(f'📋 Available schemes: {", ".join(schemes)}')
-            except:
-                print('Could not get schemes')
+            print('❌ Could not add any streams.')
+            print('💡 This might mean:')
+            print('  - HTTP backend not enabled in Mopidy')
+            print('  - Network connectivity issues')
+            print('  - Streams are temporarily unavailable')
             return
         
         print('▶️ Starting playback...')
