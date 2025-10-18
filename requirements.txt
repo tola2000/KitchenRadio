@@ -2,6 +2,13 @@
 python-mpd2>=3.0.0
 requests>=2.25.0
 
-# Optional dependencies  
+# Web interface dependencies
+Flask>=2.3.0
+Flask-CORS>=4.0.0
+
+# Optional dependencies
 # colorama>=0.4.0  # For colored console output on Windows
 # click>=8.0.0     # For CLI interfaces
+
+# Development and Windows service dependencies (optional)
+# pywin32>=306     # For Windows service functionality (Windows only)
