@@ -36,13 +36,19 @@ except ImportError as e:
 
 if __name__ == "__main__":
     print("🐛 Starting KitchenRadio Web Interface in DEBUG mode")
-    print("=" * 50)
+    print("=" * 60)
     print("📍 Web interface will be available at: http://localhost:5000")
+    print("🎵 KitchenRadio daemon will start automatically")
     print("🔧 Flask debug mode: ENABLED")
     print("🔍 Auto-reload on file changes: ENABLED")
     print("📊 Detailed error pages: ENABLED")
     print("📝 Debug logging: ENABLED")
-    print("=" * 50)
+    print("=" * 60)
+    print("📋 Available endpoints:")
+    print("   🏠 http://localhost:5000/           - Web interface")
+    print("   🔍 http://localhost:5000/api/health - Health check")
+    print("   📊 http://localhost:5000/api/status - Backend status")
+    print("=" * 60)
     print()
     
     try:

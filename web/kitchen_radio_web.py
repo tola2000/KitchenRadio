@@ -5,6 +5,7 @@ KitchenRadio Web Interface - Flask-based web UI
 
 import os
 import sys
+import time
 import logging
 import json
 from pathlib import Path
@@ -48,6 +49,7 @@ class KitchenRadioWebServer:
         self.port = port
         self.debug = debug
         self.daemon = None
+        self.daemon_started = False
         
         # Create Flask app with absolute paths
         web_dir = Path(__file__).parent
@@ -76,12 +78,40 @@ class KitchenRadioWebServer:
         
         logger.info(f"KitchenRadio web server initialized on {host}:{port}")
     
+    def _start_daemon(self):
+        """Start the KitchenRadio daemon"""
+        if self.daemon_started:
+            return True
+            
+        logger.info("Starting KitchenRadio daemon...")
+        try:
+            self.daemon = KitchenRadio()
+            if self.daemon.start():
+                self.daemon_started = True
+                logger.info("✅ KitchenRadio daemon started successfully")
+                return True
+            else:
+                logger.error("❌ Failed to start KitchenRadio daemon")
+                return False
+        except Exception as e:
+            logger.error(f"❌ Error starting KitchenRadio daemon: {e}")
+            return False
+    
+    def _stop_daemon(self):
+        """Stop the KitchenRadio daemon"""
+        if self.daemon and self.daemon_started:
+            logger.info("Stopping KitchenRadio daemon...")
+            try:
+                self.daemon.stop()
+                self.daemon_started = False
+                logger.info("✅ KitchenRadio daemon stopped")
+            except Exception as e:
+                logger.warning(f"⚠️ Error stopping daemon: {e}")
+    
     def _get_daemon(self):
         """Get or create daemon instance"""
-        if not self.daemon:
-            self.daemon = KitchenRadio()
-            if not self.daemon.start():
-                logger.error("Failed to start KitchenRadio daemon")
+        if not self.daemon_started:
+            if not self._start_daemon():
                 return None
         return self.daemon
     
@@ -92,6 +122,16 @@ class KitchenRadioWebServer:
         def index():
             """Main interface page"""
             return render_template('index.html')
+        
+        @self.app.route('/api/health')
+        def api_health():
+            """Health check endpoint"""
+            daemon_status = "running" if self.daemon_started and self.daemon else "stopped"
+            return jsonify({
+                'web_server': 'running',
+                'daemon': daemon_status,
+                'timestamp': time.time()
+            })
         
         @self.app.route('/api/status')
         def api_status():
@@ -221,13 +261,26 @@ class KitchenRadioWebServer:
     def run(self):
         """Run the web server"""
         logger.info(f"Starting KitchenRadio web server on {self.host}:{self.port}")
+        
+        # Start the KitchenRadio daemon first
+        if not self._start_daemon():
+            logger.error("Cannot start web server without KitchenRadio daemon")
+            return
+        
         try:
+            logger.info(f"🌐 Web interface available at: http://{self.host}:{self.port}")
+            logger.info("🎵 KitchenRadio daemon is running in background")
+            logger.info("🔍 Press Ctrl+C to stop both web server and daemon")
+            
             self.app.run(host=self.host, port=self.port, debug=self.debug, threaded=True)
+            
+        except KeyboardInterrupt:
+            logger.info("🛑 Received keyboard interrupt")
         except Exception as e:
-            logger.error(f"Web server error: {e}")
+            logger.error(f"❌ Web server error: {e}")
         finally:
-            if self.daemon:
-                self.daemon.stop()
+            logger.info("🔌 Shutting down web server and daemon...")
+            self._stop_daemon()
 
 
 def main():
