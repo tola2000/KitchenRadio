@@ -23,7 +23,16 @@ os.environ['DEBUG'] = 'true'
 os.environ['LOG_LEVEL'] = 'DEBUG'
 
 # Import and run the web server
-from web.kitchen_radio_web import KitchenRadioWebServer
+try:
+    from web.kitchen_radio_web import KitchenRadioWebServer
+except ImportError as e:
+    print(f"❌ Import error: {e}")
+    print("\n💡 Troubleshooting steps:")
+    print("1. Make sure you're in the KitchenRadio project root directory")
+    print("2. Install dependencies: pip install -r requirements.txt")
+    print("3. Check that the web/ directory exists with kitchen_radio_web.py")
+    print("4. Verify Python path includes project directories")
+    sys.exit(1)
 
 if __name__ == "__main__":
     print("🐛 Starting KitchenRadio Web Interface in DEBUG mode")
@@ -36,13 +45,18 @@ if __name__ == "__main__":
     print("=" * 50)
     print()
     
-    # Create and run web server in debug mode
-    server = KitchenRadioWebServer(host='127.0.0.1', port=5000, debug=True)
-    
     try:
+        # Create and run web server in debug mode
+        server = KitchenRadioWebServer(host='127.0.0.1', port=5000, debug=True)
         server.run()
     except KeyboardInterrupt:
         print("\n👋 Debug session ended")
+    except ImportError as e:
+        print(f"\n❌ Missing dependency: {e}")
+        print("💡 Try: pip install -r requirements.txt")
+        sys.exit(1)
     except Exception as e:
         print(f"\n❌ Debug session error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)

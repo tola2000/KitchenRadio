@@ -10,8 +10,14 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 
-from flask import Flask, render_template, jsonify, request, send_static_file
-from flask_cors import CORS
+from flask import Flask, render_template, jsonify, request
+
+try:
+    from flask_cors import CORS
+    CORS_AVAILABLE = True
+except ImportError:
+    CORS_AVAILABLE = False
+    print("Warning: Flask-CORS not available. Install with: pip install Flask-CORS")
 
 # Add project root to path if not already there
 project_root = Path(__file__).parent.parent
@@ -43,13 +49,23 @@ class KitchenRadioWebServer:
         self.debug = debug
         self.daemon = None
         
-        # Create Flask app
+        # Create Flask app with absolute paths
+        web_dir = Path(__file__).parent
         self.app = Flask(__name__, 
-                        template_folder='web/templates',
-                        static_folder='web/static')
+                        template_folder=str(web_dir / 'templates'),
+                        static_folder=str(web_dir / 'static'))
         
-        # Enable CORS for API endpoints
-        CORS(self.app, resources={r"/api/*": {"origins": "*"}})
+        # Enable CORS for API endpoints if available
+        if CORS_AVAILABLE:
+            CORS(self.app, resources={r"/api/*": {"origins": "*"}})
+        else:
+            # Manual CORS headers for API routes
+            @self.app.after_request
+            def after_request(response):
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+                response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS')
+                return response
         
         # Configure logging
         if not debug:
