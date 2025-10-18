@@ -1,0 +1,25 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "python.analysis.extraPaths": [
+            "./src"
+        ],
+        "python.autoComplete.extraPaths": [
+            "./src"
+        ],
+        "python.defaultInterpreterPath": "./venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "python.analysis.autoSearchPaths": true,
+        "python.analysis.diagnosticMode": "workspace"
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-python.python",
+            "ms-python.pylint"
+        ]
+    }
+}

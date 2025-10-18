@@ -6,8 +6,9 @@ Simple MPD connection test
 import sys
 from pathlib import Path
 
-# Add src to path for development
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project root to path and import config
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import project_config  # This automatically sets up the path
 
 from kitchenradio.mpd import KitchenRadioClient, PlaybackController
 
