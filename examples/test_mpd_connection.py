@@ -6,10 +6,6 @@ Simple MPD connection test
 import sys
 from pathlib import Path
 
-# Add project root to path and import config
-sys.path.insert(0, str(Path(__file__).parent.parent))
-import project_config  # This automatically sets up the path
-
 from kitchenradio.mpd import KitchenRadioClient, PlaybackController
 
 
@@ -17,7 +13,7 @@ def main():
     print("🎵 KitchenRadio MPD Connection Test")
     
     # Create client
-    client = KitchenRadioClient(host="localhost", port=6600)
+    client = KitchenRadioClient(host="192.168.1.4", port=6600)
     
     # Connect
     print("🔌 Connecting to MPD...")
