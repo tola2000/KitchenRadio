@@ -13,8 +13,6 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from enum import Enum
 
-# Import project configuration
-import project_config
 
 # Import both backends
 from kitchenradio.mpd import KitchenRadioClient as MPDClient, PlaybackController as MPDController, NowPlayingMonitor as MPDMonitor
