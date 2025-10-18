@@ -51,10 +51,12 @@ def main():
             print(f'🔊 Set volume to {new_volume}%')
             time.sleep(1)
             
-            # Change it back
-            mopidy.mixer.set_volume(volume)
-            print(f'🔊 Restored volume to {volume}%')
+    
         
+        # Change it back
+        mopidy.mixer.set_volume(20)
+        print(f'🔊 Restored volume to 20%')
+
         # Test playback state
         print('📊 Testing playback API...')
         try:
