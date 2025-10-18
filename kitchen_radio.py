@@ -187,73 +187,73 @@ class KitchenRadio:
             self.logger.warning(f"Librespot initialization failed: {e}")
             return False
     
-    def _mpd_monitor_loop(self):
-        """Background monitoring loop for MPD"""
-        self.logger.info("Starting MPD monitor loop...")
+    # def _mpd_monitor_loop(self):
+    #     """Background monitoring loop for MPD"""
+    #     self.logger.info("Starting MPD monitor loop...")
         
-        last_track = None
-        last_state = None
-        last_volume = None
+    #     last_track = None
+    #     last_state = None
+    #     last_volume = None
         
-        while self.running and self.mpd_connected:
-            try:
-                # Get current status from MPD
-                current_track = self.mpd_monitor.get_current_song()
-                current_state = self.mpd_monitor.get_status().get('state', 'unknown')
-                current_volume = self.mpd_monitor.get_volume()
+    #     while self.running and self.mpd_connected:
+    #         try:
+    #             # Get current status from MPD
+    #             #current_track = self.mpd_monitor.get_current_song()
+    #             current_state = self.mpd_monitor.get_status().get('state', 'unknown')
+    #             current_volume = self.mpd_monitor.get_volume()
                 
-                # Check for changes
-                if current_track != last_track:
-                    self._on_mpd_track_change(current_track, last_track)
-                    last_track = current_track
+    #             # Check for changes
+    #             if current_track != last_track:
+    #                 self._on_mpd_track_change(current_track, last_track)
+    #                 last_track = current_track
                 
-                if current_state != last_state:
-                    self._on_mpd_state_change(current_state, last_state)
-                    last_state = current_state
+    #             if current_state != last_state:
+    #                 self._on_mpd_state_change(current_state, last_state)
+    #                 last_state = current_state
                 
-                if current_volume != last_volume:
-                    self._on_mpd_volume_change(current_volume, last_volume)
-                    last_volume = current_volume
+    #             if current_volume != last_volume:
+    #                 self._on_mpd_volume_change(current_volume, last_volume)
+    #                 last_volume = current_volume
                 
-                time.sleep(1)  # Check every second
+    #             time.sleep(1)  # Check every second
                 
-            except Exception as e:
-                self.logger.error(f"MPD monitor loop error: {e}")
-                time.sleep(5)  # Wait longer on error
+    #         except Exception as e:
+    #             self.logger.error(f"MPD monitor loop error: {e}")
+    #             time.sleep(5)  # Wait longer on error
     
-    def _librespot_monitor_loop(self):
-        """Background monitoring loop for librespot"""
-        self.logger.info("Starting librespot monitor loop...")
+    # def _librespot_monitor_loop(self):
+    #     """Background monitoring loop for librespot"""
+    #     self.logger.info("Starting librespot monitor loop...")
         
-        last_track = None
-        last_state = None
-        last_volume = None
+    #     last_track = None
+    #     last_state = None
+    #     last_volume = None
         
-        while self.running and self.librespot_connected:
-            try:
-                # Get current status from librespot
-                current_track = self.librespot_monitor.get_current_track()
-                current_state = self.librespot_monitor.get_player_state()
-                current_volume = self.librespot_monitor.get_volume()
+    #     while self.running and self.librespot_connected:
+    #         try:
+    #             # Get current status from librespot
+    #             current_track = self.librespot_monitor.get_current_track()
+    #             current_state = self.librespot_monitor.get_player_state()
+    #             current_volume = self.librespot_monitor.get_volume()
                 
-                # Check for changes
-                if current_track != last_track:
-                    self._on_librespot_track_change(current_track, last_track)
-                    last_track = current_track
+    #             # Check for changes
+    #             if current_track != last_track:
+    #                 self._on_librespot_track_change(current_track, last_track)
+    #                 last_track = current_track
                 
-                if current_state != last_state:
-                    self._on_librespot_state_change(current_state, last_state)
-                    last_state = current_state
+    #             if current_state != last_state:
+    #                 self._on_librespot_state_change(current_state, last_state)
+    #                 last_state = current_state
                 
-                if current_volume != last_volume:
-                    self._on_librespot_volume_change(current_volume, last_volume)
-                    last_volume = current_volume
+    #             if current_volume != last_volume:
+    #                 self._on_librespot_volume_change(current_volume, last_volume)
+    #                 last_volume = current_volume
                 
-                time.sleep(1)  # Check every second
+    #             time.sleep(1)  # Check every second
                 
-            except Exception as e:
-                self.logger.error(f"Librespot monitor loop error: {e}")
-                time.sleep(5)  # Wait longer on error
+    #         except Exception as e:
+    #             self.logger.error(f"Librespot monitor loop error: {e}")
+    #             time.sleep(5)  # Wait longer on error
     
     def _on_mpd_track_change(self, current_track, last_track):
         """Handle MPD track change events"""
@@ -327,6 +327,8 @@ class KitchenRadio:
                 try:
                     self.mpd_controller.set_volume(self.config['default_volume'])
                     self.logger.info(f"Set MPD initial volume to {self.config['default_volume']}%")
+                    self.mpd_monitor.start_monitoring()
+                    self.logger.info(f"Started MPD monitoring")
                 except Exception as e:
                     self.logger.warning(f"Failed to set MPD initial volume: {e}")
             
@@ -334,21 +336,23 @@ class KitchenRadio:
                 try:
                     self.librespot_controller.set_volume(self.config['default_volume'])
                     self.logger.info(f"Set librespot initial volume to {self.config['default_volume']}%")
+                    self.librespot_monitor.start_monitoring()
+                    self.logger.info(f"Started Librespot monitoring")
                 except Exception as e:
                     self.logger.warning(f"Failed to set librespot initial volume: {e}")
         
         # Start monitoring
         self.running = True
         
-        # Start MPD monitor if connected
-        if self.mpd_connected:
-            self.mpd_monitor_thread = threading.Thread(target=self._mpd_monitor_loop, daemon=True)
-            self.mpd_monitor_thread.start()
+        # # Start MPD monitor if connected
+        # if self.mpd_connected:
+        #     self.mpd_monitor_thread = threading.Thread(target=self._mpd_monitor_loop, daemon=True)
+        #     self.mpd_monitor_thread.start()
         
-        # Start librespot monitor if connected
-        if self.librespot_connected:
-            self.librespot_monitor_thread = threading.Thread(target=self._librespot_monitor_loop, daemon=True)
-            self.librespot_monitor_thread.start()
+        # # Start librespot monitor if connected
+        # if self.librespot_connected:
+        #     self.librespot_monitor_thread = threading.Thread(target=self._librespot_monitor_loop, daemon=True)
+        #     self.librespot_monitor_thread.start()
         
         self.logger.info("KitchenRadio daemon started successfully")
         return True

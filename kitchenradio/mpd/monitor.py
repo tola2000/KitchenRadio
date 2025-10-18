@@ -26,6 +26,8 @@ class NowPlayingMonitor:
         self.client = client
         self.callbacks = {}
         self.current_track = None
+        self.current_volume = None
+        self.current_isPlaying = None
         self.current_status = {}
         self.is_monitoring = False
         self._monitor_thread = None
