@@ -31,23 +31,30 @@ class KitchenRadio:
     """
     Main KitchenRadio daemon class.
     
-    Manages connections to music backends (MPD, librespot) and provides
-    a unified interface for controlling music playback.
+    Manages connections to both music backends (MPD and librespot) simultaneously
+    and provides a unified interface for controlling music playback.
     """
     
-    def __init__(self, backend: BackendType = BackendType.MPD):
+    def __init__(self):
         """
-        Initialize KitchenRadio daemon.
-        
-        Args:
-            backend: Backend type to use (MPD or librespot)
+        Initialize KitchenRadio daemon with both backends.
         """
-        self.backend_type = backend
-        self.client = None
-        self.controller = None
-        self.monitor = None
         self.running = False
-        self.monitor_thread = None
+        
+        # Backend clients and controllers
+        self.mpd_client = None
+        self.mpd_controller = None
+        self.mpd_monitor = None
+        self.mpd_connected = False
+        
+        self.librespot_client = None
+        self.librespot_controller = None
+        self.librespot_monitor = None
+        self.librespot_connected = False
+        
+        # Monitor threads
+        self.mpd_monitor_thread = None
+        self.librespot_monitor_thread = None
         
         # Configuration from environment
         self.config = self._load_config()
@@ -60,7 +67,7 @@ class KitchenRadio:
         signal.signal(signal.SIGTERM, self._signal_handler)
         
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"KitchenRadio daemon initialized with {backend.value} backend")
+        self.logger.info("KitchenRadio daemon initialized with both MPD and librespot backends")
     
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from environment variables"""
@@ -103,140 +110,205 @@ class KitchenRadio:
         logger.info(f"Received signal {signum}, shutting down...")
         self.stop()
     
-    def _initialize_backend(self) -> bool:
+    def _initialize_backends(self) -> bool:
         """
-        Initialize the selected backend.
+        Initialize both backends.
         
         Returns:
-            True if successful, False otherwise
+            True if at least one backend was initialized successfully
         """
-        try:
-            if self.backend_type == BackendType.MPD:
-                return self._initialize_mpd()
-            elif self.backend_type == BackendType.LIBRESPOT:
-                return self._initialize_librespot()
-            else:
-                self.logger.error(f"Unknown backend type: {self.backend_type}")
-                return False
-        except Exception as e:
-            self.logger.error(f"Failed to initialize {self.backend_type.value} backend: {e}")
+        mpd_success = self._initialize_mpd()
+        librespot_success = self._initialize_librespot()
+        
+        if not mpd_success and not librespot_success:
+            self.logger.error("Failed to initialize any backend")
             return False
+        
+        if mpd_success:
+            self.logger.info("✅ MPD backend available")
+        else:
+            self.logger.warning("❌ MPD backend unavailable")
+            
+        if librespot_success:
+            self.logger.info("✅ Librespot backend available")
+        else:
+            self.logger.warning("❌ Librespot backend unavailable")
+        
+        return True
     
     def _initialize_mpd(self) -> bool:
         """Initialize MPD backend"""
         self.logger.info("Initializing MPD backend...")
         
-        self.client = MPDClient(
-            host=self.config['mpd_host'],
-            port=self.config['mpd_port'],
-            password=self.config['mpd_password'],
-            timeout=self.config['mpd_timeout']
-        )
-        
-        if not self.client.connect():
-            self.logger.error("Failed to connect to MPD")
+        try:
+            self.mpd_client = MPDClient(
+                host=self.config['mpd_host'],
+                port=self.config['mpd_port'],
+                password=self.config['mpd_password'],
+                timeout=self.config['mpd_timeout']
+            )
+            
+            if not self.mpd_client.connect():
+                self.logger.warning("Failed to connect to MPD")
+                return False
+            
+            self.mpd_controller = MPDController(self.mpd_client)
+            self.mpd_monitor = MPDMonitor(self.mpd_client)
+            self.mpd_connected = True
+            
+            self.logger.info(f"MPD backend initialized successfully - {self.config['mpd_host']}:{self.config['mpd_port']}")
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"MPD initialization failed: {e}")
             return False
-        
-        self.controller = MPDController(self.client)
-        self.monitor = MPDMonitor(self.client)
-        
-        self.logger.info(f"MPD backend initialized successfully - {self.config['mpd_host']}:{self.config['mpd_port']}")
-        return True
     
     def _initialize_librespot(self) -> bool:
         """Initialize librespot backend"""
         self.logger.info("Initializing librespot backend...")
         
-        self.client = KitchenRadioLibrespotClient(
-            host=self.config['librespot_host'],
-            port=self.config['librespot_port'],
-            timeout=self.config['librespot_timeout']
-        )
-        
-        if not self.client.connect():
-            self.logger.error("Failed to connect to librespot")
+        try:
+            self.librespot_client = KitchenRadioLibrespotClient(
+                host=self.config['librespot_host'],
+                port=self.config['librespot_port'],
+                timeout=self.config['librespot_timeout']
+            )
+            
+            if not self.librespot_client.connect():
+                self.logger.warning("Failed to connect to librespot")
+                return False
+            
+            self.librespot_controller = LibrespotController(self.librespot_client)
+            self.librespot_monitor = LibrespotMonitor(self.librespot_client)
+            self.librespot_connected = True
+            
+            self.logger.info(f"Librespot backend initialized successfully - {self.config['librespot_host']}:{self.config['librespot_port']}")
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"Librespot initialization failed: {e}")
             return False
-        
-        self.controller = LibrespotController(self.client)
-        self.monitor = LibrespotMonitor(self.client)
-        
-        self.logger.info(f"Librespot backend initialized successfully - {self.config['librespot_host']}:{self.config['librespot_port']}")
-        return True
     
-    def _monitor_loop(self):
-        """Background monitoring loop"""
-        self.logger.info("Starting monitor loop...")
+    def _mpd_monitor_loop(self):
+        """Background monitoring loop for MPD"""
+        self.logger.info("Starting MPD monitor loop...")
         
         last_track = None
         last_state = None
         last_volume = None
         
-        while self.running:
+        while self.running and self.mpd_connected:
             try:
-                # Get current status
-                if self.backend_type == BackendType.MPD:
-                    current_track = self.monitor.get_current_song()
-                    current_state = self.monitor.get_status().get('state', 'unknown')
-                else:  # librespot
-                    current_track = self.monitor.get_current_track()
-                    current_state = self.monitor.get_player_state()
-                
-                current_volume = self.monitor.get_volume()
+                # Get current status from MPD
+                current_track = self.mpd_monitor.get_current_song()
+                current_state = self.mpd_monitor.get_status().get('state', 'unknown')
+                current_volume = self.mpd_monitor.get_volume()
                 
                 # Check for changes
                 if current_track != last_track:
-                    self._on_track_change(current_track, last_track)
+                    self._on_mpd_track_change(current_track, last_track)
                     last_track = current_track
                 
                 if current_state != last_state:
-                    self._on_state_change(current_state, last_state)
+                    self._on_mpd_state_change(current_state, last_state)
                     last_state = current_state
                 
                 if current_volume != last_volume:
-                    self._on_volume_change(current_volume, last_volume)
+                    self._on_mpd_volume_change(current_volume, last_volume)
                     last_volume = current_volume
                 
                 time.sleep(1)  # Check every second
                 
             except Exception as e:
-                self.logger.error(f"Monitor loop error: {e}")
+                self.logger.error(f"MPD monitor loop error: {e}")
                 time.sleep(5)  # Wait longer on error
     
-    def _on_track_change(self, current_track, last_track):
-        """Handle track change events"""
-        if current_track:
-            if self.backend_type == BackendType.MPD:
-                title = current_track.get('title', current_track.get('file', 'Unknown'))
-                artist = current_track.get('artist', 'Unknown')
-                album = current_track.get('album', 'Unknown')
-            else:  # librespot
-                title = current_track.get('name', 'Unknown')
-                artists = current_track.get('artists', [])
-                artist = ", ".join([a.get('name', 'Unknown') for a in artists]) if artists else 'Unknown'
-                album = current_track.get('album', {}).get('name', 'Unknown')
-            
-            self.logger.info(f"🎵 Now playing: {artist} - {title} ({album})")
-        else:
-            self.logger.info("🔇 No track playing")
+    def _librespot_monitor_loop(self):
+        """Background monitoring loop for librespot"""
+        self.logger.info("Starting librespot monitor loop...")
+        
+        last_track = None
+        last_state = None
+        last_volume = None
+        
+        while self.running and self.librespot_connected:
+            try:
+                # Get current status from librespot
+                current_track = self.librespot_monitor.get_current_track()
+                current_state = self.librespot_monitor.get_player_state()
+                current_volume = self.librespot_monitor.get_volume()
+                
+                # Check for changes
+                if current_track != last_track:
+                    self._on_librespot_track_change(current_track, last_track)
+                    last_track = current_track
+                
+                if current_state != last_state:
+                    self._on_librespot_state_change(current_state, last_state)
+                    last_state = current_state
+                
+                if current_volume != last_volume:
+                    self._on_librespot_volume_change(current_volume, last_volume)
+                    last_volume = current_volume
+                
+                time.sleep(1)  # Check every second
+                
+            except Exception as e:
+                self.logger.error(f"Librespot monitor loop error: {e}")
+                time.sleep(5)  # Wait longer on error
     
-    def _on_state_change(self, current_state, last_state):
-        """Handle playback state change events"""
+    def _on_mpd_track_change(self, current_track, last_track):
+        """Handle MPD track change events"""
+        if current_track:
+            title = current_track.get('title', current_track.get('file', 'Unknown'))
+            artist = current_track.get('artist', 'Unknown')
+            album = current_track.get('album', 'Unknown')
+            self.logger.info(f"🎵 [MPD] Now playing: {artist} - {title} ({album})")
+        else:
+            self.logger.info("🔇 [MPD] No track playing")
+    
+    def _on_mpd_state_change(self, current_state, last_state):
+        """Handle MPD playback state change events"""
         state_icons = {
             'play': '▶️',
-            'Playing': '▶️',
             'pause': '⏸️',
+            'stop': '⏹️'
+        }
+        
+        icon = state_icons.get(current_state, '❓')
+        self.logger.info(f"{icon} [MPD] State changed to: {current_state}")
+    
+    def _on_mpd_volume_change(self, current_volume, last_volume):
+        """Handle MPD volume change events"""
+        if current_volume is not None and last_volume is not None:
+            self.logger.info(f"🔊 [MPD] Volume changed: {last_volume}% → {current_volume}%")
+    
+    def _on_librespot_track_change(self, current_track, last_track):
+        """Handle librespot track change events"""
+        if current_track:
+            title = current_track.get('name', 'Unknown')
+            artists = current_track.get('artists', [])
+            artist = ", ".join([a.get('name', 'Unknown') for a in artists]) if artists else 'Unknown'
+            album = current_track.get('album', {}).get('name', 'Unknown')
+            self.logger.info(f"🎵 [Spotify] Now playing: {artist} - {title} ({album})")
+        else:
+            self.logger.info("🔇 [Spotify] No track playing")
+    
+    def _on_librespot_state_change(self, current_state, last_state):
+        """Handle librespot playback state change events"""
+        state_icons = {
+            'Playing': '▶️',
             'Paused': '⏸️',
-            'stop': '⏹️',
             'Stopped': '⏹️'
         }
         
         icon = state_icons.get(current_state, '❓')
-        self.logger.info(f"{icon} State changed to: {current_state}")
+        self.logger.info(f"{icon} [Spotify] State changed to: {current_state}")
     
-    def _on_volume_change(self, current_volume, last_volume):
-        """Handle volume change events"""
+    def _on_librespot_volume_change(self, current_volume, last_volume):
+        """Handle librespot volume change events"""
         if current_volume is not None and last_volume is not None:
-            self.logger.info(f"🔊 Volume changed: {last_volume}% → {current_volume}%")
+            self.logger.info(f"🔊 [Spotify] Volume changed: {last_volume}% → {current_volume}%")
     
     def start(self) -> bool:
         """
@@ -247,22 +319,38 @@ class KitchenRadio:
         """
         self.logger.info("Starting KitchenRadio daemon...")
         
-        # Initialize backend
-        if not self._initialize_backend():
+        # Initialize both backends
+        if not self._initialize_backends():
             return False
         
-        # Set initial volume if specified
+        # Set initial volume if specified for available backends
         if self.config['default_volume'] > 0:
-            try:
-                self.controller.set_volume(self.config['default_volume'])
-                self.logger.info(f"Set initial volume to {self.config['default_volume']}%")
-            except Exception as e:
-                self.logger.warning(f"Failed to set initial volume: {e}")
+            if self.mpd_connected:
+                try:
+                    self.mpd_controller.set_volume(self.config['default_volume'])
+                    self.logger.info(f"Set MPD initial volume to {self.config['default_volume']}%")
+                except Exception as e:
+                    self.logger.warning(f"Failed to set MPD initial volume: {e}")
+            
+            if self.librespot_connected:
+                try:
+                    self.librespot_controller.set_volume(self.config['default_volume'])
+                    self.logger.info(f"Set librespot initial volume to {self.config['default_volume']}%")
+                except Exception as e:
+                    self.logger.warning(f"Failed to set librespot initial volume: {e}")
         
         # Start monitoring
         self.running = True
-        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self.monitor_thread.start()
+        
+        # Start MPD monitor if connected
+        if self.mpd_connected:
+            self.mpd_monitor_thread = threading.Thread(target=self._mpd_monitor_loop, daemon=True)
+            self.mpd_monitor_thread.start()
+        
+        # Start librespot monitor if connected
+        if self.librespot_connected:
+            self.librespot_monitor_thread = threading.Thread(target=self._librespot_monitor_loop, daemon=True)
+            self.librespot_monitor_thread.start()
         
         self.logger.info("KitchenRadio daemon started successfully")
         return True
@@ -273,65 +361,82 @@ class KitchenRadio:
         
         # Stop monitoring
         self.running = False
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            self.monitor_thread.join(timeout=5)
         
-        # Disconnect from backend
-        if self.client:
+        # Wait for monitor threads to finish
+        if self.mpd_monitor_thread and self.mpd_monitor_thread.is_alive():
+            self.mpd_monitor_thread.join(timeout=5)
+        
+        if self.librespot_monitor_thread and self.librespot_monitor_thread.is_alive():
+            self.librespot_monitor_thread.join(timeout=5)
+        
+        # Disconnect from backends
+        if self.mpd_client and self.mpd_connected:
             try:
-                self.client.disconnect()
-                self.logger.info("Disconnected from backend")
+                self.mpd_client.disconnect()
+                self.logger.info("Disconnected from MPD")
             except Exception as e:
-                self.logger.warning(f"Error disconnecting from backend: {e}")
+                self.logger.warning(f"Error disconnecting from MPD: {e}")
+        
+        if self.librespot_client and self.librespot_connected:
+            try:
+                self.librespot_client.disconnect()
+                self.logger.info("Disconnected from librespot")
+            except Exception as e:
+                self.logger.warning(f"Error disconnecting from librespot: {e}")
         
         self.logger.info("KitchenRadio daemon stopped")
     
     def get_status(self) -> Dict[str, Any]:
         """
-        Get current status information.
+        Get current status information from both backends.
         
         Returns:
-            Dictionary with current status
+            Dictionary with current status from both backends
         """
-        if not self.controller or not self.monitor:
-            return {'error': 'Daemon not initialized'}
+        status = {
+            'daemon_running': self.running,
+            'mpd': {'connected': False},
+            'librespot': {'connected': False}
+        }
         
-        try:
-            status = {
-                'backend': self.backend_type.value,
-                'connected': self.running,
-                'volume': self.monitor.get_volume(),
-            }
-            
-            if self.backend_type == BackendType.MPD:
-                mpd_status = self.monitor.get_status()
-                current_song = self.monitor.get_current_song()
+        # Get MPD status
+        if self.mpd_connected and self.mpd_monitor:
+            try:
+                mpd_status = self.mpd_monitor.get_status()
+                current_song = self.mpd_monitor.get_current_song()
                 
-                status.update({
+                status['mpd'] = {
+                    'connected': True,
                     'state': mpd_status.get('state', 'unknown'),
+                    'volume': self.mpd_monitor.get_volume(),
                     'current_song': {
                         'title': current_song.get('title', current_song.get('file', 'Unknown')) if current_song else None,
                         'artist': current_song.get('artist', 'Unknown') if current_song else None,
                         'album': current_song.get('album', 'Unknown') if current_song else None,
                     } if current_song else None
-                })
-            
-            else:  # librespot
-                current_track = self.monitor.get_current_track()
+                }
+            except Exception as e:
+                status['mpd']['error'] = str(e)
+        
+        # Get librespot status
+        if self.librespot_connected and self.librespot_monitor:
+            try:
+                current_track = self.librespot_monitor.get_current_track()
                 
-                status.update({
-                    'state': self.monitor.get_player_state(),
+                status['librespot'] = {
+                    'connected': True,
+                    'state': self.librespot_monitor.get_player_state(),
+                    'volume': self.librespot_monitor.get_volume(),
                     'current_track': {
                         'title': current_track.get('name', 'Unknown') if current_track else None,
                         'artist': ", ".join([a.get('name', 'Unknown') for a in current_track.get('artists', [])]) if current_track and current_track.get('artists') else None,
                         'album': current_track.get('album', {}).get('name', 'Unknown') if current_track else None,
                     } if current_track else None
-                })
-            
-            return status
-            
-        except Exception as e:
-            return {'error': str(e)}
+                }
+            except Exception as e:
+                status['librespot']['error'] = str(e)
+        
+        return status
     
     def run(self):
         """Run the daemon (blocking)"""
@@ -361,8 +466,6 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='KitchenRadio Music Daemon')
-    parser.add_argument('--backend', choices=['mpd', 'librespot'], default='mpd',
-                       help='Music backend to use (default: mpd)')
     parser.add_argument('--debug', action='store_true',
                        help='Enable debug logging')
     parser.add_argument('--status', action='store_true',
@@ -376,29 +479,45 @@ def main():
         os.environ['LOG_LEVEL'] = 'DEBUG'
     
     # Create daemon
-    backend = BackendType.MPD if args.backend == 'mpd' else BackendType.LIBRESPOT
-    daemon = KitchenRadioDaemon(backend=backend)
+    daemon = KitchenRadio()
     
     # Handle status request
     if args.status:
         if daemon.start():
             status = daemon.get_status()
             print(f"KitchenRadio Status:")
-            print(f"Backend: {status.get('backend', 'unknown')}")
-            print(f"Connected: {status.get('connected', False)}")
-            print(f"State: {status.get('state', 'unknown')}")
-            print(f"Volume: {status.get('volume', 'unknown')}%")
+            print(f"Daemon running: {status.get('daemon_running', False)}")
             
-            current = status.get('current_song') or status.get('current_track')
-            if current and current.get('title'):
-                print(f"Current: {current.get('artist', 'Unknown')} - {current.get('title', 'Unknown')}")
-            else:
-                print("Current: No track playing")
+            # MPD Status
+            mpd_status = status.get('mpd', {})
+            print(f"\nMPD:")
+            print(f"  Connected: {mpd_status.get('connected', False)}")
+            if mpd_status.get('connected'):
+                print(f"  State: {mpd_status.get('state', 'unknown')}")
+                print(f"  Volume: {mpd_status.get('volume', 'unknown')}%")
+                current = mpd_status.get('current_song')
+                if current and current.get('title'):
+                    print(f"  Current: {current.get('artist', 'Unknown')} - {current.get('title', 'Unknown')}")
+                else:
+                    print(f"  Current: No track playing")
+            
+            # Librespot Status
+            librespot_status = status.get('librespot', {})
+            print(f"\nSpotify (librespot):")
+            print(f"  Connected: {librespot_status.get('connected', False)}")
+            if librespot_status.get('connected'):
+                print(f"  State: {librespot_status.get('state', 'unknown')}")
+                print(f"  Volume: {librespot_status.get('volume', 'unknown')}%")
+                current = librespot_status.get('current_track')
+                if current and current.get('title'):
+                    print(f"  Current: {current.get('artist', 'Unknown')} - {current.get('title', 'Unknown')}")
+                else:
+                    print(f"  Current: No track playing")
             
             daemon.stop()
             return 0
         else:
-            print("Failed to connect to backend")
+            print("Failed to start daemon")
             return 1
     
     # Run daemon
