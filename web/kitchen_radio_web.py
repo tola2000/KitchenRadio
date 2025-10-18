@@ -4,6 +4,7 @@ KitchenRadio Web Interface - Flask-based web UI
 """
 
 import os
+import sys
 import logging
 import json
 from pathlib import Path
@@ -11,6 +12,13 @@ from typing import Dict, Any
 
 from flask import Flask, render_template, jsonify, request, send_static_file
 from flask_cors import CORS
+
+# Add project root to path if not already there
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+if str(project_root / "src") not in sys.path:
+    sys.path.insert(0, str(project_root / "src"))
 
 # Import the main daemon
 from kitchen_radio import KitchenRadio
