@@ -1,0 +1,7 @@
+# Production dependencies
+python-mpd2>=3.0.0
+requests>=2.25.0
+
+# Optional dependencies  
+# colorama>=0.4.0  # For colored console output on Windows
+# click>=8.0.0     # For CLI interfaces
