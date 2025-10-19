@@ -310,6 +310,53 @@ class KitchenRadio:
         if current_volume is not None and last_volume is not None:
             self.logger.info(f"🔊 [Spotify] Volume changed: {last_volume}% → {current_volume}%")
     
+    def _on_mpd_state_changed(self, **kwargs):
+        """
+        Handle MPD state changed events from monitor callback.
+        
+        Args:
+            **kwargs: Event data containing new_state, old_state, etc.
+        """
+        new_state = kwargs.get('new_state', 'unknown')
+        old_state = kwargs.get('old_state', 'unknown')
+        
+        state_icons = {
+            'play': '▶️',
+            'pause': '⏸️',
+            'stop': '⏹️'
+        }
+        
+        icon = state_icons.get(new_state, '❓')
+        self.logger.info(f"{icon} [MPD] State changed: {old_state} → {new_state}")
+        
+        # If source switching is enabled, handle exclusive playback
+        if new_state == 'play':
+            self.set_source(BackendType.MPD)
+           
+    
+    def _on_librespot_state_changed(self, **kwargs):
+        """
+        Handle librespot state changed events from monitor callback.
+        
+        Args:
+            **kwargs: Event data containing new_state, old_state, etc.
+        """
+        new_state = kwargs.get('new_state', 'unknown')
+        old_state = kwargs.get('old_state', 'unknown')
+        
+        state_icons = {
+            'Playing': '▶️',
+            'Paused': '⏸️',
+            'Stopped': '⏹️'
+        }
+        
+        icon = state_icons.get(new_state, '❓')
+        self.logger.info(f"{icon} [Spotify] State changed: {old_state} → {new_state}")
+        
+        # If source switching is enabled, handle exclusive playback
+        if new_state == 'play':
+            self.set_source(BackendType.LIBRESPOT)
+
     # Source management methods
     def set_source(self, source: BackendType) -> bool:
         """
@@ -421,14 +468,12 @@ class KitchenRadio:
         if not self._initialize_backends():
             return False
         
-        # Set initial volume if specified for available backends
+        # Set initial volume if specified
         if self.config['default_volume'] > 0:
             if self.mpd_connected:
                 try:
                     self.mpd_controller.set_volume(self.config['default_volume'])
                     self.logger.info(f"Set MPD initial volume to {self.config['default_volume']}%")
-                    self.mpd_monitor.start_monitoring()
-                    self.logger.info(f"Started MPD monitoring")
                 except Exception as e:
                     self.logger.warning(f"Failed to set MPD initial volume: {e}")
             
@@ -436,10 +481,27 @@ class KitchenRadio:
                 try:
                     self.librespot_controller.set_volume(self.config['default_volume'])
                     self.logger.info(f"Set librespot initial volume to {self.config['default_volume']}%")
-                    self.librespot_monitor.start_monitoring()
-                    self.logger.info(f"Started Librespot monitoring")
                 except Exception as e:
                     self.logger.warning(f"Failed to set librespot initial volume: {e}")
+        
+        # Start monitoring for available backends (always, regardless of volume setting)
+        if self.mpd_connected:
+            try:
+                # Add state change listener before starting monitoring
+                self.mpd_monitor.add_callback('state_changed', self._on_mpd_state_changed)
+                self.mpd_monitor.start_monitoring()
+                self.logger.info(f"Started MPD monitoring with state change listener")
+            except Exception as e:
+                self.logger.warning(f"Failed to start MPD monitoring: {e}")
+        
+        if self.librespot_connected:
+            try:
+                # Add state change listener before starting monitoring
+                self.librespot_monitor.add_callback('state_changed', self._on_librespot_state_changed)
+                self.librespot_monitor.start_monitoring()
+                self.logger.info(f"Started Librespot monitoring with state change listener")
+            except Exception as e:
+                self.logger.warning(f"Failed to start librespot monitoring: {e}")
         
         # Start monitoring
         self.running = True
