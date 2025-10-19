@@ -6,6 +6,8 @@ class KitchenRadioApp {
         this.mpdState = 'unknown';
         this.librespotState = 'unknown';
         this.selectedPlaylist = '';
+        this.currentSource = null;
+        this.availableSources = [];
         
         this.init();
     }
@@ -58,6 +60,9 @@ class KitchenRadioApp {
     updateUI(status) {
         // Update daemon status
         this.updateDaemonStatus(status.daemon_running ? 'connected' : 'disconnected');
+        
+        // Update source selector
+        this.updateSourceSelector(status.current_source, status.available_sources || []);
         
         // Update MPD panel
         this.updateMPDPanel(status.mpd || {});
@@ -188,6 +193,70 @@ class KitchenRadioApp {
                 <div class="artist"></div>
                 <div class="album"></div>
             `;
+        }
+    }
+    
+    updateSourceSelector(currentSource, availableSources) {
+        this.currentSource = currentSource;
+        this.availableSources = availableSources;
+        
+        const selector = document.getElementById('source-select');
+        const currentValue = selector.value;
+        
+        // Clear and rebuild options
+        selector.innerHTML = '<option value="">-- No Source --</option>';
+        
+        // Add available sources
+        availableSources.forEach(source => {
+            const option = document.createElement('option');
+            if (source === 'mpd') {
+                option.value = 'mpd';
+                option.textContent = 'MPD Player';
+            } else if (source === 'librespot' || source === 'spotify') {
+                option.value = 'spotify';
+                option.textContent = 'Spotify';
+            }
+            selector.appendChild(option);
+        });
+        
+        // Set current selection
+        if (currentSource) {
+            const sourceValue = currentSource === 'librespot' ? 'spotify' : currentSource;
+            selector.value = sourceValue;
+        } else {
+            selector.value = '';
+        }
+        
+        // Enable/disable selector
+        selector.disabled = availableSources.length === 0;
+    }
+    
+    async setSource(source) {
+        if (!source) {
+            this.showError('Please select a source');
+            return false;
+        }
+        
+        try {
+            const response = await fetch(`/api/source/${source}`, {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showSuccess(`Source set to ${source.toUpperCase()}`);
+                // Refresh status to update UI
+                setTimeout(() => this.refreshStatus(), 500);
+                return true;
+            } else {
+                this.showError(result.error || 'Failed to set source');
+                return false;
+            }
+        } catch (error) {
+            console.error('Set source error:', error);
+            this.showError('Network error');
+            return false;
         }
     }
     
@@ -356,6 +425,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Global control functions for buttons
+
+// Source Controls
+function sourceChanged() {
+    const selector = document.getElementById('source-select');
+    const selectedSource = selector.value;
+    
+    if (selectedSource && selectedSource !== app.currentSource) {
+        app.setSource(selectedSource);
+    }
+}
 
 // MPD Controls
 function mpdControl(action) {

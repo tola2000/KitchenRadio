@@ -310,6 +310,104 @@ class KitchenRadio:
         if current_volume is not None and last_volume is not None:
             self.logger.info(f"🔊 [Spotify] Volume changed: {last_volume}% → {current_volume}%")
     
+    # Source management methods
+    def set_source(self, source: BackendType) -> bool:
+        """
+        Set the active audio source, stopping the currently active one.
+        
+        Args:
+            source: Backend type to activate (MPD or LIBRESPOT)
+            
+        Returns:
+            True if source was set successfully
+        """
+        self.logger.info(f"Setting audio source to: {source.value}")
+        
+        # Validate source
+        if source not in [BackendType.MPD, BackendType.LIBRESPOT]:
+            self.logger.error(f"Invalid source: {source}")
+            return False
+        
+        # Check if the requested backend is available
+        if source == BackendType.MPD and not self.mpd_connected:
+            self.logger.error("Cannot set source to MPD: not connected")
+            return False
+        
+        if source == BackendType.LIBRESPOT and not self.librespot_connected:
+            self.logger.error("Cannot set source to librespot: not connected")
+            return False
+        
+        # Stop current source if different
+        if self.source and self.source != source:
+            self._stop_source(self.source)
+        
+        # Set new source
+        self.source = source
+        self.logger.info(f"✅ Active source set to: {source.value}")
+        return True
+    
+    def get_current_source(self) -> Optional[BackendType]:
+        """
+        Get the currently active audio source.
+        
+        Returns:
+            Current source or None if no source is active
+        """
+        return self.source
+    
+    def get_available_sources(self) -> list[BackendType]:
+        """
+        Get list of available (connected) audio sources.
+        
+        Returns:
+            List of available backend types
+        """
+        sources = []
+        if self.mpd_connected:
+            sources.append(BackendType.MPD)
+        if self.librespot_connected:
+            sources.append(BackendType.LIBRESPOT)
+        return sources
+    
+    def _stop_source(self, source: BackendType):
+        """
+        Stop playback on the specified source.
+        
+        Args:
+            source: Backend type to stop
+        """
+        self.logger.info(f"Stopping playback on: {source.value}")
+        
+        try:
+            if source == BackendType.MPD and self.mpd_connected:
+                self.mpd_controller.stop()
+                self.logger.info("🛑 Stopped MPD playback")
+                
+            elif source == BackendType.LIBRESPOT and self.librespot_connected:
+                self.librespot_controller.stop()
+                self.logger.info("🛑 Stopped Spotify playback")
+                
+        except Exception as e:
+            self.logger.warning(f"Error stopping {source.value}: {e}")
+    
+    def switch_to_mpd(self) -> bool:
+        """
+        Switch active source to MPD.
+        
+        Returns:
+            True if successful
+        """
+        return self.set_source(BackendType.MPD)
+    
+    def switch_to_spotify(self) -> bool:
+        """
+        Switch active source to Spotify (librespot).
+        
+        Returns:
+            True if successful
+        """
+        return self.set_source(BackendType.LIBRESPOT)
+
     def start(self) -> bool:
         """
         Start the KitchenRadio daemon.
@@ -390,6 +488,104 @@ class KitchenRadio:
         
         self.logger.info("KitchenRadio daemon stopped")
     
+    # Source management methods
+    def set_source(self, source: BackendType) -> bool:
+        """
+        Set the active audio source, stopping the currently active one.
+        
+        Args:
+            source: Backend type to activate (MPD or LIBRESPOT)
+            
+        Returns:
+            True if source was set successfully
+        """
+        self.logger.info(f"Setting audio source to: {source.value}")
+        
+        # Validate source
+        if source not in [BackendType.MPD, BackendType.LIBRESPOT]:
+            self.logger.error(f"Invalid source: {source}")
+            return False
+        
+        # Check if the requested backend is available
+        if source == BackendType.MPD and not self.mpd_connected:
+            self.logger.error("Cannot set source to MPD: not connected")
+            return False
+        
+        if source == BackendType.LIBRESPOT and not self.librespot_connected:
+            self.logger.error("Cannot set source to librespot: not connected")
+            return False
+        
+        # Stop current source if different
+        if self.source and self.source != source:
+            self._stop_source(self.source)
+        
+        # Set new source
+        self.source = source
+        self.logger.info(f"✅ Active source set to: {source.value}")
+        return True
+    
+    def get_current_source(self) -> Optional[BackendType]:
+        """
+        Get the currently active audio source.
+        
+        Returns:
+            Current source or None if no source is active
+        """
+        return self.source
+    
+    def get_available_sources(self) -> list[BackendType]:
+        """
+        Get list of available (connected) audio sources.
+        
+        Returns:
+            List of available backend types
+        """
+        sources = []
+        if self.mpd_connected:
+            sources.append(BackendType.MPD)
+        if self.librespot_connected:
+            sources.append(BackendType.LIBRESPOT)
+        return sources
+    
+    def _stop_source(self, source: BackendType):
+        """
+        Stop playback on the specified source.
+        
+        Args:
+            source: Backend type to stop
+        """
+        self.logger.info(f"Stopping playback on: {source.value}")
+        
+        try:
+            if source == BackendType.MPD and self.mpd_connected:
+                self.mpd_controller.stop()
+                self.logger.info("🛑 Stopped MPD playback")
+                
+            elif source == BackendType.LIBRESPOT and self.librespot_connected:
+                self.librespot_controller.stop()
+                self.logger.info("🛑 Stopped Spotify playback")
+                
+        except Exception as e:
+            self.logger.warning(f"Error stopping {source.value}: {e}")
+    
+    def switch_to_mpd(self) -> bool:
+        """
+        Switch active source to MPD.
+        
+        Returns:
+            True if successful
+        """
+        return self.set_source(BackendType.MPD)
+    
+    def switch_to_spotify(self) -> bool:
+        """
+        Switch active source to Spotify (librespot).
+        
+        Returns:
+            True if successful
+        """
+        return self.set_source(BackendType.LIBRESPOT)
+
     def get_status(self) -> Dict[str, Any]:
         """
         Get current status information from both backends.
@@ -399,6 +595,8 @@ class KitchenRadio:
         """
         status = {
             'daemon_running': self.running,
+            'current_source': self.source.value if self.source else None,
+            'available_sources': [s.value for s in self.get_available_sources()],
             'mpd': {'connected': False},
             'librespot': {'connected': False}
         }

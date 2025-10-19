@@ -148,6 +148,67 @@ class KitchenRadioWebServer:
                 logger.error(f"Error getting status: {e}")
                 return jsonify({'error': str(e)}), 500
         
+        @self.app.route('/api/source')
+        def api_get_source():
+            """Get current audio source"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'error': 'Failed to connect to daemon'}), 500
+            
+            try:
+                current_source = daemon.get_current_source()
+                available_sources = daemon.get_available_sources()
+                
+                return jsonify({
+                    'success': True,
+                    'current_source': current_source.value if current_source else None,
+                    'available_sources': [s.value for s in available_sources]
+                })
+            except Exception as e:
+                logger.error(f"Error getting source: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+        
+        @self.app.route('/api/source/<source_name>', methods=['POST'])
+        def api_set_source(source_name):
+            """Set audio source"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'error': 'Failed to connect to daemon'}), 500
+            
+            # Import here to avoid circular imports
+            from kitchenradio.radio.kitchen_radio import BackendType
+            
+            try:
+                # Validate source name
+                if source_name.lower() == 'mpd':
+                    source = BackendType.MPD
+                elif source_name.lower() == 'spotify' or source_name.lower() == 'librespot':
+                    source = BackendType.LIBRESPOT
+                else:
+                    return jsonify({
+                        'success': False, 
+                        'error': f'Invalid source: {source_name}. Valid sources: mpd, spotify'
+                    }), 400
+                
+                # Set the source
+                success = daemon.set_source(source)
+                
+                if success:
+                    return jsonify({
+                        'success': True,
+                        'message': f'Source set to {source.value}',
+                        'current_source': source.value
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Failed to set source to {source.value}'
+                    }), 400
+                    
+            except Exception as e:
+                logger.error(f"Error setting source: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+
         @self.app.route('/api/mpd/<action>', methods=['POST'])
         def api_mpd_control(action):
             """Control MPD backend"""
