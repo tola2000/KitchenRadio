@@ -252,10 +252,11 @@ class KitchenRadioClient:
     
     def get_all_playlists(self) -> List[Dict[str, Any]]:
         """
-        Get all stored playlists.
+        Get all stored playlists with metadata.
         
         Returns:
             List of playlist dicts with 'playlist' and 'last-modified' keys
+            Note: Controller layer strips metadata and returns just names
         """
         try:
             return [dict(playlist) for playlist in self.client.listplaylists()]
