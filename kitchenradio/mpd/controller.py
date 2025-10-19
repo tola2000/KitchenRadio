@@ -127,19 +127,19 @@ class PlaybackController:
         """
         return self.client.get_volume()
     
-    def get_state(self) -> Optional[str]:
-        """
-        Get current playback state.
+    # def get_state(self) -> Optional[str]:
+    #     """
+    #     Get current playback state.
         
-        Returns:
-            State string ('play', 'pause', 'stop') or None
-        """
-        try:
-            status = self.client.get_status()
-            return status.get('state')
-        except Exception as e:
-            logger.error(f"Error getting state: {e}")
-            return None
+    #     Returns:
+    #         State string ('play', 'pause', 'stop') or None
+    #     """
+    #     try:
+    #         status = self.client.get_status()
+    #         return status.get('state')
+    #     except Exception as e:
+    #         logger.error(f"Error getting state: {e}")
+    #         return None
     
     def add_to_playlist(self, uri: str) -> bool:
         """
@@ -182,20 +182,20 @@ class PlaybackController:
         # Extract just the playlist names from the metadata
         return [playlist.get('playlist', '') for playlist in playlists_data if 'playlist' in playlist]
     
-    def get_current_song(self) -> Optional[Dict[str, Any]]:
-        """
-        Get current song info.
+    # def get_current_song(self) -> Optional[Dict[str, Any]]:
+    #     """
+    #     Get current song info.
         
-        Returns:
-            Song info dict or None
-        """
-        return self.client.get_current_song()
+    #     Returns:
+    #         Song info dict or None
+    #     """
+    #     return self.client.get_current_song()
     
-    def get_status(self) -> Dict[str, Any]:
-        """
-        Get player status.
+    # def get_status(self) -> Dict[str, Any]:
+    #     """
+    #     Get player status.
         
-        Returns:
-            Status dict
-        """
-        return self.client.get_status()
+    #     Returns:
+    #         Status dict
+    #     """
+    #     return self.client.get_status()

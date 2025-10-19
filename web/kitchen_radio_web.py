@@ -298,11 +298,11 @@ class KitchenRadioWebServer:
                 controller = daemon.librespot_controller
                 
                 if action == 'play':
-                    result = controller.play()
+                    result = controller.resume()
+                elif action == 'stop':
+                    result = controller.pause()
                 elif action == 'pause':
                     result = controller.pause()
-                elif action == 'stop':
-                    result = controller.stop() if hasattr(controller, 'stop') else False
                 elif action == 'next':
                     result = controller.next_track()
                 elif action == 'previous':

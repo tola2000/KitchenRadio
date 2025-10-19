@@ -41,22 +41,24 @@ class LibrespotController:
         """
         return self.client.pause()
     
-    def toggle_playback(self) -> bool:
+    def resume(self) -> bool:
+        """
+        Pause playback.
+        
+        Returns:
+            True if successful
+        """
+        return self.client.resume()
+    
+    def playpause(self) -> bool:
         """
         Toggle between play and pause.
         
         Returns:
             True if successful
         """
-        try:
-            status = self.get_status()
-            if status and status.get('is_playing'):
-                return self.pause()
-            else:
-                return self.play()
-        except Exception as e:
-            logger.error(f"Error toggling playback: {e}")
-            return False
+        return self.client.playpause()
+
     
     def next_track(self) -> bool:
         """
@@ -137,85 +139,85 @@ class LibrespotController:
             logger.error(f"Error decreasing volume: {e}")
             return False
     
-    def get_status(self) -> Optional[Dict[str, Any]]:
-        """
-        Get player status.
+    # def get_status(self) -> Optional[Dict[str, Any]]:
+    #     """
+    #     Get player status.
         
-        Returns:
-            Status dict or None if error
-        """
-        return self.client.get_status()
+    #     Returns:
+    #         Status dict or None if error
+    #     """
+    #     return self.client.get_status()
     
-    def get_current_track(self) -> Optional[Dict[str, Any]]:
-        """
-        Get current track info.
+    # def get_current_track(self) -> Optional[Dict[str, Any]]:
+    #     """
+    #     Get current track info.
         
-        Returns:
-            Track info dict or None
-        """
-        return self.client.get_current_track()
+    #     Returns:
+    #         Track info dict or None
+    #     """
+    #     return self.client.get_current_track()
     
-    def is_playing(self) -> bool:
-        """
-        Check if currently playing.
+    # def is_playing(self) -> bool:
+    #     """
+    #     Check if currently playing.
         
-        Returns:
-            True if playing
-        """
-        try:
-            status = self.get_status()
-            return status.get('is_playing', False) if status else False
-        except Exception as e:
-            logger.error(f"Error checking playback state: {e}")
-            return False
+    #     Returns:
+    #         True if playing
+    #     """
+    #     try:
+    #         status = self.get_status()
+    #         return status.get('is_playing', False) if status else False
+    #     except Exception as e:
+    #         logger.error(f"Error checking playback state: {e}")
+    #         return False
     
-    def get_playback_state(self) -> str:
-        """
-        Get current playback state.
+    # def get_playback_state(self) -> str:
+    #     """
+    #     Get current playback state.
         
-        Returns:
-            State string ('play', 'pause', 'stop')
-        """
-        try:
-            status = self.get_status()
-            if not status:
-                return 'stop'
+    #     Returns:
+    #         State string ('play', 'pause', 'stop')
+    #     """
+    #     try:
+    #         status = self.get_status()
+    #         if not status:
+    #             return 'stop'
             
-            if status.get('is_playing'):
-                return 'play'
-            elif status.get('track'):
-                return 'pause'
-            else:
-                return 'stop'
-        except Exception as e:
-            logger.error(f"Error getting playback state: {e}")
-            return 'stop'
+    #         if status.get('is_playing'):
+    #             return 'play'
+    #         elif status.get('track'):
+    #             return 'pause'
+    #         else:
+    #             return 'stop'
+    #     except Exception as e:
+    #         logger.error(f"Error getting playback state: {e}")
+    #         return 'stop'
     
-    def get_track_info(self) -> Dict[str, Any]:
-        """
-        Get formatted track information.
+    # def get_track_info(self) -> Dict[str, Any]:
+    #     """
+    #     Get formatted track information.
         
-        Returns:
-            Formatted track info dict
-        """
-        try:
-            status = self.get_status()
-            if not status or not status.get('track'):
-                return {'name': 'No Track', 'artists': '', 'album': '', 'uri': ''}
+    #     Returns:
+    #         Formatted track info dict
+    #     """
+    #     try:
+    #         status = self.get_status()
+    #         if not status or not status.get('track'):
+    #             return {'name': 'No Track', 'artists': '', 'album': '', 'uri': ''}
             
-            track = status['track']
-            return {
-                'name': track.get('name', 'Unknown Track'),
-                'artists': ', '.join([artist.get('name', 'Unknown') for artist in track.get('artists', [])]),
-                'album': track.get('album', {}).get('name', 'Unknown Album'),
-                'uri': track.get('uri', ''),
-                'duration_ms': track.get('duration_ms', 0),
-                'progress_ms': status.get('progress_ms', 0),
-                'is_playing': status.get('is_playing', False)
-            }
-        except Exception as e:
-            logger.error(f"Error getting track info: {e}")
-            return {'name': 'Error', 'artists': '', 'album': '', 'uri': ''}
+    #         track = status['track']
+    #         return {
+    #             'name': track.get('name', 'Unknown Track'),
+    #             'artists': ', '.join([artist.get('name', 'Unknown') for artist in track.get('artists', [])]),
+    #             'album': track.get('album', {}).get('name', 'Unknown Album'),
+    #             'uri': track.get('uri', ''),
+    #             'duration_ms': track.get('duration_ms', 0),
+    #             'progress_ms': status.get('progress_ms', 0),
+    #             'is_playing': status.get('is_playing', False)
+    #         }
+    #     except Exception as e:
+    #         logger.error(f"Error getting track info: {e}")
+    #         return {'name': 'Error', 'artists': '', 'album': '', 'uri': ''}
     
     def get_devices(self) -> Optional[Dict[str, Any]]:
         """

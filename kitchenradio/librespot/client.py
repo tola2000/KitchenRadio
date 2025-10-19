@@ -130,35 +130,65 @@ class KitchenRadioLibrespotClient:
     def pause(self) -> bool:
         """Pause playback."""
         try:
-            result = self._send_request("/playback", method="POST", data={"play": False})
-            if result is not None:
-                logger.info("Paused playback")
-                return True
-            return False
+            result = self._send_request("/player/pause", method="POST", data={"play": False})
+
+            logger.info("Paused playback")
+            return True
+
         except Exception as e:
             logger.error(f"Error pausing playback: {e}")
             return False
-    
+
+    def playpause(self) -> bool:
+        """playpause playback."""
+        try:
+            result = self._send_request("/player/playpause", method="POST", data={"play": False})
+
+            logger.info("playpause playback")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error playpause playback: {e}")
+            return False
+
+
+    def resume(self) -> bool:
+        """Pause playback."""
+        try:
+            result = self._send_request("/player/resume", method="POST", data={"play": False})
+
+            logger.info("resume playback")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error resume playback: {e}")
+            return False
+
     def next_track(self) -> bool:
         """Skip to next track."""
         try:
-            result = self._send_request("/playback/next", method="POST")
-            if result is not None:
-                logger.info("Skipped to next track")
-                return True
-            return False
+            result = self._send_request("/player/next", method="POST")
+            # if result is not None:
+            #     logger.info("Skipped to next track")
+            #     return True
+            # return False
+            logger.info("Skipped to next track")
+            return True
         except Exception as e:
             logger.error(f"Error skipping to next: {e}")
             return False
-    
+        
+
     def previous_track(self) -> bool:
         """Skip to previous track."""
         try:
-            result = self._send_request("/playback/prev", method="POST")
-            if result is not None:
-                logger.info("Skipped to previous track")
-                return True
-            return False
+            result = self._send_request("/player/prev", method="POST")
+            # if result is not None:
+            #     logger.info("Skipped to previous track")
+            #     return True
+            # return False
+            logger.info("Skipped to previous track")
+            return True
         except Exception as e:
             logger.error(f"Error skipping to previous: {e}")
             return False

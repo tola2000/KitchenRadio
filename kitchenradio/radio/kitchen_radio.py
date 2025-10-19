@@ -623,8 +623,8 @@ class KitchenRadio:
         # Get librespot status
         if self.librespot_connected and self.librespot_monitor:
             try:
-                current_track = self.librespot_controller.get_current_track()
-                librespot_status = self.librespot_controller.get_status()
+                current_track = self.librespot_monitor.get_current_track()
+                librespot_status = self.librespot_monitor.get_status()
                 
                 # Debug logging
                 self.logger.debug(f"Librespot current_track: {current_track}")
@@ -639,10 +639,11 @@ class KitchenRadio:
                     ) if librespot_status else 'unknown',
                     'volume': librespot_status.get('volume', 'unknown') if librespot_status else 'unknown',
                     'current_track': {
-                        'title': current_track.get('name', 'Unknown') if current_track else None,
-                        'artist': ", ".join(current_track.get('artist_names', [])) if current_track and current_track.get('artist_names') else None,
-                        'album': current_track.get('album_name', 'Unknown') if current_track else None, 
+                        'title': current_track.get('title', 'Unknown') if current_track else None,
+                        'artist': current_track.get('artist', 'Unknown') if current_track else None,
+                        'album': current_track.get('album', 'Unknown') if current_track else None, 
                     } if current_track else None,
+
                 }
             except Exception as e:
                 self.logger.error(f"Error getting librespot status: {e}")

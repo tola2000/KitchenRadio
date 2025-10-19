@@ -73,9 +73,10 @@ class LibrespotMonitor:
         
         return {
             'name': track.get('name', 'Unknown Track'),
-            'artists': ', '.join([artist.get('name', 'Unknown') for artist in track.get('artists', [])]),
-            'album': track.get('album', {}).get('name', 'Unknown Album'),
             'uri': track.get('uri', ''),
+            'title': track.get('name', 'Unknown') if track else None,
+            'artist': ", ".join(track.get('artist_names', [])) if track and track.get('artist_names') else None,
+            'album': track.get('album_name', 'Unknown') if track else None, 
             'duration_ms': track.get('duration_ms', 0),
             'progress_ms': status.get('progress_ms', 0),
             'is_playing': status.get('is_playing', False)
@@ -213,7 +214,15 @@ class LibrespotMonitor:
         except Exception as e:
             logger.error(f"Error getting current track: {e}")
             return None
-    
+        
+    def get_status(self) -> Optional[Dict[str, Any]]:
+        "Gets current status"
+        try:
+            return self.current_status
+        except Exception as e:
+            logger.error(f"Error getting current status: {e}")
+            return None
+           
     def print_current_track(self):
         """Print current track to console."""
         track = self.get_current_track()
