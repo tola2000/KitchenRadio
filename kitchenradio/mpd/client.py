@@ -231,6 +231,17 @@ class KitchenRadioClient:
             self.check_connection_error(e)
             return False
     
+    # Playlist management
+    def load_playlist(self, playlist: str) -> bool:
+        """Load the  playlist."""
+        try:
+            self.client.load(playlist)
+            return True
+        except Exception as e:
+            logger.error(f"Error loading playlist: {e}")
+            self.check_connection_error(e)
+            return False
+
     def add_to_playlist(self, uri: str) -> bool:
         """Add URI to playlist."""
         try:

@@ -41,6 +41,25 @@ class PlaybackController:
                 return False
         
         return self.client.play()
+
+    def play_playlist(self, playlist: Optional[str] = None) -> bool:
+        """
+        Start playback.
+        
+        Args:
+            uri: URI to play (if None, resume current)
+            
+        Returns:
+            True if successful
+        """
+        if playlist:
+            # Clear playlist and add new URI
+            if not self.client.clear_playlist():
+                return False
+            if not self.client.load_playlist(playlist):
+                return False
+        
+        return self.client.play()
     
     def pause(self) -> bool:
         """

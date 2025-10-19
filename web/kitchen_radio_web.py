@@ -218,16 +218,7 @@ class KitchenRadioWebServer:
             try:
                 controller = daemon.mpd_controller
                 
-                # Clear current playlist and load the selected one
-                if not controller.clear_playlist():
-                    return jsonify({'error': 'Failed to clear current playlist'}), 500
-                
-                # Load the playlist (this requires adding a method to the client)
-                client = daemon.mpd_client
-                client.client.load(playlist_name)
-                
-                # Start playing
-                result = controller.play()
+                result = controller.play_playlist(playlist_name)
                 
                 return jsonify({'success': result, 'message': f'Loaded playlist: {playlist_name}'})
                 
