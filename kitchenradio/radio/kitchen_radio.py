@@ -624,18 +624,24 @@ class KitchenRadio:
         if self.librespot_connected and self.librespot_monitor:
             try:
                 current_track = self.librespot_controller.get_current_track()
-                librespot_status = self.mpd_controller.get_status()
+                librespot_status = self.librespot_controller.get_status()
+                
+                # Debug logging
+                self.logger.debug(f"Librespot current_track: {current_track}")
+                self.logger.debug(f"Librespot status: {librespot_status}")
+                
                 status['librespot'] = {
                     'connected': True,
-                    'state': librespot_status.get('state', 'unknown'),
+                    'state': librespot_status.get('state', 'unknown') if librespot_status else 'unknown',
                     'volume': self.librespot_controller.get_volume(),
-                    # 'current_track': {
-                    #     'title': current_track.get('name', 'Unknown') if current_track else None,
-                    #     'artist': ", ".join([a.get('name', 'Unknown') for a in current_track.get('artists', [])]) if current_track and current_track.get('artists') else None,
-                    #     'album': current_track.get('album', {}).get('name', 'Unknown') if current_track else None,
-                    # } if current_track else None
+                    'current_track': {
+                        'title': current_track.get('name', 'Unknown') if current_track else None,
+                        'artist': ", ".join([a.get('name', 'Unknown') for a in current_track.get('artists', [])]) if current_track and current_track.get('artists') else None,
+                        'album': current_track.get('album', {}).get('name', 'Unknown') if current_track else None,
+                    } if current_track else None
                 }
             except Exception as e:
+                self.logger.error(f"Error getting librespot status: {e}")
                 status['librespot']['error'] = str(e)
         
         return status
