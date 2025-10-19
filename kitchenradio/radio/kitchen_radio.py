@@ -49,6 +49,8 @@ class KitchenRadio:
         self.librespot_controller = None
         self.librespot_monitor = None
         self.librespot_connected = False
+
+        self.source = None  # Current active source backend
         
         # Monitor threads
         self.mpd_monitor_thread = None

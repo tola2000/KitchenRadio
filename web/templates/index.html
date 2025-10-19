@@ -65,6 +65,25 @@
                             <i class="fas fa-volume-up"></i>
                         </button>
                     </div>
+                    
+                    <div class="playlist-controls">
+                        <div class="playlist-selector">
+                            <label for="mpd-playlist-select">
+                                <i class="fas fa-list"></i> Stored Playlists:
+                            </label>
+                            <div class="playlist-input-group">
+                                <select id="mpd-playlist-select" onchange="mpdPlaylistChanged()">
+                                    <option value="">-- Select Playlist --</option>
+                                </select>
+                                <button class="playlist-btn" onclick="mpdLoadPlaylist()" title="Load Playlist">
+                                    <i class="fas fa-play-circle"></i>
+                                </button>
+                                <button class="playlist-btn refresh" onclick="mpdRefreshPlaylists()" title="Refresh Playlists">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="playback-state">

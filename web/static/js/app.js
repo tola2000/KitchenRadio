@@ -5,6 +5,7 @@ class KitchenRadioApp {
         this.statusUpdateInterval = null;
         this.mpdState = 'unknown';
         this.librespotState = 'unknown';
+        this.selectedPlaylist = '';
         
         this.init();
     }
@@ -15,6 +16,9 @@ class KitchenRadioApp {
         
         // Initial status fetch
         this.refreshStatus();
+        
+        // Load playlists
+        this.loadPlaylists();
         
         console.log('KitchenRadio Web Interface initialized');
     }
@@ -247,6 +251,77 @@ class KitchenRadioApp {
         }
     }
     
+    async loadPlaylists() {
+        try {
+            const response = await fetch('/api/mpd/playlists');
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.playlists) {
+                    this.updatePlaylistSelector(result.playlists);
+                } else {
+                    console.error('Failed to load playlists:', result.error);
+                }
+            } else {
+                console.error('Failed to fetch playlists');
+            }
+        } catch (error) {
+            console.error('Playlist fetch error:', error);
+        }
+    }
+    
+    updatePlaylistSelector(playlists) {
+        const selector = document.getElementById('mpd-playlist-select');
+        
+        // Clear existing options except the first one
+        selector.innerHTML = '<option value="">-- Select Playlist --</option>';
+        
+        // Add playlist options
+        playlists.forEach(playlist => {
+            const option = document.createElement('option');
+            option.value = playlist;
+            option.textContent = playlist;
+            selector.appendChild(option);
+        });
+        
+        console.log(`Loaded ${playlists.length} playlists`);
+    }
+    
+    async loadSelectedPlaylist() {
+        const selector = document.getElementById('mpd-playlist-select');
+        const playlistName = selector.value;
+        
+        if (!playlistName) {
+            this.showError('Please select a playlist');
+            return false;
+        }
+        
+        try {
+            const response = await fetch('/api/mpd/load_playlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ playlist: playlistName })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.showSuccess(`Loaded playlist: ${playlistName}`);
+                // Refresh status to update current track display
+                setTimeout(() => this.refreshStatus(), 500);
+                return true;
+            } else {
+                this.showError(result.error || 'Failed to load playlist');
+                return false;
+            }
+        } catch (error) {
+            console.error('Load playlist error:', error);
+            this.showError('Network error');
+            return false;
+        }
+    }
+    
     showToast(message, type = 'success') {
         const toast = document.getElementById('toast');
         toast.textContent = message;
@@ -318,6 +393,22 @@ function librespotSetVolume(volume) {
 
 function librespotVolumeControl(action) {
     app.sendVolumeCommand('librespot', action);
+}
+
+// Playlist Controls
+function mpdPlaylistChanged() {
+    // This function is called when playlist selection changes
+    // Could be used for preview or other functionality
+    const selector = document.getElementById('mpd-playlist-select');
+    app.selectedPlaylist = selector.value;
+}
+
+function mpdLoadPlaylist() {
+    app.loadSelectedPlaylist();
+}
+
+function mpdRefreshPlaylists() {
+    app.loadPlaylists();
 }
 
 // General Controls

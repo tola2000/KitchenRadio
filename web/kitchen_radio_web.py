@@ -28,7 +28,7 @@ except ImportError:
 #     sys.path.insert(0, str(project_root / "src"))
 
 # Import the main daemon
-from kitchenradio.kitchen_radio import KitchenRadio
+from kitchenradio.radio.kitchen_radio import KitchenRadio
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +184,55 @@ class KitchenRadioWebServer:
                 
             except Exception as e:
                 logger.error(f"Error controlling MPD: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/mpd/playlists')
+        def api_mpd_playlists():
+            """Get all MPD stored playlists"""
+            daemon = self._get_daemon()
+            if not daemon or not daemon.mpd_connected:
+                return jsonify({'success': False, 'error': 'MPD not connected'}), 400
+            
+            try:
+                controller = daemon.mpd_controller
+                playlists = controller.get_all_playlists()
+                return jsonify({'success': True, 'playlists': playlists})
+                
+            except Exception as e:
+                logger.error(f"Error getting MPD playlists: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+        
+        @self.app.route('/api/mpd/load_playlist', methods=['POST'])
+        def api_mpd_load_playlist():
+            """Load and play an MPD stored playlist"""
+            daemon = self._get_daemon()
+            if not daemon or not daemon.mpd_connected:
+                return jsonify({'error': 'MPD not connected'}), 400
+            
+            data = request.get_json()
+            if not data or 'playlist' not in data:
+                return jsonify({'error': 'Playlist name required'}), 400
+            
+            playlist_name = data['playlist']
+            
+            try:
+                controller = daemon.mpd_controller
+                
+                # Clear current playlist and load the selected one
+                if not controller.clear_playlist():
+                    return jsonify({'error': 'Failed to clear current playlist'}), 500
+                
+                # Load the playlist (this requires adding a method to the client)
+                client = daemon.mpd_client
+                client.client.load(playlist_name)
+                
+                # Start playing
+                result = controller.play()
+                
+                return jsonify({'success': result, 'message': f'Loaded playlist: {playlist_name}'})
+                
+            except Exception as e:
+                logger.error(f"Error loading MPD playlist: {e}")
                 return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/librespot/<action>', methods=['POST'])

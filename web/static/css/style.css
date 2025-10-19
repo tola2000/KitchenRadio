@@ -295,6 +295,98 @@ main {
     color: var(--primary-color);
 }
 
+/* Playlist Controls */
+.playlist-controls {
+    margin-top: 15px;
+}
+
+.playlist-selector {
+    background: var(--light-color);
+    padding: 12px 15px;
+    border-radius: var(--border-radius);
+}
+
+.playlist-selector label {
+    display: block;
+    font-weight: 500;
+    color: var(--dark-color);
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.playlist-selector label i {
+    margin-right: 6px;
+    color: var(--primary-color);
+}
+
+.playlist-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.playlist-input-group select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: white;
+    color: var(--dark-color);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.playlist-input-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.playlist-input-group select:disabled {
+    background: #f5f5f5;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.playlist-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+}
+
+.playlist-btn:hover {
+    background: #1976D2;
+    transform: translateY(-1px);
+}
+
+.playlist-btn:active {
+    transform: translateY(0);
+}
+
+.playlist-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.playlist-btn.refresh {
+    background: var(--secondary-color);
+    color: var(--dark-color);
+}
+
+.playlist-btn.refresh:hover {
+    background: #FFB300;
+}
+
 /* Playback State */
 .playback-state {
     text-align: center;

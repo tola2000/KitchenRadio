@@ -152,6 +152,15 @@ class PlaybackController:
         """
         return self.client.get_playlist()
     
+    def get_all_playlists(self) -> List[Dict[str, Any]]:
+        """
+        Get all stored playlists.
+        
+        Returns:
+            List of playlist dicts with name and metadata
+        """
+        return self.client.get_all_playlists()
+    
     def get_current_song(self) -> Optional[Dict[str, Any]]:
         """
         Get current song info.

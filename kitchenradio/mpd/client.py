@@ -249,3 +249,17 @@ class KitchenRadioClient:
             logger.error(f"Error getting playlist: {e}")
             self.check_connection_error(e)
             return []
+    
+    def get_all_playlists(self) -> List[Dict[str, Any]]:
+        """
+        Get all stored playlists.
+        
+        Returns:
+            List of playlist dicts with 'playlist' and 'last-modified' keys
+        """
+        try:
+            return [dict(playlist) for playlist in self.client.listplaylists()]
+        except Exception as e:
+            logger.error(f"Error getting playlists: {e}")
+            self.check_connection_error(e)
+            return []
