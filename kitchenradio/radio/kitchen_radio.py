@@ -624,7 +624,7 @@ class KitchenRadio:
                 self.logger.info("🛑 Stopped MPD playback")
                 
             elif source == BackendType.LIBRESPOT and self.librespot_connected:
-                self.librespot_controller.stop()
+                self.librespot_controller.pause()
                 self.logger.info("🛑 Stopped Spotify playback")
                 
         except Exception as e:
