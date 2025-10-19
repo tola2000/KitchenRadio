@@ -430,11 +430,11 @@ class KitchenRadio:
                     'connected': True,
                     'state': librespot_status.get('state', 'unknown'),
                     'volume': self.librespot_controller.get_volume(),
-                    # 'current_track': {
-                    #     'title': current_track.get('name', 'Unknown') if current_track else None,
-                    #     'artist': ", ".join([a.get('name', 'Unknown') for a in current_track.get('artists', [])]) if current_track and current_track.get('artists') else None,
-                    #     'album': current_track.get('album', {}).get('name', 'Unknown') if current_track else None,
-                    # } if current_track else None
+                    'current_track': {
+                         'title': current_track.get('name', 'Unknown') if current_track else None,
+                         'artist': ", ".join([a.get('name', 'Unknown') for a in current_track.get('artists', [])]) if current_track and current_track.get('artists') else None,
+                         'album': current_track.get('album', {}).get('name', 'Unknown') if current_track else None,
+                    } if current_track else None
                 }
             except Exception as e:
                 status['librespot']['error'] = str(e)

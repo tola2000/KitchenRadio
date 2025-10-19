@@ -70,15 +70,10 @@ class NowPlayingMonitor:
         
         title = song.get('title', 'Unknown')
         artist = song.get('artist', 'Unknown')
-
-        if '-' in title:
-            parts = title.split('-', 1)
-            artist = parts[1].strip()
-            title = parts[0].strip()
             
         return {
-            'title': title,
-            'artist': artist,
+            'title': song.get('title', 'Unknown'),
+            'artist': song.get('artist', 'Unknown'),
             'album': song.get('album', song.get('name', 'Unknown')),
             'file': song.get('file', ''),
             'time': song.get('time', '0'),
