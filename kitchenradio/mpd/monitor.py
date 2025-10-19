@@ -152,7 +152,7 @@ class NowPlayingMonitor:
             try:   
                 if self.client.is_connected():
 
-                    #changes = self.client.wait_for_changes()
+                    changes = self.client.wait_for_changes()
                     self._check_for_changes()
                 else:
                     logger.warning("MPD connection lost, try to reconnect")

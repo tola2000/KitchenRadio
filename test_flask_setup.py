@@ -53,7 +53,7 @@ def test_imports():
     
     # Test KitchenRadio daemon
     try:
-        from kitchen_radio import KitchenRadio
+        from kitchenradio.kitchen_radio import KitchenRadio
         print("✅ KitchenRadio daemon import: OK")
     except ImportError as e:
         print(f"❌ KitchenRadio daemon import failed: {e}")

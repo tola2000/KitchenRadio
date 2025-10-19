@@ -20,8 +20,15 @@ except ImportError:
     CORS_AVAILABLE = False
     print("Warning: Flask-CORS not available. Install with: pip install Flask-CORS")
 
+# # Add project root to path if not already there
+# project_root = Path(__file__).parent.parent
+# if str(project_root) not in sys.path:
+#     sys.path.insert(0, str(project_root))
+# if str(project_root / "src") not in sys.path:
+#     sys.path.insert(0, str(project_root / "src"))
+
 # Import the main daemon
-from kitchen_radio import KitchenRadio
+from kitchenradio.kitchen_radio import KitchenRadio
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +141,7 @@ class KitchenRadioWebServer:
                 return jsonify({'error': 'Failed to connect to daemon'}), 500
             
             try:
+
                 status = daemon.get_status()
                 return jsonify(status)
             except Exception as e:

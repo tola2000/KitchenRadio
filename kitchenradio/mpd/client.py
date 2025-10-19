@@ -38,6 +38,11 @@ class KitchenRadioClient:
         self.client = mpd.MPDClient()
         self.client.timeout = timeout
         self.client.idletimeout = None
+
+        # Create MPD client_status
+        self.client_status = mpd.MPDClient()
+        self.client_status.timeout = timeout
+        self.client_status.idletimeout = None
         
         logger.info(f"KitchenRadio MPD client initialized for {host}:{port}")
     
@@ -54,6 +59,12 @@ class KitchenRadioClient:
             
             if self.password:
                 self.client.password(self.password)
+
+
+            self.client_status.connect(self.host, self.port)
+            
+            if self.password:
+                self.client_status.password(self.password)
             
             self._connected = True
             logger.info("Connected to MPD successfully")
@@ -182,6 +193,11 @@ class KitchenRadioClient:
             self.client.disconnect()
         except:
             logger.warning("Already Disconnected")
+
+        try:
+            self.client_status.disconnect()
+        except:
+            logger.warning("Already Disconnected")
    
         self._connected = False
     
@@ -189,7 +205,7 @@ class KitchenRadioClient:
         """Get player status."""
         try:
 
-            return self.client.idle()
+            return self.client_status.idle()
         except Exception as e:
             logger.error(f"Error getting status: {e}")
             self.check_connection_error(e)
