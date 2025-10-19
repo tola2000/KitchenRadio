@@ -342,7 +342,7 @@ class KitchenRadioWebServer:
                 else:
                     return jsonify({'error': f'{backend} not connected'}), 400
                 
-                current_volume = monitor.get_volume()
+                current_volume = controller.get_volume()
                 if current_volume is None:
                     return jsonify({'error': 'Unable to get current volume'}), 500
                 

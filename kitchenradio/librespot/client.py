@@ -213,8 +213,8 @@ class KitchenRadioLibrespotClient:
         """Get current volume."""
         try:
             result = self._send_request("/player/volume")
-            if result and 'volume' in result:
-                return int(result['volume'])
+            if result and 'value' in result:
+                return int(result['value'])
             return None
         except Exception as e:
             logger.error(f"Error getting volume: {e}")
