@@ -170,11 +170,11 @@ class KitchenRadioLibrespotClient:
             if not 0 <= volume <= 100:
                 raise ValueError("Volume must be between 0 and 100")
             
-            result = self._send_request("/volume", method="POST", data={"volume": volume})
-            if result is not None:
-                logger.info(f"Set volume to {volume}%")
-                return True
-            return False
+            result = self._send_request("/player/volume", method="POST", data={"volume": volume})
+          #  if result is not None:
+            logger.info(f"Set volume to {volume}%")
+            return True
+           # return False
         except Exception as e:
             logger.error(f"Error setting volume: {e}")
             return False
@@ -182,7 +182,7 @@ class KitchenRadioLibrespotClient:
     def get_volume(self) -> Optional[int]:
         """Get current volume."""
         try:
-            result = self._send_request("/volume")
+            result = self._send_request("/player/volume")
             if result and 'volume' in result:
                 return int(result['volume'])
             return None

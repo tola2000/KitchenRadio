@@ -61,6 +61,9 @@ class KitchenRadioClient:
             
         except Exception as e:
             logger.error(f"Failed to connect to MPD: {e}")
+            if(e.args and isinstance(e.args[0], str) and "Already connected" in e.args[0]):
+                logger.error("Already Connected to MPD")
+                return True
             self._connected = False
             return False
     
@@ -91,6 +94,7 @@ class KitchenRadioClient:
             return True
         except Exception as e:
             logger.error(f"Error starting playback: {e}")
+            self.check_connection_error(e)
             return False
     
     def pause(self, state: Optional[bool] = None) -> bool:
@@ -103,6 +107,7 @@ class KitchenRadioClient:
             return True
         except Exception as e:
             logger.error(f"Error pausing: {e}")
+            self.check_connection_error(e)
             return False
     
     def stop(self) -> bool:
@@ -112,6 +117,7 @@ class KitchenRadioClient:
             return True
         except Exception as e:
             logger.error(f"Error stopping: {e}")
+            self.check_connection_error(e)
             return False
     
     def next(self) -> bool:
@@ -121,6 +127,7 @@ class KitchenRadioClient:
             return True
         except Exception as e:
             logger.error(f"Error skipping to next: {e}")
+            self.check_connection_error(e)
             return False
     
     def previous(self) -> bool:
@@ -130,6 +137,7 @@ class KitchenRadioClient:
             return True
         except Exception as e:
             logger.error(f"Error skipping to previous: {e}")
+            self.check_connection_error(e)
             return False
     
     # Volume control
@@ -142,6 +150,7 @@ class KitchenRadioClient:
             return True
         except Exception as e:
             logger.error(f"Error setting volume: {e}")
+            self.check_connection_error(e)
             return False
     
     def get_volume(self) -> Optional[int]:
@@ -151,6 +160,7 @@ class KitchenRadioClient:
             return int(status.get('volume', 0))
         except Exception as e:
             logger.error(f"Error getting volume: {e}")
+            self.check_connection_error(e)
             return None
     
     # Status and info
@@ -160,14 +170,38 @@ class KitchenRadioClient:
             return dict(self.client.status())
         except Exception as e:
             logger.error(f"Error getting status: {e}")
+            self.check_connection_error(e)
             return {}
+        
     
+    def check_connection_error(self, error: Exception):
+        """Check if error indicates a lost connection and update state."""
+        if isinstance(error, (mpd.ConnectionError, mpd.CommandError)):
+            logger.warning("MPD connection lost")
+        try:
+            self.client.disconnect()
+        except:
+            logger.warning("Already Disconnected")
+   
+        self._connected = False
+    
+    def wait_for_changes(self) -> Dict[str, Any]:
+        """Get player status."""
+        try:
+
+            return self.client.idle()
+        except Exception as e:
+            logger.error(f"Error getting status: {e}")
+            self.check_connection_error(e)
+            return {}
+        
     def get_current_song(self) -> Optional[Dict[str, Any]]:
         """Get current song info."""
         try:
             return dict(self.client.currentsong())
         except Exception as e:
             logger.error(f"Error getting current song: {e}")
+            self.check_connection_error(e)
             return None
     
     # Playlist management
@@ -178,6 +212,7 @@ class KitchenRadioClient:
             return True
         except Exception as e:
             logger.error(f"Error clearing playlist: {e}")
+            self.check_connection_error(e)
             return False
     
     def add_to_playlist(self, uri: str) -> bool:
@@ -187,6 +222,7 @@ class KitchenRadioClient:
             return True
         except Exception as e:
             logger.error(f"Error adding to playlist: {e}")
+            self.check_connection_error(e)
             return False
     
     def get_playlist(self) -> List[Dict[str, Any]]:
@@ -195,4 +231,5 @@ class KitchenRadioClient:
             return [dict(song) for song in self.client.playlistinfo()]
         except Exception as e:
             logger.error(f"Error getting playlist: {e}")
+            self.check_connection_error(e)
             return []

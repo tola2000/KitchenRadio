@@ -405,14 +405,14 @@ class KitchenRadio:
         if self.mpd_connected and self.mpd_monitor:
             try:
                 mpd_status = self.mpd_monitor.get_status()
-                current_song = self.mpd_monitor.get_current_song()
+                current_song = self.mpd_monitor.get_current_track()
                 
                 status['mpd'] = {
                     'connected': True,
                     'state': mpd_status.get('state', 'unknown'),
-                    'volume': self.mpd_monitor.get_volume(),
+                    'volume': mpd_status.get('volume', 'unknown'),
                     'current_song': {
-                        'title': current_song.get('title', current_song.get('file', 'Unknown')) if current_song else None,
+                        'title': current_song.get('title', current_song.get('name', 'Unknown')) if current_song else None,
                         'artist': current_song.get('artist', 'Unknown') if current_song else None,
                         'album': current_song.get('album', 'Unknown') if current_song else None,
                     } if current_song else None
@@ -423,17 +423,17 @@ class KitchenRadio:
         # Get librespot status
         if self.librespot_connected and self.librespot_monitor:
             try:
-                current_track = self.librespot_monitor.get_current_track()
-                
+                current_track = self.librespot_controller.get_current_track()
+                librespot_status = self.mpd_controller.get_status()
                 status['librespot'] = {
                     'connected': True,
-                    'state': self.librespot_monitor.get_player_state(),
-                    'volume': self.librespot_monitor.get_volume(),
-                    'current_track': {
-                        'title': current_track.get('name', 'Unknown') if current_track else None,
-                        'artist': ", ".join([a.get('name', 'Unknown') for a in current_track.get('artists', [])]) if current_track and current_track.get('artists') else None,
-                        'album': current_track.get('album', {}).get('name', 'Unknown') if current_track else None,
-                    } if current_track else None
+                    'state': librespot_status.get('state', 'unknown'),
+                    'volume': self.librespot_controller.get_volume(),
+                    # 'current_track': {
+                    #     'title': current_track.get('name', 'Unknown') if current_track else None,
+                    #     'artist': ", ".join([a.get('name', 'Unknown') for a in current_track.get('artists', [])]) if current_track and current_track.get('artists') else None,
+                    #     'album': current_track.get('album', {}).get('name', 'Unknown') if current_track else None,
+                    # } if current_track else None
                 }
             except Exception as e:
                 status['librespot']['error'] = str(e)

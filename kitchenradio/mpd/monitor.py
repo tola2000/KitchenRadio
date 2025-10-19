@@ -66,12 +66,20 @@ class NowPlayingMonitor:
             Formatted track info dict
         """
         if not song:
-            return {'name': 'No Track', 'artists': '', 'album': '', 'file': ''}
+            return {'name': 'No Track', 'artist': '', 'album': '', 'file': ''}
         
+        title = song.get('title', 'Unknown')
+        artist = song.get('artist', 'Unknown')
+
+        if '-' in title:
+            parts = title.split('-', 1)
+            artist = parts[1].strip()
+            title = parts[0].strip()
+            
         return {
-            'name': song.get('title', song.get('file', 'Unknown')),
-            'artists': song.get('artist', song.get('albumartist', 'Unknown')),
-            'album': song.get('album', 'Unknown'),
+            'title': title,
+            'artist': artist,
+            'album': song.get('album', song.get('name', 'Unknown')),
             'file': song.get('file', ''),
             'time': song.get('time', '0'),
             'pos': song.get('pos', '0')
@@ -96,10 +104,10 @@ class NowPlayingMonitor:
                 if new_state == 'play' and old_state != 'play':
                     track_info = self._format_track_info(song)
                     if old_state == 'pause':
-                        logger.info(f"Track resumed: {track_info['artists']} - {track_info['name']}")
+                        logger.info(f"Track resumed: {str(track_info)}")
                         self._trigger_callbacks('track_resumed', track=track_info)
                     else:
-                        logger.info(f"Track started: {track_info['artists']} - {track_info['name']}")
+                        logger.info(f"Track started: {str(track_info)}")
                         self._trigger_callbacks('track_started', track=track_info)
                         
                 elif new_state == 'pause':
@@ -117,7 +125,7 @@ class NowPlayingMonitor:
             if old_songid != new_songid and new_state == 'play':
                 track_info = self._format_track_info(song)
                 self.current_track = track_info
-                logger.info(f"New track: {track_info['artists']} - {track_info['name']}")
+                logger.info(f"New track: {str(track_info)}")
                 self._trigger_callbacks('track_started', track=track_info)
             
             # Check for volume changes
@@ -141,11 +149,20 @@ class NowPlayingMonitor:
         logger.info("Starting MPD monitoring loop")
         
         while not self._stop_event.is_set():
-            if self.client.is_connected():
-                self._check_for_changes()
-            else:
-                logger.warning("MPD connection lost")
-                
+            try:   
+                if self.client.is_connected():
+
+                    #changes = self.client.wait_for_changes()
+                    self._check_for_changes()
+                else:
+                    logger.warning("MPD connection lost, try to reconnect")
+                    self.client.connect()
+            except Exception as e:
+                logger.error(f"Error While Getting Changes {e} ")
+
+
+
+
             # Wait for next check
             self._stop_event.wait(1.0)  # Check every second
         
@@ -193,12 +210,20 @@ class NowPlayingMonitor:
         except Exception as e:
             logger.error(f"Error getting current track: {e}")
             return None
+        
+    def get_status(self) -> Optional[Dict[str, Any]]:
+        "Gets current status"
+        try:
+            return self.current_status
+        except Exception as e:
+            logger.error(f"Error getting current track: {e}")
+            return None
     
     def print_current_track(self):
         """Print current track to console."""
         track = self.get_current_track()
         if track and track['name'] != 'No Track':
-            print(f"🎵 Now playing: {track['artists']} - {track['name']}")
+            print(f"🎵 Now playing: {track['artist']} - {track['name']}")
         else:
             print("🎵 No track currently playing")
     
