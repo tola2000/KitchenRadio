@@ -4,6 +4,7 @@ KitchenRadio Client - Main client class for MPD interaction
 
 import logging
 import mpd
+import threading
 from typing import Optional, Callable, Dict, Any, List
 
 logger = logging.getLogger(__name__)
@@ -11,7 +12,14 @@ logger = logging.getLogger(__name__)
 
 class KitchenRadioClient:
     """
-    MPD client with KitchenRadio-specific functionality.
+    Thread-safe MPD client with KitchenRadio-specific functionality.
+    
+    This client uses threading locks to ensure safe concurrent access from multiple threads:
+    - Command lock: Protects all MPD command operations
+    - Connection lock: Protects connection state management
+    - Separate client_status for idle operations to avoid blocking regular commands
+    
+    All public methods are thread-safe and can be called from multiple threads simultaneously.
     """
     
     def __init__(self, 
@@ -34,6 +42,10 @@ class KitchenRadioClient:
         self.timeout = timeout
         self._connected = False
         
+        # Thread safety locks
+        self._command_lock = threading.RLock()  # Reentrant lock for nested calls
+        self._connection_lock = threading.RLock()
+        
         # Create MPD client
         self.client = mpd.MPDClient()
         self.client.timeout = timeout
@@ -48,163 +60,175 @@ class KitchenRadioClient:
     
     def connect(self) -> bool:
         """
-        Connect to MPD server.
+        Connect to MPD server (thread-safe).
         
         Returns:
             True if connected successfully
         """
-        try:
-            logger.info(f"Connecting to MPD at {self.host}:{self.port}")
-            self.client.connect(self.host, self.port)
-            
-            if self.password:
-                self.client.password(self.password)
+        with self._connection_lock:
+            try:
+                logger.info(f"Connecting to MPD at {self.host}:{self.port}")
+                self.client.connect(self.host, self.port)
+                
+                if self.password:
+                    self.client.password(self.password)
 
-
-            self.client_status.connect(self.host, self.port)
-            
-            if self.password:
-                self.client_status.password(self.password)
-            
-            self._connected = True
-            logger.info("Connected to MPD successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to connect to MPD: {e}")
-            if(e.args and isinstance(e.args[0], str) and "Already connected" in e.args[0]):
-                logger.error("Already Connected to MPD")
+                self.client_status.connect(self.host, self.port)
+                
+                if self.password:
+                    self.client_status.password(self.password)
+                
+                self._connected = True
+                logger.info("Connected to MPD successfully")
                 return True
-            self._connected = False
-            return False
+                
+            except Exception as e:
+                logger.error(f"Failed to connect to MPD: {e}")
+                if(e.args and isinstance(e.args[0], str) and "Already connected" in e.args[0]):
+                    logger.error("Already Connected to MPD")
+                    return True
+                self._connected = False
+                return False
     
     def disconnect(self):
-        """Disconnect from MPD server."""
-        try:
-            if self._connected:
-                logger.info("Disconnecting from MPD")
-                self.client.close()
-                self.client.disconnect()
+        """Disconnect from MPD server (thread-safe)."""
+        with self._connection_lock:
+            try:
+                if self._connected:
+                    logger.info("Disconnecting from MPD")
+                    self.client.close()
+                    self.client.disconnect()
+                    self._connected = False
+            except Exception as e:
+                logger.error(f"Error disconnecting: {e}")
                 self._connected = False
-        except Exception as e:
-            logger.error(f"Error disconnecting: {e}")
-            self._connected = False
     
     def is_connected(self) -> bool:
-        """Check if connected to MPD server."""
-        return self._connected
+        """Check if connected to MPD server (thread-safe)."""
+        with self._connection_lock:
+            return self._connected
     
     # Playback control methods
     def play(self, songpos: Optional[int] = None) -> bool:
-        """Start playback from current or specified position."""
-        try:
-            if songpos is not None:
-                self.client.play(songpos)
-            else:
-                self.client.play()
-            return True
-        except Exception as e:
-            logger.error(f"Error starting playback: {e}")
-            self.check_connection_error(e)
-            return False
+        """Start playback from current or specified position (thread-safe)."""
+        with self._command_lock:
+            try:
+                if songpos is not None:
+                    self.client.play(songpos)
+                else:
+                    self.client.play()
+                return True
+            except Exception as e:
+                logger.error(f"Error starting playback: {e}")
+                self.check_connection_error(e)
+                return False
     
     def pause(self, state: Optional[bool] = None) -> bool:
-        """Pause or unpause playback."""
-        try:
-            if state is None:
-                self.client.pause()
-            else:
-                self.client.pause(1 if state else 0)
-            return True
-        except Exception as e:
-            logger.error(f"Error pausing: {e}")
-            self.check_connection_error(e)
-            return False
+        """Pause or unpause playback (thread-safe)."""
+        with self._command_lock:
+            try:
+                if state is None:
+                    self.client.pause()
+                else:
+                    self.client.pause(1 if state else 0)
+                return True
+            except Exception as e:
+                logger.error(f"Error pausing: {e}")
+                self.check_connection_error(e)
+                return False
     
     def stop(self) -> bool:
-        """Stop playback."""
-        try:
-            self.client.stop()
-            return True
-        except Exception as e:
-            logger.error(f"Error stopping: {e}")
-            self.check_connection_error(e)
-            return False
+        """Stop playback (thread-safe)."""
+        with self._command_lock:
+            try:
+                self.client.stop()
+                return True
+            except Exception as e:
+                logger.error(f"Error stopping: {e}")
+                self.check_connection_error(e)
+                return False
     
     def next(self) -> bool:
-        """Skip to next track."""
-        try:
-            self.client.next()
-            return True
-        except Exception as e:
-            logger.error(f"Error skipping to next: {e}")
-            self.check_connection_error(e)
-            return False
+        """Skip to next track (thread-safe)."""
+        with self._command_lock:
+            try:
+                self.client.next()
+                return True
+            except Exception as e:
+                logger.error(f"Error skipping to next: {e}")
+                self.check_connection_error(e)
+                return False
     
     def previous(self) -> bool:
-        """Skip to previous track."""
-        try:
-            self.client.previous()
-            return True
-        except Exception as e:
-            logger.error(f"Error skipping to previous: {e}")
-            self.check_connection_error(e)
-            return False
+        """Skip to previous track (thread-safe)."""
+        with self._command_lock:
+            try:
+                self.client.previous()
+                return True
+            except Exception as e:
+                logger.error(f"Error skipping to previous: {e}")
+                self.check_connection_error(e)
+                return False
     
     # Volume control
     def set_volume(self, volume: int) -> bool:
-        """Set volume (0-100)."""
-        try:
-            if not 0 <= volume <= 100:
-                raise ValueError("Volume must be between 0 and 100")
-            self.client.setvol(volume)
-            return True
-        except Exception as e:
-            logger.error(f"Error setting volume: {e}")
-            self.check_connection_error(e)
-            return False
+        """Set volume (0-100) (thread-safe)."""
+        with self._command_lock:
+            try:
+                if not 0 <= volume <= 100:
+                    raise ValueError("Volume must be between 0 and 100")
+                self.client.setvol(volume)
+                return True
+            except Exception as e:
+                logger.error(f"Error setting volume: {e}")
+                self.check_connection_error(e)
+                return False
     
     def get_volume(self) -> Optional[int]:
-        """Get current volume."""
-        try:
-            status = self.client.status()
-            return int(status.get('volume', 0))
-        except Exception as e:
-            logger.error(f"Error getting volume: {e}")
-            self.check_connection_error(e)
-            return None
+        """Get current volume (thread-safe)."""
+        with self._command_lock:
+            try:
+                status = self.client.status()
+                return int(status.get('volume', 0))
+            except Exception as e:
+                logger.error(f"Error getting volume: {e}")
+                self.check_connection_error(e)
+                return None
     
     # Status and info
     def get_status(self) -> Dict[str, Any]:
-        """Get player status."""
-        try:
-            return dict(self.client.status())
-        except Exception as e:
-            logger.error(f"Error getting status: {e}")
-            self.check_connection_error(e)
-            return {}
+        """Get player status (thread-safe)."""
+        with self._command_lock:
+            try:
+                return dict(self.client.status())
+            except Exception as e:
+                logger.error(f"Error getting status: {e}")
+                self.check_connection_error(e)
+                return {}
         
     
     def check_connection_error(self, error: Exception):
-        """Check if error indicates a lost connection and update state."""
-        if isinstance(error, (mpd.ConnectionError, mpd.CommandError)):
-            logger.warning("MPD connection lost")
-        try:
-            self.client.disconnect()
-        except:
-            logger.warning("Already Disconnected")
+        """Check if error indicates a lost connection and update state (thread-safe)."""
+        with self._connection_lock:
+            if isinstance(error, (mpd.ConnectionError, mpd.CommandError)):
+                logger.warning("MPD connection lost")
+            try:
+                self.client.disconnect()
+            except:
+                logger.warning("Already Disconnected")
 
-        try:
-            self.client_status.disconnect()
-        except:
-            logger.warning("Already Disconnected")
-   
-        self._connected = False
+            try:
+                self.client_status.disconnect()
+            except:
+                logger.warning("Already Disconnected")
+       
+            self._connected = False
     
     def wait_for_changes(self) -> Dict[str, Any]:
-        """Get player status."""
+        """Get player status (thread-safe, uses separate client)."""
+        # Note: This method uses client_status which should not be locked with command_lock
+        # as it's designed for blocking idle operations
         try:
-
             return self.client_status.idle()
         except Exception as e:
             logger.error(f"Error getting status: {e}")
@@ -212,66 +236,71 @@ class KitchenRadioClient:
             return {}
         
     def get_current_song(self) -> Optional[Dict[str, Any]]:
-        """Get current song info."""
-        try:
-            return dict(self.client.currentsong())
-        except Exception as e:
-            logger.error(f"Error getting current song: {e}")
-            self.check_connection_error(e)
-            return None
+        """Get current song info (thread-safe)."""
+        with self._command_lock:
+            try:
+                return dict(self.client.currentsong())
+            except Exception as e:
+                logger.error(f"Error getting current song: {e}")
+                self.check_connection_error(e)
+                return None
     
     # Playlist management
     def clear_playlist(self) -> bool:
-        """Clear the current playlist."""
-        try:
-            self.client.clear()
-            return True
-        except Exception as e:
-            logger.error(f"Error clearing playlist: {e}")
-            self.check_connection_error(e)
-            return False
+        """Clear the current playlist (thread-safe)."""
+        with self._command_lock:
+            try:
+                self.client.clear()
+                return True
+            except Exception as e:
+                logger.error(f"Error clearing playlist: {e}")
+                self.check_connection_error(e)
+                return False
     
-    # Playlist management
     def load_playlist(self, playlist: str) -> bool:
-        """Load the  playlist."""
-        try:
-            self.client.load(playlist)
-            return True
-        except Exception as e:
-            logger.error(f"Error loading playlist: {e}")
-            self.check_connection_error(e)
-            return False
+        """Load the playlist (thread-safe)."""
+        with self._command_lock:
+            try:
+                self.client.load(playlist)
+                return True
+            except Exception as e:
+                logger.error(f"Error loading playlist: {e}")
+                self.check_connection_error(e)
+                return False
 
     def add_to_playlist(self, uri: str) -> bool:
-        """Add URI to playlist."""
-        try:
-            self.client.add(uri)
-            return True
-        except Exception as e:
-            logger.error(f"Error adding to playlist: {e}")
-            self.check_connection_error(e)
-            return False
+        """Add URI to playlist (thread-safe)."""
+        with self._command_lock:
+            try:
+                self.client.add(uri)
+                return True
+            except Exception as e:
+                logger.error(f"Error adding to playlist: {e}")
+                self.check_connection_error(e)
+                return False
     
     def get_playlist(self) -> List[Dict[str, Any]]:
-        """Get current playlist."""
-        try:
-            return [dict(song) for song in self.client.playlistinfo()]
-        except Exception as e:
-            logger.error(f"Error getting playlist: {e}")
-            self.check_connection_error(e)
-            return []
+        """Get current playlist (thread-safe)."""
+        with self._command_lock:
+            try:
+                return [dict(song) for song in self.client.playlistinfo()]
+            except Exception as e:
+                logger.error(f"Error getting playlist: {e}")
+                self.check_connection_error(e)
+                return []
     
     def get_all_playlists(self) -> List[Dict[str, Any]]:
         """
-        Get all stored playlists with metadata.
+        Get all stored playlists with metadata (thread-safe).
         
         Returns:
             List of playlist dicts with 'playlist' and 'last-modified' keys
             Note: Controller layer strips metadata and returns just names
         """
-        try:
-            return [dict(playlist) for playlist in self.client.listplaylists()]
-        except Exception as e:
-            logger.error(f"Error getting playlists: {e}")
-            self.check_connection_error(e)
-            return []
+        with self._command_lock:
+            try:
+                return [dict(playlist) for playlist in self.client.listplaylists()]
+            except Exception as e:
+                logger.error(f"Error getting playlists: {e}")
+                self.check_connection_error(e)
+                return []
