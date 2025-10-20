@@ -44,26 +44,71 @@ class DisplayFormatter:
         logger.info(f"DisplayFormatter initialized for {self.width}x{self.height} display")
     
     def _load_fonts(self) -> Dict[str, ImageFont.ImageFont]:
-        """Load fonts optimized for SSD1322"""
+        """Load HomeVideo font for retro kitchen radio aesthetic"""
+        import os
+        
         fonts = {}
         default_font = ImageFont.load_default()
         
-        # Try to load system fonts, fall back to default
+        # Project font paths for HomeVideo font
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        font_paths = [
+            os.path.join(project_root, "frontend", "static", "fonts"),
+            os.path.join(project_root, "static", "fonts"),
+            os.path.join(project_root, "fonts"),
+            os.path.join(os.path.dirname(__file__), "fonts"),
+        ]
+        
+        # HomeVideo font variations
+        homevideo_fonts = [
+            "homevideo.ttf", "HomeVideo.ttf", "homevideo-regular.ttf", "HomeVideo-Regular.ttf",
+            "homevideo.otf", "HomeVideo.otf", "homevideo-regular.otf", "HomeVideo-Regular.otf",
+        ]
+        
+        # Try to find HomeVideo font
+        homevideo_path = None
+        for font_name in homevideo_fonts:
+            # Try direct name first
+            try:
+                ImageFont.truetype(font_name, 12)  # Test load
+                homevideo_path = font_name
+                break
+            except (OSError, IOError):
+                pass
+            
+            # Search in project font paths
+            for path in font_paths:
+                if os.path.exists(path):
+                    font_file = os.path.join(path, font_name)
+                    if os.path.exists(font_file):
+                        homevideo_path = font_file
+                        break
+            
+            if homevideo_path:
+                break
+        
+        # Load fonts for all sizes
         font_sizes = {'small': FONT_SMALL, 'medium': FONT_MEDIUM, 'large': FONT_LARGE, 'xlarge': FONT_XLARGE}
         
         for name, size in font_sizes.items():
-            try:
-                # Try to load a monospace font
-                fonts[name] = ImageFont.truetype("consola.ttf", size)
-            except (OSError, IOError):
+            if homevideo_path:
                 try:
-                    # Try another common font
-                    fonts[name] = ImageFont.truetype("arial.ttf", size)
-                except (OSError, IOError):
-                    # Fall back to default font
+                    fonts[name] = ImageFont.truetype(homevideo_path, size)
+                    logger.info(f"Loaded HomeVideo font '{homevideo_path}' for size '{name}' ({size}px)")
+                except (OSError, IOError) as e:
+                    logger.warning(f"Failed to load HomeVideo font: {e}")
                     fonts[name] = default_font
+            else:
+                fonts[name] = default_font
+                logger.warning(f"HomeVideo font not found, using default font for size '{name}'")
         
         fonts['default'] = default_font
+        
+        if homevideo_path:
+            logger.info("HomeVideo font loaded successfully for retro kitchen radio display")
+        else:
+            logger.warning("HomeVideo font not found - place homevideo.ttf in frontend/static/fonts/ folder")
+        
         return fonts
     
     def _truncate_text(self, text: str, max_width: int, font: ImageFont.ImageFont) -> str:
