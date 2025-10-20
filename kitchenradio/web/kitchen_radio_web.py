@@ -16,6 +16,7 @@ import io
 import base64
 
 from kitchenradio.radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
+from kitchenradio.web.display_interface_emulator import EmulatorDisplayInterface
 
 if TYPE_CHECKING:
     from ..radio.kitchen_radio import KitchenRadio
@@ -31,8 +32,12 @@ except ImportError as e:
 
 try:
     from .display_interface_emulator import EmulatorDisplayInterface
+    logger.info("EmulatorDisplayInterface imported successfully")
 except ImportError as e:
-    logger.warning(f"EmulatorDisplayInterface not available: {e}")
+    logger.error(f"Failed to import EmulatorDisplayInterface: {e}")
+    EmulatorDisplayInterface = None
+except Exception as e:
+    logger.error(f"Unexpected error importing EmulatorDisplayInterface: {e}")
     EmulatorDisplayInterface = None
 
 
@@ -75,13 +80,9 @@ class KitchenRadioWeb:
         self.button_controller = ButtonController(self.kitchen_radio)
         
 
-        try:
-            self.display_emulator = EmulatorDisplayInterface()
-            self.display_emulator.initialize()
-            logger.info("Display emulator initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize display emulator: {e}")
-            self.display_emulator = None
+        self.display_emulator = EmulatorDisplayInterface()
+        self.display_emulator.initialize()
+        logger.info("Display emulator initialized successfully")
 
         # Initialize display controller using the emulator as the interface
         if DisplayController and self.display_emulator:

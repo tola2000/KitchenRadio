@@ -53,21 +53,33 @@
                         </div>
                     </div>
                     
-                    <div class="display-main" id="display-main">
-                        <div class="track-info" id="track-info">
-                            <div class="track-title" id="track-title">KitchenRadio</div>
-                            <div class="track-artist" id="track-artist">Ready to Play</div>
-                            <div class="track-album" id="track-album">Select a Source</div>
-                        </div>
+                    <!-- BMP Display Image from Emulator -->
+                    <div class="display-image-container" id="display-image-container">
+                        <img id="display-image" 
+                             src="/api/display/image" 
+                             alt="KitchenRadio Display" 
+                             class="display-image"
+                             onerror="this.style.display='none'; document.getElementById('display-fallback').style.display='block';">
                         
-                        <div class="playback-info" id="playback-info">
-                            <div class="playback-status" id="playback-status">
-                                <i class="fas fa-stop"></i>
-                                <span>STOP</span>
-                            </div>
-                            <div class="volume-info" id="volume-info">
-                                <i class="fas fa-volume-up"></i>
-                                <span id="volume-level">--</span>
+                        <!-- Fallback text display when image fails to load -->
+                        <div class="display-fallback" id="display-fallback" style="display: none;">
+                            <div class="display-main">
+                                <div class="track-info" id="track-info">
+                                    <div class="track-title" id="track-title">KitchenRadio</div>
+                                    <div class="track-artist" id="track-artist">Ready to Play</div>
+                                    <div class="track-album" id="track-album">Select a Source</div>
+                                </div>
+                                
+                                <div class="playback-info" id="playback-info">
+                                    <div class="playback-status" id="playback-status">
+                                        <i class="fas fa-stop"></i>
+                                        <span>STOP</span>
+                                    </div>
+                                    <div class="volume-info" id="volume-info">
+                                        <i class="fas fa-volume-up"></i>
+                                        <span id="volume-level">--</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

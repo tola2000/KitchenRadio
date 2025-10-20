@@ -223,6 +223,9 @@ class PhysicalRadioApp {
         } else {
             document.getElementById('menu-overlay').style.display = 'none';
         }
+        
+        // Refresh the display image
+        this.refreshDisplayImage();
     }
     
     updateMenuDisplay() {
@@ -301,6 +304,35 @@ class PhysicalRadioApp {
     showSuccess(message) {
         this.showMessage(message, 'success');
     }
+    
+    refreshDisplayImage() {
+        const displayImage = document.getElementById('display-image');
+        if (displayImage) {
+            // Add timestamp to prevent caching
+            const timestamp = new Date().getTime();
+            displayImage.src = `/api/display/image?t=${timestamp}`;
+        }
+    }
+    
+    async updateDisplayWithStatus() {
+        try {
+            const response = await fetch('/api/display/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Display updated:', result.message);
+                // Refresh the display image after a short delay
+                setTimeout(() => this.refreshDisplayImage(), 500);
+            }
+        } catch (error) {
+            console.error('Error updating display:', error);
+        }
+    }
 }
 
 // Global app instance
@@ -342,7 +374,8 @@ async function selectSource(source) {
         
         if (response.ok && result.success) {
             radioApp.showSuccess(result.message || `Source set to ${source.toUpperCase()}`);
-            // Refresh status immediately
+            // Update display and refresh status
+            radioApp.updateDisplayWithStatus();
             setTimeout(() => radioApp.refreshStatus(), 500);
         } else {
             radioApp.showError(result.error || 'Failed to set source');
