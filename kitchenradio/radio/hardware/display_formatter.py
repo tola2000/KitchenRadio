@@ -276,3 +276,105 @@ class DisplayFormatter:
             draw.rectangle([(2, 2), (self.width-3, self.height-3)], outline=255)
         
         return draw_default
+    
+    def format_track_info(self, title: str, artist: str = "", album: str = "", 
+                          playing: bool = False, volume: int = 50) -> Callable:
+        """
+        Format track information display.
+        
+        Args:
+            title: Track title
+            artist: Artist name
+            album: Album name
+            playing: Whether track is currently playing
+            volume: Current volume level
+            
+        Returns:
+            Drawing function for track info
+        """
+        def draw_track_info(draw: ImageDraw.Draw):
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Playing indicator
+            play_icon = "▶" if playing else "⏸"
+            draw.text((5, 5), play_icon, font=self.fonts['medium'], fill=255)
+            
+            # Title (main line)
+            title_text = title[:30] if title else "No Track"
+            draw.text((25, 5), title_text, font=self.fonts['medium'], fill=255)
+            
+            # Artist
+            if artist:
+                artist_text = f"Artist: {artist[:25]}"
+                draw.text((5, 25), artist_text, font=self.fonts['small'], fill=255)
+            
+            # Album
+            if album:
+                album_text = f"Album: {album[:25]}"
+                draw.text((5, 40), album_text, font=self.fonts['small'], fill=255)
+            
+            # Volume indicator
+            vol_text = f"Vol: {volume}%"
+            draw.text((self.width - 60, 50), vol_text, font=self.fonts['small'], fill=255)
+            
+            # Border
+            draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
+        
+        return draw_track_info
+    
+    def format_status_message(self, message: str, icon: str = "", 
+                             message_type: str = "info") -> Callable:
+        """
+        Format status message display.
+        
+        Args:
+            message: Status message text
+            icon: Optional icon character
+            message_type: Type of message (info, warning, error)
+            
+        Returns:
+            Drawing function for status message
+        """
+        def draw_status_message(draw: ImageDraw.Draw):
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Icon
+            if icon:
+                draw.text((10, 15), icon, font=self.fonts['large'], fill=255)
+                text_x = 40
+            else:
+                text_x = 10
+            
+            # Message text (split into lines if needed)
+            max_chars = (self.width - text_x - 10) // 8  # Rough estimate
+            if len(message) > max_chars:
+                lines = [message[i:i+max_chars] for i in range(0, len(message), max_chars)]
+            else:
+                lines = [message]
+            
+            # Draw text lines
+            y = 15
+            for line in lines[:3]:  # Max 3 lines
+                draw.text((text_x, y), line, font=self.fonts['medium'], fill=255)
+                y += 16
+            
+            # Border color based on message type
+            if message_type == "error":
+                # Double border for errors
+                draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
+                draw.rectangle([(1, 1), (self.width-2, self.height-2)], outline=255)
+            elif message_type == "warning":
+                # Dashed-style border for warnings
+                for i in range(0, self.width, 4):
+                    draw.point((i, 0), fill=255)
+                    draw.point((i, self.height-1), fill=255)
+                for i in range(0, self.height, 4):
+                    draw.point((0, i), fill=255)
+                    draw.point((self.width-1, i), fill=255)
+            else:
+                # Normal border for info
+                draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
+        
+        return draw_status_message
