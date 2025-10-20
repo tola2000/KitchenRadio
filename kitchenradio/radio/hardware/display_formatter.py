@@ -225,9 +225,6 @@ class DisplayFormatter:
             
             else:
                 draw.text((5, y_pos), "Please select a source", font=font_small, fill=128)
-            
-            # Border
-            draw.rectangle([(2, 2), (self.width-3, self.height-3)], outline=255)
         
         return draw_status
     
@@ -281,9 +278,6 @@ class DisplayFormatter:
                 else:
                     # Empty mark
                     draw.rectangle([(marks_x, y), (marks_x + 8, y + 2)], outline=255)
-            
-            # Border around entire display
-            draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
         
         return draw_volume
     
