@@ -572,8 +572,12 @@ class DisplayFormatter:
                 # Align progress bar bottom with volume bar bottom, but one pixel lower
                 volume_bar_bottom = bar_y + bar_height - 1
                 progress_bar_y = volume_bar_bottom - progress_bar_height + 1  # One pixel lower
-                progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with 10px gap (matching right margin)
-                progress_bar_width = self.width - progress_bar_x - 25  # Span from after volume bar to right edge
+                progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with gap
+                progress_bar_width = self.width - progress_bar_x - 25  # Leave space for icon
+                
+                # Debug logging
+                logger.debug(f"Progress bar: showProgress={showProgress}, progress_ms={progress_ms}, duration_ms={duration_ms}")
+                logger.debug(f"Progress bar position: x={progress_bar_x}, y={progress_bar_y}, width={progress_bar_width}, height={progress_bar_height}")
                 
                 # Draw progress bar background
                 draw.rectangle([
@@ -585,11 +589,16 @@ class DisplayFormatter:
                 if duration_ms > 0 and progress_ms >= 0:
                     progress_ratio = min(progress_ms / duration_ms, 1.0)
                     fill_width = int(progress_ratio * (progress_bar_width - 2))
+                    logger.debug(f"Progress fill: ratio={progress_ratio:.2f}, fill_width={fill_width}")
                     if fill_width > 0:
                         draw.rectangle([
                             (progress_bar_x + 1, progress_bar_y + 1),
                             (progress_bar_x + 1 + fill_width, progress_bar_y + progress_bar_height - 1)
                         ], fill=255)
+                else:
+                    logger.debug(f"No progress fill: duration_ms={duration_ms}, progress_ms={progress_ms}")
+            else:
+                logger.debug(f"Progress bar disabled: showProgress={showProgress}")
             
             # Playing icon in bottom right corner
             icon_size = 12
