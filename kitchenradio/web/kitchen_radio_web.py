@@ -16,7 +16,7 @@ import io
 import base64
 
 from kitchenradio.radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
-from kitchenradio.web.display_interface_emulator import EmulatorDisplayInterface
+from kitchenradio.web.display_interface_emulator import DisplayInterfaceEmulator
 
 if TYPE_CHECKING:
     from ..radio.kitchen_radio import KitchenRadio
@@ -80,17 +80,20 @@ class KitchenRadioWeb:
         self.button_controller = ButtonController(self.kitchen_radio)
         
 
-        self.display_emulator = EmulatorDisplayInterface()
+        self.display_emulator = DisplayInterfaceEmulator()
         self.display_emulator.initialize()
         logger.info("Display emulator initialized successfully")
 
         # Initialize display controller using the emulator as the interface
         if DisplayController and self.display_emulator:
             try:
-                # Create display controller with emulator as the I2C interface
-                self.display_controller = DisplayController(i2c_interface=self.display_emulator)
+                # Create display controller with emulator as the I2C interface and kitchen_radio
+                self.display_controller = DisplayController(
+                    kitchen_radio=self.kitchen_radio,
+                    i2c_interface=self.display_emulator
+                )
                 self.display_controller.initialize()
-                logger.info("Display controller initialized with emulator interface")
+                logger.info("Display controller initialized with emulator interface and update loop started")
             except Exception as e:
                 logger.warning(f"Failed to initialize display controller with emulator: {e}")
                 self.display_controller = None

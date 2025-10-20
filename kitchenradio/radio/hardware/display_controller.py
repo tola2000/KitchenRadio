@@ -31,23 +31,30 @@ class DisplayController:
                  kitchen_radio: 'KitchenRadio' = None,
                  i2c_port: int = 1,
                  i2c_address: int = 0x3C,
-                 refresh_rate: float = 2.0):
+                 refresh_rate: float = 2.0,
+                 i2c_interface = None):
         """
         Initialize simplified display controller for SSD1322.
         
         Args:
             kitchen_radio: KitchenRadio instance for status updates
-            i2c_port: I2C port number
-            i2c_address: I2C address of the SSD1322 display
+            i2c_port: I2C port number (ignored if i2c_interface provided)
+            i2c_address: I2C address of the SSD1322 display (ignored if i2c_interface provided)
             refresh_rate: Display refresh rate in Hz
+            i2c_interface: Optional external I2C interface (for emulation)
         """
         self.kitchen_radio = kitchen_radio
         
-        # Create I2C interface for SSD1322
-        self.i2c_interface = I2CDisplayInterface(
-            i2c_port=i2c_port,
-            i2c_address=i2c_address
-        )
+        # Use provided interface or create I2C interface for SSD1322
+        if i2c_interface:
+            self.i2c_interface = i2c_interface
+            logger.info("Using provided I2C interface (emulation mode)")
+        else:
+            self.i2c_interface = I2CDisplayInterface(
+                i2c_port=i2c_port,
+                i2c_address=i2c_address
+            )
+            logger.info("Created new I2C interface for hardware")
         
         # Create display formatter for SSD1322
         self.formatter = DisplayFormatter(
@@ -74,9 +81,8 @@ class DisplayController:
             True if initialization successful
         """
         # Initialize I2C interface
-        display_interface = self.display_interface
-        if not display_interface.initialize():
-            logger.error("Failed to initialize I2C display interface")
+        if not self.i2c_interface.initialize():
+            logger.error("Failed to initialize display interface")
             return False
         
         # Start update thread if KitchenRadio is provided
