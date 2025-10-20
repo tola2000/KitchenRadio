@@ -247,8 +247,14 @@ class DisplayController:
             playing = librespot_status.get('state') == 'playing'
             volume = librespot_status.get('volume', 50)
             
-            # Use formatter to create draw function
-            draw_func = self.formatter.format_track_info(title, artist, album, playing, volume)
+            # Get progress information for Spotify
+            progress_ms = librespot_status.get('progress_ms', 0)
+            duration_ms = current_track.get('duration_ms', 0)
+            
+            # Use formatter with progress bar for Spotify
+            draw_func = self.formatter.format_track_info_with_progress(
+                title, artist, album, playing, volume, progress_ms, duration_ms
+            )
             self.i2c_interface.render_frame(draw_func)
         else:
             # No track playing

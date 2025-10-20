@@ -515,3 +515,117 @@ class DisplayFormatter:
                         x += segment_spacing
         
         return draw_fullscreen_volume
+    
+    def format_track_info_with_progress(self, title: str, artist: str = "", album: str = "", 
+                                       playing: bool = False, volume: int = 50,
+                                       progress_ms: int = 0, duration_ms: int = 0) -> Callable:
+        """
+        Format track information display with progress bar at bottom.
+        
+        Args:
+            title: Track title
+            artist: Artist name
+            album: Album name
+            playing: Whether track is currently playing
+            volume: Current volume level
+            progress_ms: Current progress in milliseconds
+            duration_ms: Total track duration in milliseconds
+            
+        Returns:
+            Drawing function for track info with progress bar
+        """
+        def draw_track_info_with_progress(draw: ImageDraw.Draw):
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Volume bar on the left side (vertical bar)
+            bar_width = 8
+            bar_height = self.height - 20  # Leave more space for progress bar
+            bar_x = 5
+            bar_y = 5
+            
+            # Draw volume bar background (empty bar)
+            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
+            
+            # Draw volume bar fill (filled portion based on volume)
+            if volume > 0:
+                fill_height = int((volume / 100.0) * bar_height)
+                fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
+                draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
+            
+            # Volume percentage text below the bar
+            vol_text = f"{volume}%"
+            draw.text((bar_x - 2, bar_y + bar_height + 2), vol_text, font=self.fonts['small'], fill=255)
+            
+            # Content area starts after the volume bar
+            content_x = bar_x + bar_width + 10
+            content_width = self.width - content_x - 5
+            
+            # Title (main line) - truncate to fit in available space
+            title_text = title if title else "No Track"
+            title_max_width = content_width - 10
+            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['medium'])
+            draw.text((content_x, 5), title_truncated, font=self.fonts['medium'], fill=255)
+            
+            # Artist - truncate to fit
+            if artist:
+                artist_text = f"{artist}"
+                artist_truncated = self._truncate_text(artist_text, content_width, self.fonts['small'])
+                draw.text((content_x, 20), artist_truncated, font=self.fonts['small'], fill=255)
+            
+            # Album - truncate to fit (only if we have space)
+            if album and not artist:  # Show album if no artist, or skip if both
+                album_text = f"{album}"
+                album_truncated = self._truncate_text(album_text, content_width, self.fonts['small'])
+                draw.text((content_x, 20), album_truncated, font=self.fonts['small'], fill=255)
+            
+            # Progress bar at the bottom
+            progress_bar_height = 4
+            progress_bar_y = self.height - progress_bar_height - 3
+            progress_bar_x = content_x
+            progress_bar_width = content_width - 40  # Leave space for time text
+            
+            # Draw progress bar background
+            draw.rectangle([
+                (progress_bar_x, progress_bar_y), 
+                (progress_bar_x + progress_bar_width, progress_bar_y + progress_bar_height)
+            ], outline=255)
+            
+            # Draw progress bar fill
+            if duration_ms > 0 and progress_ms >= 0:
+                progress_ratio = min(progress_ms / duration_ms, 1.0)
+                fill_width = int(progress_ratio * (progress_bar_width - 2))
+                if fill_width > 0:
+                    draw.rectangle([
+                        (progress_bar_x + 1, progress_bar_y + 1),
+                        (progress_bar_x + 1 + fill_width, progress_bar_y + progress_bar_height - 1)
+                    ], fill=255)
+            
+            # Time text (current/total)
+            def ms_to_time_str(ms):
+                if ms <= 0:
+                    return "0:00"
+                seconds = ms // 1000
+                minutes = seconds // 60
+                seconds = seconds % 60
+                return f"{minutes}:{seconds:02d}"
+            
+            current_time = ms_to_time_str(progress_ms)
+            total_time = ms_to_time_str(duration_ms)
+            time_text = f"{current_time}/{total_time}"
+            
+            # Position time text to the right of progress bar
+            time_x = progress_bar_x + progress_bar_width + 5
+            draw.text((time_x, progress_bar_y - 2), time_text, font=self.fonts['small'], fill=255)
+            
+            # Playing icon in bottom right corner
+            icon_size = 12
+            icon_x = self.width - icon_size - 5
+            icon_y = self.height - icon_size - 5
+            play_icon = "▶" if playing else "⏸"
+            draw.text((icon_x, icon_y), play_icon, font=self.fonts['medium'], fill=255)
+            
+            # Border around entire display
+            draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
+        
+        return draw_track_info_with_progress
