@@ -68,7 +68,8 @@ class ButtonController:
     def __init__(self, 
                  kitchen_radio: 'KitchenRadio',
                  debounce_time: float = 0.05,
-                 long_press_time: float = 1.0):
+                 long_press_time: float = 1.0,
+                 display_controller = None):
         """
         Initialize button controller with direct KitchenRadio integration.
         
@@ -76,9 +77,13 @@ class ButtonController:
             kitchen_radio: KitchenRadio instance to control
             debounce_time: Button debounce time in seconds (for compatibility)
             long_press_time: Time threshold for long press detection
+            display_controller: Optional display controller for volume screen
         """
         # Store KitchenRadio reference
         self.kitchen_radio = kitchen_radio
+        
+        # Store display controller for volume screen
+        self.display_controller = display_controller
         
         # Timing configuration (kept for compatibility)
         self.debounce_time = debounce_time
@@ -274,14 +279,32 @@ class ButtonController:
         return self.kitchen_radio.previous()
     
     def _volume_up(self) -> bool:
-        """Increase volume"""
+        """Increase volume and show volume screen"""
         logger.debug("Volume up")
-        return self.kitchen_radio.volume_up(step=5)
+        result = self.kitchen_radio.volume_up(step=5)
+        
+        # Show volume screen if display controller is available
+        if self.display_controller and hasattr(self.display_controller, 'show_volume_screen'):
+            try:
+                self.display_controller.show_volume_screen()
+            except Exception as e:
+                logger.warning(f"Failed to show volume screen: {e}")
+        
+        return result
     
     def _volume_down(self) -> bool:
-        """Decrease volume"""
+        """Decrease volume and show volume screen"""
         logger.debug("Volume down")
-        return self.kitchen_radio.volume_down(step=5)
+        result = self.kitchen_radio.volume_down(step=5)
+        
+        # Show volume screen if display controller is available
+        if self.display_controller and hasattr(self.display_controller, 'show_volume_screen'):
+            try:
+                self.display_controller.show_volume_screen()
+            except Exception as e:
+                logger.warning(f"Failed to show volume screen: {e}")
+        
+        return result
     
     def _menu_up(self) -> bool:
         """Menu up navigation - placeholder"""

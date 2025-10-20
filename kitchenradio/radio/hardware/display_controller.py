@@ -133,6 +133,22 @@ class DisplayController:
         """Request an immediate display update"""
         self.manual_update_requested = True
     
+    def show_volume_screen(self):
+        """Show volume screen for 3 seconds (triggered by volume button press)"""
+        try:
+            if self.kitchen_radio:
+                status = self.kitchen_radio.get_status()
+                current_volume = self._get_current_volume(status)
+                if current_volume is not None:
+                    self._show_volume_screen(current_volume)
+                    logger.info(f"Volume screen displayed manually: {current_volume}%")
+                else:
+                    logger.warning("Could not get current volume for volume screen")
+            else:
+                logger.warning("No KitchenRadio instance available for volume screen")
+        except Exception as e:
+            logger.error(f"Error showing volume screen: {e}")
+    
     def _update_loop(self):
         """Main update loop for display refresh"""
         frame_time = 1.0 / self.refresh_rate
@@ -181,13 +197,10 @@ class DisplayController:
     def _update_display_content(self, status: Dict[str, Any]):
         """Update display content based on status"""
         try:
-            # Check for volume changes first
+            # Update last volume for tracking (but don't auto-show volume screen)
             current_volume = self._get_current_volume(status)
-            if current_volume is not None and current_volume != self.last_volume:
-                # Volume changed, show volume screen
-                self._show_volume_screen(current_volume)
+            if current_volume is not None:
                 self.last_volume = current_volume
-                return
             
             # If volume screen is active, keep showing it
             if self.volume_screen_active:
@@ -321,14 +334,14 @@ class DisplayController:
             return None
     
     def _show_volume_screen(self, volume: int):
-        """Show temporary volume screen with rotating indicator"""
+        """Show temporary volume screen using formatter's full screen display"""
         try:
             # Activate volume screen
             self.volume_screen_active = True
             self.volume_screen_end_time = time.time() + self.volume_screen_timeout
             
-            # Create enhanced volume display with rotation indicator
-            draw_func = self._create_volume_screen(volume)
+            # Use formatter's full screen volume display
+            draw_func = self.formatter.format_fullscreen_volume(volume)
             self.i2c_interface.render_frame(draw_func)
             
             logger.debug(f"Volume screen displayed: {volume}%")
@@ -336,79 +349,7 @@ class DisplayController:
         except Exception as e:
             logger.error(f"Error showing volume screen: {e}")
     
-    def _create_volume_screen(self, volume: int) -> Callable:
-        """Create volume screen with rotating knob indicator"""
-        def draw_volume_screen(draw):
-            # Clear background
-            draw.rectangle([(0, 0), (self.i2c_interface.width, self.i2c_interface.height)], fill=0)
-            
-            # Large "VOLUME" text at top
-            volume_text = "VOLUME"
-            text_width = len(volume_text) * 12  # Rough estimate
-            text_x = (self.i2c_interface.width - text_width) // 2
-            draw.text((text_x, 5), volume_text, font=self.formatter.fonts['large'], fill=255)
-            
-            # Large volume percentage
-            vol_pct = f"{volume}%"
-            pct_width = len(vol_pct) * 16  # Rough estimate for large font
-            pct_x = (self.i2c_interface.width - pct_width) // 2
-            draw.text((pct_x, 25), vol_pct, font=self.formatter.fonts['large'], fill=255)
-            
-            # Rotating knob indicator (circular dial)
-            center_x = self.i2c_interface.width // 2
-            center_y = self.i2c_interface.height - 20
-            knob_radius = 12
-            
-            # Draw knob circle
-            knob_box = [
-                (center_x - knob_radius, center_y - knob_radius),
-                (center_x + knob_radius, center_y + knob_radius)
-            ]
-            draw.ellipse(knob_box, outline=255, width=2)
-            
-            # Draw volume indicator line (rotates based on volume)
-            import math
-            # Volume 0-100 maps to angle -135° to +135° (270° total range)
-            angle_degrees = -135 + (volume / 100.0) * 270
-            angle_radians = math.radians(angle_degrees)
-            
-            # Calculate line end point
-            line_length = knob_radius - 3
-            end_x = center_x + int(line_length * math.cos(angle_radians))
-            end_y = center_y + int(line_length * math.sin(angle_radians))
-            
-            # Draw indicator line
-            draw.line([(center_x, center_y), (end_x, end_y)], fill=255, width=2)
-            
-            # Draw small center dot
-            draw.ellipse([
-                (center_x - 2, center_y - 2),
-                (center_x + 2, center_y + 2)
-            ], fill=255)
-            
-            # Draw volume scale marks around the knob
-            for i in range(0, 101, 25):  # Marks at 0%, 25%, 50%, 75%, 100%
-                mark_angle_deg = -135 + (i / 100.0) * 270
-                mark_angle_rad = math.radians(mark_angle_deg)
-                
-                # Outer mark point
-                outer_radius = knob_radius + 5
-                mark_x = center_x + int(outer_radius * math.cos(mark_angle_rad))
-                mark_y = center_y + int(outer_radius * math.sin(mark_angle_rad))
-                
-                # Inner mark point
-                inner_radius = knob_radius + 2
-                inner_x = center_x + int(inner_radius * math.cos(mark_angle_rad))
-                inner_y = center_y + int(inner_radius * math.sin(mark_angle_rad))
-                
-                # Draw mark line
-                draw.line([(inner_x, inner_y), (mark_x, mark_y)], fill=255, width=1)
-            
-            # Border around entire display
-            draw.rectangle([(0, 0), (self.i2c_interface.width-1, self.i2c_interface.height-1)], outline=255)
-        
-        return draw_volume_screen
-
+ 
 # Example usage and testing
 if __name__ == "__main__":
     import sys

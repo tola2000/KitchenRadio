@@ -59,9 +59,6 @@ class KitchenRadioWeb:
         self.port = port
         self.enable_gpio = enable_gpio
         
-        # Create underlying button controller
-        self.button_controller = ButtonController(self.kitchen_radio)
-        
         # Initialize display emulator if available
         self.display_emulator = None
 
@@ -73,6 +70,8 @@ class KitchenRadioWeb:
             logger.error(f"Failed to create display emulator: {e}")
             self.display_emulator = None
 
+        # Initialize display controller
+        self.display_controller = None
         try:
             # Create display controller with emulator as the I2C interface and kitchen_radio
             self.display_controller = DisplayController(
@@ -84,6 +83,12 @@ class KitchenRadioWeb:
         except Exception as e:
             logger.warning(f"Failed to initialize display controller with emulator: {e}")
             self.display_controller = None
+
+        # Create button controller with display controller reference
+        self.button_controller = ButtonController(
+            self.kitchen_radio, 
+            display_controller=self.display_controller
+        )
  
         # Flask app for REST API
         self.app = Flask(__name__, 
