@@ -17,28 +17,11 @@ import base64
 
 from kitchenradio.radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
 from kitchenradio.web.display_interface_emulator import DisplayInterfaceEmulator
-
-if TYPE_CHECKING:
-    from ..radio.kitchen_radio import KitchenRadio
+from kitchenradio.radio.hardware.display_controller import DisplayController
+from kitchenradio.radio.kitchen_radio import KitchenRadio
 
 logger = logging.getLogger(__name__)
 
-# Try to import display controller and emulator with graceful fallback
-try:
-    from ..radio.hardware.display_controller import DisplayController
-except ImportError as e:
-    logger.warning(f"DisplayController not available: {e}")
-    DisplayController = None
-
-try:
-    from .display_interface_emulator import EmulatorDisplayInterface
-    logger.info("EmulatorDisplayInterface imported successfully")
-except ImportError as e:
-    logger.error(f"Failed to import EmulatorDisplayInterface: {e}")
-    EmulatorDisplayInterface = None
-except Exception as e:
-    logger.error(f"Unexpected error importing EmulatorDisplayInterface: {e}")
-    EmulatorDisplayInterface = None
 
 
 class KitchenRadioWeb:
@@ -79,12 +62,17 @@ class KitchenRadioWeb:
         # Create underlying button controller
         self.button_controller = ButtonController(self.kitchen_radio)
         
+        # Initialize display emulator if available
+        self.display_emulator = None
 
-        self.display_emulator = DisplayInterfaceEmulator()
-        self.display_emulator.initialize()
-        logger.info("Display emulator initialized successfully")
+        try:
+            self.display_emulator = DisplayInterfaceEmulator()
+            self.display_emulator.initialize()
+            logger.info("Display emulator initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to create display emulator: {e}")
+            self.display_emulator = None
 
-        # Initialize display controller using the emulator as the interface
         try:
             # Create display controller with emulator as the I2C interface and kitchen_radio
             self.display_controller = DisplayController(
@@ -92,12 +80,11 @@ class KitchenRadioWeb:
                 i2c_interface=self.display_emulator
             )
             self.display_controller.initialize()
-            
             logger.info("Display controller initialized with emulator interface and update loop started")
         except Exception as e:
             logger.warning(f"Failed to initialize display controller with emulator: {e}")
             self.display_controller = None
-
+ 
         # Flask app for REST API
         self.app = Flask(__name__, 
                         template_folder='../../frontend/templates',
