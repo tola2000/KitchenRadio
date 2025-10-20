@@ -134,7 +134,12 @@ class KitchenRadioWebServer:
         
         @self.app.route('/')
         def index():
-            """Main interface page"""
+            """Main interface page - redirect to radio interface"""
+            return render_template('radio_interface.html')
+        
+        @self.app.route('/unified')
+        def unified_interface():
+            """Original unified control interface"""
             return render_template('unified_control.html')
         
         @self.app.route('/api/health')
@@ -461,6 +466,59 @@ class KitchenRadioWebServer:
             except Exception as e:
                 logger.error(f"Error loading playlist: {e}")
                 return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/menu')
+        def api_get_menu():
+            """Get menu options for the currently active source"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'success': False, 'error': 'Daemon not available'}), 500
+            
+            try:
+                menu_data = daemon.get_menu_options()
+                return jsonify(menu_data)
+                
+            except Exception as e:
+                logger.error(f"Error getting menu options: {e}")
+                return jsonify({
+                    'has_menu': False,
+                    'options': [],
+                    'message': 'Error retrieving menu'
+                }), 500
+
+        @self.app.route('/api/menu/action', methods=['POST'])
+        def api_execute_menu_action():
+            """Execute a menu action"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'success': False, 'error': 'Daemon not available'}), 500
+            
+            try:
+                data = request.get_json() or {}
+                action = data.get('action')
+                option_id = data.get('option_id')
+                
+                if not action:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Action is required'
+                    }), 400
+                
+                result = daemon.execute_menu_action(action, option_id)
+                
+                if result.get('success'):
+                    return jsonify(result)
+                else:
+                    return jsonify(result), 400
+                    
+            except Exception as e:
+                logger.error(f"Error executing menu action: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+
+        @self.app.route('/radio')
+        def radio_interface():
+            """Physical radio interface page"""
+            return render_template('radio_interface.html')
 
     def run(self):
         """Run the web server"""

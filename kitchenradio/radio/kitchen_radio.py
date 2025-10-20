@@ -969,6 +969,259 @@ class KitchenRadio:
         
         return 0
 
+    def get_menu_options(self) -> Dict[str, Any]:
+        """
+        Get menu options for the currently active source.
+        
+        Returns:
+            Dictionary with menu options based on the active provider
+        """
+        if not self.source:
+            return {
+                'has_menu': False,
+                'options': [],
+                'message': 'No active source selected'
+            }
+        
+        if self.source == BackendType.MPD:
+            return self._get_mpd_menu_options()
+        elif self.source == BackendType.LIBRESPOT:
+            return self._get_spotify_menu_options()
+        else:
+            return {
+                'has_menu': False,
+                'options': [],
+                'message': 'Unknown source type'
+            }
+    
+    def _get_mpd_menu_options(self) -> Dict[str, Any]:
+        """
+        Get menu options for MPD (playlists).
+        
+        Returns:
+            Dictionary with MPD menu options
+        """
+        if not self.mpd_connected or not self.mpd_controller:
+            return {
+                'has_menu': False,
+                'options': [],
+                'message': 'MPD not connected'
+            }
+        
+        try:
+            # Get available playlists
+            playlists = self.mpd_controller.get_playlists()
+            if not playlists:
+                return {
+                    'has_menu': True,
+                    'menu_type': 'playlists',
+                    'options': [],
+                    'message': 'No playlists available'
+                }
+            
+            playlist_options = []
+            for playlist in playlists:
+                playlist_options.append({
+                    'id': playlist,
+                    'label': playlist,
+                    'type': 'playlist',
+                    'action': 'load_playlist'
+                })
+            
+            return {
+                'has_menu': True,
+                'menu_type': 'playlists',
+                'options': playlist_options,
+                'message': f'{len(playlist_options)} playlists available'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting MPD menu options: {e}")
+            return {
+                'has_menu': False,
+                'options': [],
+                'message': 'Error retrieving playlists'
+            }
+    
+    def _get_spotify_menu_options(self) -> Dict[str, Any]:
+        """
+        Get menu options for Spotify (shuffle, repeat).
+        
+        Returns:
+            Dictionary with Spotify menu options
+        """
+        if not self.librespot_connected or not self.librespot_controller:
+            return {
+                'has_menu': False,
+                'options': [],
+                'message': 'Spotify not connected'
+            }
+        
+        try:
+            # Get current shuffle and repeat states
+            current_shuffle = self.librespot_controller.get_shuffle()
+            current_repeat = self.librespot_controller.get_repeat()
+            
+            # Create menu options based on actual states
+            options = [
+                {
+                    'id': 'shuffle',
+                    'label': f'Shuffle: {"ON" if current_shuffle else "OFF"}',
+                    'type': 'toggle',
+                    'action': 'toggle_shuffle',
+                    'state': current_shuffle if current_shuffle is not None else False
+                },
+                {
+                    'id': 'repeat',
+                    'label': f'Repeat: {(current_repeat or "OFF").upper()}',
+                    'type': 'toggle', 
+                    'action': 'toggle_repeat',
+                    'state': current_repeat != 'off' if current_repeat is not None else False
+                }
+            ]
+            
+            return {
+                'has_menu': True,
+                'menu_type': 'playback_options',
+                'options': options,
+                'message': 'Playback options'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting Spotify menu options: {e}")
+            return {
+                'has_menu': False,
+                'options': [],
+                'message': 'Error retrieving playback options'
+            }
+    
+    def execute_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
+        """
+        Execute a menu action based on the active provider.
+        
+        Args:
+            action: The action to execute
+            option_id: Optional ID for the specific option
+            
+        Returns:
+            Dictionary with execution result
+        """
+        if not self.source:
+            return {
+                'success': False,
+                'error': 'No active source selected'
+            }
+        
+        if self.source == BackendType.MPD:
+            return self._execute_mpd_menu_action(action, option_id)
+        elif self.source == BackendType.LIBRESPOT:
+            return self._execute_spotify_menu_action(action, option_id)
+        else:
+            return {
+                'success': False,
+                'error': 'Unknown source type'
+            }
+    
+    def _execute_mpd_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
+        """
+        Execute MPD menu action.
+        
+        Args:
+            action: Action to execute
+            option_id: Playlist name
+            
+        Returns:
+            Dictionary with execution result
+        """
+        if not self.mpd_connected or not self.mpd_controller:
+            return {
+                'success': False,
+                'error': 'MPD not connected'
+            }
+        
+        try:
+            if action == 'load_playlist' and option_id:
+                result = self.mpd_controller.play_playlist(option_id)
+                if result:
+                    return {
+                        'success': True,
+                        'message': f'Loaded and started playlist: {option_id}'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': f'Failed to load playlist: {option_id}'
+                    }
+            else:
+                return {
+                    'success': False,
+                    'error': f'Unknown MPD action: {action}'
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Error executing MPD menu action: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _execute_spotify_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
+        """
+        Execute Spotify menu action.
+        
+        Args:
+            action: Action to execute
+            option_id: Option identifier
+            
+        Returns:
+            Dictionary with execution result
+        """
+        if not self.librespot_connected or not self.librespot_controller:
+            return {
+                'success': False,
+                'error': 'Spotify not connected'
+            }
+        
+        try:
+            if action == 'toggle_shuffle':
+                result = self.librespot_controller.toggle_shuffle()
+                if result:
+                    current_shuffle = self.librespot_controller.get_shuffle()
+                    state = "enabled" if current_shuffle else "disabled"
+                    return {
+                        'success': True,
+                        'message': f'Shuffle {state}'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to toggle shuffle'
+                    }
+            elif action == 'toggle_repeat':
+                result = self.librespot_controller.toggle_repeat()
+                if result:
+                    current_repeat = self.librespot_controller.get_repeat()
+                    return {
+                        'success': True,
+                        'message': f'Repeat mode: {current_repeat or "off"}'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': 'Failed to toggle repeat'
+                    }
+            else:
+                return {
+                    'success': False,
+                    'error': f'Unknown Spotify action: {action}'
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Error executing Spotify menu action: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
 def main():
     """Main entry point"""

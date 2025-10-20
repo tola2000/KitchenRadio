@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KitchenRadio - Physical Radio Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/radio_style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="radio-container">
+        <!-- Radio Body -->
+        <div class="radio-body">
+            <!-- Top Source Buttons -->
+            <div class="source-row">
+                <button id="btn-source-mpd" onclick="selectSource('mpd')" class="source-btn" data-source="mpd">
+                    <i class="fas fa-music"></i>
+                    <span>MPD</span>
+                </button>
+                <button id="btn-source-spotify" onclick="selectSource('spotify')" class="source-btn" data-source="spotify">
+                    <i class="fab fa-spotify"></i>
+                    <span>Spotify</span>
+                </button>
+                <button id="btn-source-off" onclick="selectSource('')" class="source-btn active" data-source="">
+                    <i class="fas fa-power-off"></i>
+                    <span>OFF</span>
+                </button>
+            </div>
+
+            <!-- Middle Section with Menu Buttons and OLED Display -->
+            <div class="middle-section">
+                <!-- Left Menu Buttons -->
+                <div class="menu-buttons-left">
+                    <button id="btn-menu-1" onclick="menuAction(1)" class="menu-btn">
+                        <i class="fas fa-chevron-up"></i>
+                        <span>UP</span>
+                    </button>
+                    <button id="btn-menu-2" onclick="menuAction(2)" class="menu-btn">
+                        <i class="fas fa-list"></i>
+                        <span>MENU</span>
+                    </button>
+                    <button id="btn-menu-3" onclick="menuAction(3)" class="menu-btn">
+                        <i class="fas fa-chevron-down"></i>
+                        <span>DOWN</span>
+                    </button>
+                </div>
+
+                <!-- OLED Display -->
+                <div class="oled-display" id="oled-display">
+                    <div class="display-header">
+                        <div class="source-indicator" id="source-indicator">
+                            <i class="fas fa-power-off"></i>
+                            <span>OFF</span>
+                        </div>
+                        <div class="status-indicator" id="daemon-status">
+                            <i class="fas fa-circle"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="display-main" id="display-main">
+                        <div class="track-info" id="track-info">
+                            <div class="track-title" id="track-title">KitchenRadio</div>
+                            <div class="track-artist" id="track-artist">Ready to Play</div>
+                            <div class="track-album" id="track-album">Select a Source</div>
+                        </div>
+                        
+                        <div class="playback-info" id="playback-info">
+                            <div class="playback-status" id="playback-status">
+                                <i class="fas fa-stop"></i>
+                                <span>STOP</span>
+                            </div>
+                            <div class="volume-info" id="volume-info">
+                                <i class="fas fa-volume-up"></i>
+                                <span id="volume-level">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Menu overlay for when menu is active -->
+                    <div class="menu-overlay" id="menu-overlay" style="display: none;">
+                        <div class="menu-title" id="menu-title">Menu</div>
+                        <div class="menu-options" id="menu-options">
+                            <!-- Dynamic menu content -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Menu Buttons -->
+                <div class="menu-buttons-right">
+                    <button id="btn-menu-4" onclick="menuAction(4)" class="menu-btn">
+                        <i class="fas fa-cog"></i>
+                        <span>SET</span>
+                    </button>
+                    <button id="btn-menu-5" onclick="menuAction(5)" class="menu-btn">
+                        <i class="fas fa-check"></i>
+                        <span>OK</span>
+                    </button>
+                    <button id="btn-menu-6" onclick="menuAction(6)" class="menu-btn">
+                        <i class="fas fa-times"></i>
+                        <span>EXIT</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Transport Controls -->
+            <div class="transport-controls">
+                <button id="btn-previous" onclick="sendCommand('previous')" class="transport-btn" disabled>
+                    <i class="fas fa-step-backward"></i>
+                    <span>PREV</span>
+                </button>
+                <button id="btn-play" onclick="sendCommand('play_pause')" class="transport-btn play-btn" disabled>
+                    <i class="fas fa-play"></i>
+                    <span>PLAY</span>
+                </button>
+                <button id="btn-stop" onclick="sendCommand('stop')" class="transport-btn" disabled>
+                    <i class="fas fa-stop"></i>
+                    <span>STOP</span>
+                </button>
+                <button id="btn-next" onclick="sendCommand('next')" class="transport-btn" disabled>
+                    <i class="fas fa-step-forward"></i>
+                    <span>NEXT</span>
+                </button>
+            </div>
+
+            <!-- Volume Controls -->
+            <div class="volume-controls">
+                <button id="btn-volume-down" onclick="adjustVolume('down')" class="volume-btn" disabled>
+                    <i class="fas fa-volume-down"></i>
+                    <span>VOL-</span>
+                </button>
+                <div class="volume-display">
+                    <div class="volume-bar" id="volume-bar">
+                        <div class="volume-fill" id="volume-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <button id="btn-volume-up" onclick="adjustVolume('up')" class="volume-btn" disabled>
+                    <i class="fas fa-volume-up"></i>
+                    <span>VOL+</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status-messages" class="status-messages"></div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/radio_app.js') }}"></script>
+</body>
+</html>

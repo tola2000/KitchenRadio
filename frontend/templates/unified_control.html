@@ -18,14 +18,23 @@
                     </span>
                 </div>
                 <div class="source-selector">
-                    <label for="source-select">
+                    <label>
                         <i class="fas fa-toggle-on"></i> Source:
                     </label>
-                    <select id="source-select" onchange="sourceChanged()">
-                        <option value="">-- No Source --</option>
-                        <option value="mpd">MPD Player</option>
-                        <option value="spotify">Spotify</option>
-                    </select>
+                    <div class="source-buttons">
+                        <button id="btn-source-mpd" onclick="selectSource('mpd')" class="source-btn">
+                            <i class="fas fa-music"></i>
+                            <span>MPD</span>
+                        </button>
+                        <button id="btn-source-spotify" onclick="selectSource('spotify')" class="source-btn">
+                            <i class="fab fa-spotify"></i>
+                            <span>Spotify</span>
+                        </button>
+                        <button id="btn-source-none" onclick="selectSource('')" class="source-btn active">
+                            <i class="fas fa-power-off"></i>
+                            <span>None</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </header>
@@ -106,11 +115,8 @@
                 <div class="backend-panel" id="playlist-panel">
                     <div class="playlist-controls">
                         <h3><i class="fas fa-list"></i> Available Playlists</h3>
-                        <div class="playlist-section">
-                            <select id="playlist-select">
-                                <option value="">Select a playlist...</option>
-                            </select>
-                            <button onclick="loadPlaylist()" id="load-playlist-btn" disabled>Load Playlist</button>
+                        <div class="playlist-buttons" id="playlist-buttons">
+                            <!-- Playlist buttons will be dynamically generated here -->
                         </div>
                         <div class="playlist-info" id="playlist-info">
                             <p><i class="fas fa-info-circle"></i> Select a source to view available playlists.</p>
@@ -247,11 +253,11 @@
         }
         
         // Source selection
-        function sourceChanged() {
-            const sourceSelect = document.getElementById('source-select');
-            const selectedSource = sourceSelect.value;
+        function selectSource(source) {
+            // Update button states
+            updateSourceButtonStates(source);
             
-            if (!selectedSource) {
+            if (!source) {
                 currentSource = null;
                 updateControlsState(false);
                 updateActiveSourceDisplay('No Source Selected');
@@ -259,7 +265,7 @@
                 return;
             }
             
-            fetch(`/api/source/${selectedSource}`, {
+            fetch(`/api/source/${source}`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'}
             })
@@ -274,14 +280,32 @@
                     updateStatus(); // Refresh status immediately
                 } else {
                     showMessage(data.error || 'Failed to set source', 'error');
-                    sourceSelect.value = ''; // Reset selection
+                    // Reset to no source on error
+                    updateSourceButtonStates('');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 showMessage('Failed to set source', 'error');
-                sourceSelect.value = ''; // Reset selection
+                // Reset to no source on error
+                updateSourceButtonStates('');
             });
+        }
+        
+        function updateSourceButtonStates(activeSource) {
+            // Remove active class from all source buttons
+            document.querySelectorAll('.source-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Add active class to the selected button
+            if (activeSource === 'mpd') {
+                document.getElementById('btn-source-mpd').classList.add('active');
+            } else if (activeSource === 'spotify') {
+                document.getElementById('btn-source-spotify').classList.add('active');
+            } else {
+                document.getElementById('btn-source-none').classList.add('active');
+            }
         }
         
         // Update UI functions
@@ -325,8 +349,8 @@
                 // Update current source
                 if (data.current_source) {
                     currentSource = data.current_source;
-                    document.getElementById('source-select').value = 
-                        data.current_source === 'librespot' ? 'spotify' : data.current_source;
+                    const displayedSource = data.current_source === 'librespot' ? 'spotify' : data.current_source;
+                    updateSourceButtonStates(displayedSource);
                     updateControlsState(true);
                     updateActiveSourceDisplay(data.current_source);
                 }
@@ -451,20 +475,17 @@
         function updatePlaylistSection(source) {
             const playlistIndicator = document.getElementById('playlist-source-indicator');
             const playlistInfo = document.getElementById('playlist-info');
-            const playlistSelect = document.getElementById('playlist-select');
-            const loadButton = document.getElementById('load-playlist-btn');
+            const playlistButtons = document.getElementById('playlist-buttons');
             
             if (!source) {
                 playlistIndicator.innerHTML = '<i class="fas fa-circle" style="color: #999;"></i> No Source Selected';
                 playlistInfo.innerHTML = '<p><i class="fas fa-info-circle"></i> Select a source to view available playlists.</p>';
-                playlistSelect.innerHTML = '<option value="">Select a playlist...</option>';
-                loadButton.disabled = true;
+                playlistButtons.innerHTML = '';
                 return;
             }
             
             const displayName = source === 'librespot' ? 'Spotify' : source.toUpperCase();
             playlistIndicator.innerHTML = `<i class="fas fa-circle" style="color: #4CAF50;"></i> ${displayName}`;
-            loadButton.disabled = false;
             
             // Load playlists for the current source
             loadPlaylists();
@@ -476,19 +497,23 @@
             fetch('/api/playlists')
             .then(response => response.json())
             .then(data => {
-                const playlistSelect = document.getElementById('playlist-select');
+                const playlistButtons = document.getElementById('playlist-buttons');
                 const playlistInfo = document.getElementById('playlist-info');
                 
-                // Clear existing options
-                playlistSelect.innerHTML = '<option value="">Select a playlist...</option>';
+                // Clear existing buttons
+                playlistButtons.innerHTML = '';
                 
                 if (data.success) {
                     if (data.playlists && data.playlists.length > 0) {
                         data.playlists.forEach(playlist => {
-                            const option = document.createElement('option');
-                            option.value = playlist;
-                            option.textContent = playlist;
-                            playlistSelect.appendChild(option);
+                            const button = document.createElement('button');
+                            button.className = 'playlist-btn';
+                            button.onclick = () => loadPlaylistByName(playlist);
+                            button.innerHTML = `
+                                <i class="fas fa-list"></i>
+                                <span>${playlist}</span>
+                            `;
+                            playlistButtons.appendChild(button);
                         });
                         playlistInfo.innerHTML = `<p><i class="fas fa-music"></i> Found ${data.playlists.length} playlist(s) for ${data.source.toUpperCase()}.</p>`;
                     } else {
@@ -509,12 +534,9 @@
             });
         }
         
-        function loadPlaylist() {
-            const select = document.getElementById('playlist-select');
-            const playlist = select.value;
-            
-            if (!playlist) {
-                showMessage('Please select a playlist', 'error');
+        function loadPlaylistByName(playlistName) {
+            if (!playlistName) {
+                showMessage('No playlist specified', 'error');
                 return;
             }
             
@@ -523,10 +545,13 @@
                 return;
             }
             
+            // Show loading feedback
+            showMessage(`Loading playlist: ${playlistName}`, 'info');
+            
             fetch('/api/load_playlist', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({playlist: playlist})
+                body: JSON.stringify({playlist: playlistName})
             })
             .then(response => response.json())
             .then(data => {

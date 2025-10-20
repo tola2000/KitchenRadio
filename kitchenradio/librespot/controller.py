@@ -139,6 +139,77 @@ class LibrespotController:
             logger.error(f"Error decreasing volume: {e}")
             return False
     
+    def set_shuffle(self, enabled: bool) -> bool:
+        """
+        Set shuffle mode.
+        
+        Args:
+            enabled: True to enable shuffle, False to disable
+            
+        Returns:
+            True if successful
+        """
+        return self.client.set_shuffle(enabled)
+    
+    def get_shuffle(self) -> Optional[bool]:
+        """
+        Get current shuffle state.
+        
+        Returns:
+            True if shuffle is enabled, False if disabled, None if error
+        """
+        return self.client.get_shuffle()
+    
+    def set_repeat(self, mode: str) -> bool:
+        """
+        Set repeat mode.
+        
+        Args:
+            mode: Repeat mode ('off', 'track', 'context')
+            
+        Returns:
+            True if successful
+        """
+        return self.client.set_repeat(mode)
+    
+    def get_repeat(self) -> Optional[str]:
+        """
+        Get current repeat mode.
+        
+        Returns:
+            Current repeat mode or None if error
+        """
+        return self.client.get_repeat()
+    
+    def toggle_shuffle(self) -> bool:
+        """
+        Toggle shuffle mode.
+        
+        Returns:
+            True if successful
+        """
+        current_shuffle = self.get_shuffle()
+        if current_shuffle is not None:
+            return self.set_shuffle(not current_shuffle)
+        return False
+    
+    def toggle_repeat(self) -> bool:
+        """
+        Toggle repeat mode (off -> track -> context -> off).
+        
+        Returns:
+            True if successful
+        """
+        current_repeat = self.get_repeat()
+        if current_repeat is not None:
+            next_mode = {
+                'off': 'track',
+                'track': 'context', 
+                'context': 'off'
+            }.get(current_repeat, 'off')
+            return self.set_repeat(next_mode)
+        return False
+
     # def get_status(self) -> Optional[Dict[str, Any]]:
     #     """
     #     Get player status.

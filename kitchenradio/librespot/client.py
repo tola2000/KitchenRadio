@@ -256,3 +256,46 @@ class KitchenRadioLibrespotClient:
         except Exception as e:
             logger.error(f"Error getting devices: {e}")
             return None
+    
+    # Shuffle and repeat control
+    def set_shuffle(self, enabled: bool) -> bool:
+        """Set shuffle mode."""
+        try:
+            result = self._send_request("/player/shuffle", method="POST", data={"shuffle": enabled})
+            logger.info(f"Set shuffle to {enabled}")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting shuffle: {e}")
+            return False
+    
+    def get_shuffle(self) -> Optional[bool]:
+        """Get current shuffle state."""
+        try:
+            result = self._send_request("/player/shuffle")
+            if result and 'value' in result:
+                return bool(result['value'])
+            return None
+        except Exception as e:
+            logger.error(f"Error getting shuffle state: {e}")
+            return None
+    
+    def set_repeat(self, mode: str) -> bool:
+        """Set repeat mode (off, track, context)."""
+        try:
+            result = self._send_request("/player/repeat", method="POST", data={"repeat": mode})
+            logger.info(f"Set repeat to {mode}")
+            return True
+        except Exception as e:
+            logger.error(f"Error setting repeat: {e}")
+            return False
+    
+    def get_repeat(self) -> Optional[str]:
+        """Get current repeat mode."""
+        try:
+            result = self._send_request("/player/repeat")
+            if result and 'value' in result:
+                return str(result['value'])
+            return None
+        except Exception as e:
+            logger.error(f"Error getting repeat mode: {e}")
+            return None

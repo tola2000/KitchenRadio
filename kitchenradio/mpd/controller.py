@@ -253,7 +253,7 @@ class PlaybackController:
         """
         return self.client.get_playlist()
     
-    def get_all_playlists(self) -> List[str]:
+    def get_playlists(self) -> List[str]:
         """
         Get all stored playlist names.
         
@@ -264,6 +264,7 @@ class PlaybackController:
         # Extract just the playlist names from the metadata
         return [playlist.get('playlist', '') for playlist in playlists_data if 'playlist' in playlist]
     
+
     # def get_current_song(self) -> Optional[Dict[str, Any]]:
     #     """
     #     Get current song info.
