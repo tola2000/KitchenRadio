@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KitchenRadio Control Panel</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-radio"></i> KitchenRadio Control Panel</h1>
+            <div class="header-controls">
+                <div class="daemon-status">
+                    <span id="daemon-status" class="status-indicator">
+                        <i class="fas fa-circle"></i> Connecting...
+                    </span>
+                </div>
+                <div class="source-selector">
+                    <label for="source-select">
+                        <i class="fas fa-toggle-on"></i> Source:
+                    </label>
+                    <select id="source-select" onchange="sourceChanged()">
+                        <option value="">-- No Source --</option>
+                        <option value="mpd">MPD Player</option>
+                        <option value="spotify">Spotify</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- MPD Backend -->
+            <section class="backend-panel" id="mpd-panel">
+                <h2>
+                    <i class="fas fa-music"></i> MPD Player
+                    <span id="mpd-status" class="backend-status">
+                        <i class="fas fa-circle"></i> Disconnected
+                    </span>
+                </h2>
+                
+                <div class="current-track" id="mpd-current">
+                    <div class="track-info">
+                        <div class="title">No track playing</div>
+                        <div class="artist"></div>
+                        <div class="album"></div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <div class="playback-controls">
+                        <button class="control-btn" onclick="mpdControl('previous')" title="Previous">
+                            <i class="fas fa-step-backward"></i>
+                        </button>
+                        <button class="control-btn play-pause" id="mpd-play-pause" onclick="mpdPlayPause()" title="Play/Pause">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="control-btn" onclick="mpdControl('stop')" title="Stop">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <button class="control-btn" onclick="mpdControl('next')" title="Next">
+                            <i class="fas fa-step-forward"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="volume-controls">
+                        <button class="volume-btn" onclick="mpdVolumeControl('down')" title="Volume Down">
+                            <i class="fas fa-volume-down"></i>
+                        </button>
+                        <div class="volume-slider">
+                            <input type="range" id="mpd-volume" min="0" max="100" value="50" 
+                                   oninput="mpdSetVolume(this.value)" onchange="mpdSetVolume(this.value)">
+                            <span id="mpd-volume-text">50%</span>
+                        </div>
+                        <button class="volume-btn" onclick="mpdVolumeControl('up')" title="Volume Up">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="playlist-controls">
+                        <div class="playlist-selector">
+                            <label for="mpd-playlist-select">
+                                <i class="fas fa-list"></i> Stored Playlists:
+                            </label>
+                            <div class="playlist-input-group">
+                                <select id="mpd-playlist-select" onchange="mpdPlaylistChanged()">
+                                    <option value="">-- Select Playlist --</option>
+                                </select>
+                                <button class="playlist-btn" onclick="mpdLoadPlaylist()" title="Load Playlist">
+                                    <i class="fas fa-play-circle"></i>
+                                </button>
+                                <button class="playlist-btn refresh" onclick="mpdRefreshPlaylists()" title="Refresh Playlists">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="playback-state">
+                    <span id="mpd-state">Unknown</span>
+                </div>
+            </section>
+
+            <!-- Librespot Backend -->
+            <section class="backend-panel" id="librespot-panel">
+                <h2>
+                    <i class="fab fa-spotify"></i> Spotify (librespot)
+                    <span id="librespot-status" class="backend-status">
+                        <i class="fas fa-circle"></i> Disconnected
+                    </span>
+                </h2>
+                
+                <div class="current-track" id="librespot-current">
+                    <div class="track-info">
+                        <div class="title">No track playing</div>
+                        <div class="artist"></div>
+                        <div class="album"></div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <div class="playback-controls">
+                        <button class="control-btn" onclick="librespotControl('previous')" title="Previous">
+                            <i class="fas fa-step-backward"></i>
+                        </button>
+                        <button class="control-btn play-pause" id="librespot-play-pause" onclick="librespotPlayPause()" title="Play/Pause">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="control-btn" onclick="librespotControl('stop')" title="Stop">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <button class="control-btn" onclick="librespotControl('next')" title="Next">
+                            <i class="fas fa-step-forward"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="volume-controls">
+                        <button class="volume-btn" onclick="librespotVolumeControl('down')" title="Volume Down">
+                            <i class="fas fa-volume-down"></i>
+                        </button>
+                        <div class="volume-slider">
+                            <input type="range" id="librespot-volume" min="0" max="100" value="50" 
+                                   oninput="librespotSetVolume(this.value)" onchange="librespotSetVolume(this.value)">
+                            <span id="librespot-volume-text">50%</span>
+                        </div>
+                        <button class="volume-btn" onclick="librespotVolumeControl('up')" title="Volume Up">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="playback-state">
+                    <span id="librespot-state">Unknown</span>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="status-bar">
+                <span id="last-update">Last update: Never</span>
+                <button class="refresh-btn" onclick="refreshStatus()" title="Refresh">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Error/Success Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
