@@ -567,11 +567,11 @@ class DisplayFormatter:
                 album_truncated = self._truncate_text(album_text, content_width, self.fonts['small'])
                 draw.text((content_x, 20), album_truncated, font=self.fonts['small'], fill=255)
             
-            # Progress bar at the bottom - starts next to volume bar
+            # Progress bar at the bottom - starts after volume bar
             progress_bar_height = 4
             progress_bar_y = self.height - progress_bar_height - 3
-            progress_bar_x = bar_x  # Start at same x as volume bar
-            progress_bar_width = self.width - bar_x - 10  # Span from volume bar to right edge
+            progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with small gap
+            progress_bar_width = self.width - progress_bar_x - 10  # Span from after volume bar to right edge
             
             # Draw progress bar background
             draw.rectangle([
