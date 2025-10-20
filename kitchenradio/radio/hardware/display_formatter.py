@@ -201,11 +201,11 @@ class DisplayFormatter:
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Large volume bar on the left side (wider for volume-only display)
+            # Large volume bar on the left side (covers full height)
             bar_width = 16
-            bar_height = self.height - 20  # Leave margin top/bottom
+            bar_height = self.height - 10  # Full height with small margin
             bar_x = 10
-            bar_y = 10
+            bar_y = 5
             
             # Draw volume bar background
             draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=2)
@@ -222,10 +222,6 @@ class DisplayFormatter:
             # Large volume text
             volume_text = f"VOLUME"
             draw.text((content_x, 15), volume_text, font=self.fonts['large'], fill=255)
-            
-            # Volume percentage
-            volume_pct = f"{volume}%"
-            draw.text((content_x, 35), volume_pct, font=self.fonts['medium'], fill=255)
             
             # Volume level indicators (small marks on the right)
             marks_x = self.width - 30
@@ -335,10 +331,6 @@ class DisplayFormatter:
                 fill_height = int((volume / 100.0) * bar_height)
                 fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
                 draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
-            
-            # Volume percentage text below the bar
-            vol_text = f"{volume}%"
-            draw.text((bar_x - 2, bar_y + bar_height + 2), vol_text, font=self.fonts['small'], fill=255)
             
             # Content area starts after the volume bar
             content_x = bar_x + bar_width + 10
@@ -538,9 +530,9 @@ class DisplayFormatter:
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Volume bar on the left side (vertical bar)
+            # Volume bar on the left side (vertical bar - full height)
             bar_width = 8
-            bar_height = self.height - 20  # Leave more space for progress bar
+            bar_height = self.height - 10  # Full height with small margin
             bar_x = 5
             bar_y = 5
             
@@ -552,10 +544,6 @@ class DisplayFormatter:
                 fill_height = int((volume / 100.0) * bar_height)
                 fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
                 draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
-            
-            # Volume percentage text below the bar
-            vol_text = f"{volume}%"
-            draw.text((bar_x - 2, bar_y + bar_height + 2), vol_text, font=self.fonts['small'], fill=255)
             
             # Content area starts after the volume bar
             content_x = bar_x + bar_width + 10
