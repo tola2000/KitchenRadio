@@ -30,10 +30,10 @@ except ImportError as e:
     DisplayController = None
 
 try:
-    from .display_interface_emulator import EmulatorDisplayInterface as DisplayEmulator
+    from .display_interface_emulator import EmulatorDisplayInterface
 except ImportError as e:
-    logger.warning(f"DisplayEmulator not available: {e}")
-    DisplayEmulator = None
+    logger.warning(f"EmulatorDisplayInterface not available: {e}")
+    EmulatorDisplayInterface = None
 
 
 class KitchenRadioWeb:
@@ -74,17 +74,34 @@ class KitchenRadioWeb:
         # Create underlying button controller
         self.button_controller = ButtonController(self.kitchen_radio)
         
-        self.display_emulator = DisplayEmulator()
-        logger.info("Display emulator initialized successfully")
 
         try:
-            # Create display controller with emulator as the I2C interface
-            self.display_controller = DisplayController(i2c_interface=self.display_emulator)
-            self.display_controller.initialize()
-            logger.info("Display controller initialized with emulator interface")
+            self.display_emulator = EmulatorDisplayInterface()
+            self.display_emulator.initialize()
+            logger.info("Display emulator initialized successfully")
         except Exception as e:
-            logger.warning(f"Failed to initialize display controller with emulator: {e}")
+            logger.error(f"Failed to initialize display emulator: {e}")
+            self.display_emulator = None
+
+        # Initialize display controller using the emulator as the interface
+        if DisplayController and self.display_emulator:
+            try:
+                # Create display controller with emulator as the I2C interface
+                self.display_controller = DisplayController(i2c_interface=self.display_emulator)
+                self.display_controller.initialize()
+                logger.info("Display controller initialized with emulator interface")
+            except Exception as e:
+                logger.warning(f"Failed to initialize display controller with emulator: {e}")
+                self.display_controller = None
+        else:
             self.display_controller = None
+            if not DisplayController:
+                logger.info("Display controller not available - using emulator only")
+            elif not self.display_emulator:
+                logger.info("Display controller disabled - no emulator interface available")
+                logger.info("Display controller not available - using emulator only")
+            elif not self.display_emulator:
+                logger.info("Display controller disabled - no emulator interface available")
 
 
         # Flask app for REST API
