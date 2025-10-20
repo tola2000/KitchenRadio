@@ -198,26 +198,51 @@ class DisplayFormatter:
             Drawing function that can be used with display interface
         """
         def draw_volume(draw):
-            font_large = self.fonts['large']
-            font_medium = self.fonts['medium']
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Volume text
-            volume_text = f"Volume: {volume}%"
-            draw.text((10, 10), volume_text, font=font_large, fill=255)
+            # Large volume bar on the left side (wider for volume-only display)
+            bar_width = 16
+            bar_height = self.height - 20  # Leave margin top/bottom
+            bar_x = 10
+            bar_y = 10
             
-            # Progress bar
-            bar_width = self.width - 40
-            bar_height = 12
-            bar_x = 20
-            bar_y = 35
+            # Draw volume bar background
+            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=2)
             
-            # Background
-            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
+            # Draw volume bar fill
+            if volume > 0:
+                fill_height = int((volume / max_volume) * (bar_height - 4))
+                fill_y = bar_y + bar_height - 2 - fill_height  # Fill from bottom up
+                draw.rectangle([(bar_x + 2, fill_y), (bar_x + bar_width - 2, bar_y + bar_height - 2)], fill=255)
             
-            # Fill
-            fill_width = int((volume / max_volume) * (bar_width - 2))
-            if fill_width > 0:
-                draw.rectangle([(bar_x + 1, bar_y + 1), (bar_x + 1 + fill_width, bar_y + bar_height - 1)], fill=255)
+            # Content area starts after the volume bar
+            content_x = bar_x + bar_width + 15
+            
+            # Large volume text
+            volume_text = f"VOLUME"
+            draw.text((content_x, 15), volume_text, font=self.fonts['large'], fill=255)
+            
+            # Volume percentage
+            volume_pct = f"{volume}%"
+            draw.text((content_x, 35), volume_pct, font=self.fonts['medium'], fill=255)
+            
+            # Volume level indicators (small marks on the right)
+            marks_x = self.width - 30
+            marks_y = bar_y
+            mark_spacing = bar_height // 10
+            
+            for i in range(11):  # 0%, 10%, 20%, ... 100%
+                y = marks_y + (i * mark_spacing)
+                if i * 10 <= volume:
+                    # Filled mark
+                    draw.rectangle([(marks_x, y), (marks_x + 8, y + 2)], fill=255)
+                else:
+                    # Empty mark
+                    draw.rectangle([(marks_x, y), (marks_x + 8, y + 2)], outline=255)
+            
+            # Border around entire display
+            draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
         
         return draw_volume
     
@@ -296,29 +321,61 @@ class DisplayFormatter:
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Playing indicator
-            play_icon = "▶" if playing else "⏸"
-            draw.text((5, 5), play_icon, font=self.fonts['medium'], fill=255)
+            # Volume bar on the left side (vertical bar)
+            bar_width = 8
+            bar_height = self.height - 10  # Leave some margin top/bottom
+            bar_x = 5
+            bar_y = 5
             
-            # Title (main line)
-            title_text = title[:30] if title else "No Track"
-            draw.text((25, 5), title_text, font=self.fonts['medium'], fill=255)
+            # Draw volume bar background (empty bar)
+            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
             
-            # Artist
+            # Draw volume bar fill (filled portion based on volume)
+            if volume > 0:
+                fill_height = int((volume / 100.0) * bar_height)
+                fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
+                draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
+            
+            # Volume percentage text below the bar
+            vol_text = f"{volume}%"
+            draw.text((bar_x - 2, bar_y + bar_height + 2), vol_text, font=self.fonts['small'], fill=255)
+            
+            # Content area starts after the volume bar
+            content_x = bar_x + bar_width + 10
+            content_width = self.width - content_x - 5
+            
+            # Title (main line) - truncate to fit in available space
+            title_text = title if title else "No Track"
+            title_max_width = content_width - 10
+            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['medium'])
+            draw.text((content_x, 5), title_truncated, font=self.fonts['medium'], fill=255)
+            
+            # Artist - truncate to fit
             if artist:
-                artist_text = f"Artist: {artist[:25]}"
-                draw.text((5, 25), artist_text, font=self.fonts['small'], fill=255)
+                artist_text = f"Artist: {artist}"
+                artist_truncated = self._truncate_text(artist_text, content_width, self.fonts['small'])
+                draw.text((content_x, 25), artist_truncated, font=self.fonts['small'], fill=255)
             
-            # Album
+            # Album - truncate to fit
             if album:
-                album_text = f"Album: {album[:25]}"
-                draw.text((5, 40), album_text, font=self.fonts['small'], fill=255)
+                album_text = f"Album: {album}"
+                album_truncated = self._truncate_text(album_text, content_width, self.fonts['small'])
+                draw.text((content_x, 40), album_truncated, font=self.fonts['small'], fill=255)
             
-            # Volume indicator
-            vol_text = f"Vol: {volume}%"
-            draw.text((self.width - 60, 50), vol_text, font=self.fonts['small'], fill=255)
+            # Large play/pause/stop icon in bottom right corner
+            play_icon = "▶" if playing else "⏸"
+            icon_font = self.fonts['xlarge']  # Use extra large font for the icon
             
-            # Border
+            # Calculate position for bottom right alignment
+            # Get approximate icon size (this is rough estimation)
+            icon_width = 20  # Approximate width of large icon
+            icon_height = 24  # Approximate height of large icon
+            icon_x = self.width - icon_width - 5  # 5px margin from right edge
+            icon_y = self.height - icon_height - 5  # 5px margin from bottom edge
+            
+            draw.text((icon_x, icon_y), play_icon, font=icon_font, fill=255)
+            
+            # Border around entire display
             draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
         
         return draw_track_info
