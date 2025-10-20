@@ -336,23 +336,23 @@ class DisplayFormatter:
             content_x = bar_x + bar_width + 10
             content_width = self.width - content_x - 5
             
-            # Title (main line) - truncate to fit in available space
+            # Title (main line) - larger font and truncate to fit in available space
             title_text = title if title else "No Track"
             title_max_width = content_width - 10
-            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['medium'])
-            draw.text((content_x, 5), title_truncated, font=self.fonts['medium'], fill=255)
+            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['large'])
+            draw.text((content_x, 5), title_truncated, font=self.fonts['large'], fill=255)
             
-            # Artist - truncate to fit
-            if artist:
-                artist_text = f"Artist: {artist}"
-                artist_truncated = self._truncate_text(artist_text, content_width, self.fonts['small'])
-                draw.text((content_x, 25), artist_truncated, font=self.fonts['small'], fill=255)
-            
-            # Album - truncate to fit
-            if album:
-                album_text = f"Album: {album}"
-                album_truncated = self._truncate_text(album_text, content_width, self.fonts['small'])
-                draw.text((content_x, 40), album_truncated, font=self.fonts['small'], fill=255)
+            # Artist and Album on one line - truncate to fit
+            if artist or album:
+                if artist and album:
+                    artist_album_text = f"{artist} : {album}"
+                elif artist:
+                    artist_album_text = artist
+                else:
+                    artist_album_text = album
+                
+                artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
+                draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
             
             # Large play/pause/stop icon in bottom right corner
             play_icon = "▶" if playing else "⏸"
@@ -549,28 +549,30 @@ class DisplayFormatter:
             content_x = bar_x + bar_width + 10
             content_width = self.width - content_x - 5
             
-            # Title (main line) - truncate to fit in available space
+            # Title (main line) - larger font and truncate to fit in available space
             title_text = title if title else "No Track"
             title_max_width = content_width - 10
-            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['medium'])
-            draw.text((content_x, 5), title_truncated, font=self.fonts['medium'], fill=255)
+            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['large'])
+            draw.text((content_x, 5), title_truncated, font=self.fonts['large'], fill=255)
             
-            # Artist - truncate to fit
-            if artist:
-                artist_text = f"{artist}"
-                artist_truncated = self._truncate_text(artist_text, content_width, self.fonts['small'])
-                draw.text((content_x, 20), artist_truncated, font=self.fonts['small'], fill=255)
+            # Artist and Album on one line - truncate to fit
+            if artist or album:
+                if artist and album:
+                    artist_album_text = f"{artist} : {album}"
+                elif artist:
+                    artist_album_text = artist
+                else:
+                    artist_album_text = album
+                
+                artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
+                draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
             
-            # Album - truncate to fit (only if we have space)
-            if album and not artist:  # Show album if no artist, or skip if both
-                album_text = f"{album}"
-                album_truncated = self._truncate_text(album_text, content_width, self.fonts['small'])
-                draw.text((content_x, 20), album_truncated, font=self.fonts['small'], fill=255)
-            
-            # Progress bar at the bottom - starts after volume bar
+            # Progress bar at the bottom - starts after volume bar with aligned bottom
             progress_bar_height = 4
-            progress_bar_y = self.height - progress_bar_height - 3
-            progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with small gap
+            # Align progress bar bottom with volume bar bottom
+            volume_bar_bottom = bar_y + bar_height - 1
+            progress_bar_y = volume_bar_bottom - progress_bar_height
+            progress_bar_x = bar_x + bar_width + 3  # Start after volume bar with 3px gap
             progress_bar_width = self.width - progress_bar_x - 10  # Span from after volume bar to right edge
             
             # Draw progress bar background
