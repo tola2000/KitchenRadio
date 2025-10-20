@@ -1,23 +1,20 @@
 """
 Button Controller for KitchenRadio Physical Interface
 
-Controls physical buttons connected to Raspberry Pi GPIO pins.
+Provides button control interface without GPIO dependencies.
+Uses display-based emulation for button interactions.
 """
 
 import logging
 import threading
 import time
-from typing import Dict, Callable, Optional, Any
+from typing import Dict, Callable, Optional, Any, TYPE_CHECKING
 from enum import Enum
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from ..kitchen_radio import KitchenRadio, BackendType
 
-try:
-    import RPi.GPIO as GPIO
-    GPIO_AVAILABLE = True
-except ImportError:
-    GPIO_AVAILABLE = False
-    logger.warning("RPi.GPIO not available - running in simulation mode")
+logger = logging.getLogger(__name__)
 
 
 class ButtonType(Enum):
@@ -52,76 +49,43 @@ class ButtonEvent:
     """Represents a button event"""
     def __init__(self, button_type: ButtonType, event_type: str, timestamp: float = None):
         self.button_type = button_type
-        self.event_type = event_type  # 'press', 'release', 'hold', 'double_press'
+        self.event_type = event_type  # 'press', 'release', 'hold'
         self.timestamp = timestamp or time.time()
 
 
 class ButtonController:
     """
-    Controls physical buttons connected to Raspberry Pi GPIO pins.
+    Button controller using display-based interface instead of GPIO.
+    Provides programmatic button control without hardware dependencies.
     
     Features:
-    - Debouncing
-    - Long press detection
-    - Double press detection
-    - Pull-up resistor configuration
-    - Event callbacks
+    - Direct KitchenRadio integration
+    - Software-based button simulation
+    - Long press detection for volume controls
+    - No hardware dependencies
     """
     
-    # Default GPIO pin mapping (BCM numbering)
-    DEFAULT_PIN_MAPPING = {
-        # Source buttons (top row)
-        ButtonType.SOURCE_MPD: 2,
-        ButtonType.SOURCE_SPOTIFY: 3,
-        
-        # Menu buttons (around display)
-        ButtonType.MENU_UP: 5,
-        ButtonType.MENU_DOWN: 6,
-        ButtonType.MENU_TOGGLE: 7,
-        ButtonType.MENU_SET: 8,
-        ButtonType.MENU_OK: 9,
-        ButtonType.MENU_EXIT: 10,
-        
-        # Transport buttons (middle)
-        ButtonType.TRANSPORT_PREVIOUS: 11,
-        ButtonType.TRANSPORT_PLAY_PAUSE: 12,
-        ButtonType.TRANSPORT_STOP: 13,
-        ButtonType.TRANSPORT_NEXT: 14,
-        
-        # Volume buttons (bottom left/right)
-        ButtonType.VOLUME_DOWN: 15,
-        ButtonType.VOLUME_UP: 16,
-        
-        # Power button (bottom center)
-        ButtonType.POWER: 4,
-    }
-    
     def __init__(self, 
-                 pin_mapping: Dict[ButtonType, int] = None,
+                 kitchen_radio: 'KitchenRadio',
                  debounce_time: float = 0.05,
-                 long_press_time: float = 1.0,
-                 double_press_time: float = 0.5):
+                 long_press_time: float = 1.0):
         """
-        Initialize button controller.
+        Initialize button controller with direct KitchenRadio integration.
         
         Args:
-            pin_mapping: Custom GPIO pin mapping (uses default if None)
-            debounce_time: Button debounce time in seconds
+            kitchen_radio: KitchenRadio instance to control
+            debounce_time: Button debounce time in seconds (for compatibility)
             long_press_time: Time threshold for long press detection
-            double_press_time: Time window for double press detection
         """
-        self.pin_mapping = pin_mapping or self.DEFAULT_PIN_MAPPING
+        # Store KitchenRadio reference
+        self.kitchen_radio = kitchen_radio
+        
+        # Timing configuration (kept for compatibility)
         self.debounce_time = debounce_time
         self.long_press_time = long_press_time
-        self.double_press_time = double_press_time
-        
-        # Event callbacks
-        self.callbacks: Dict[ButtonType, Callable[[ButtonEvent], None]] = {}
-        self.global_callback: Optional[Callable[[ButtonEvent], None]] = None
         
         # Button state tracking
         self.button_states: Dict[ButtonType, Dict[str, Any]] = {}
-        self.last_press_times: Dict[ButtonType, float] = {}
         self.press_threads: Dict[ButtonType, threading.Thread] = {}
         
         # Initialize button states
@@ -132,157 +96,139 @@ class ButtonController:
                 'press_start_time': 0,
                 'long_press_fired': False
             }
-            self.last_press_times[button_type] = 0
+        
+        # Button action mapping - direct KitchenRadio calls
+        self.button_actions = {
+            # Source buttons
+            ButtonType.SOURCE_MPD: self._select_mpd,
+            ButtonType.SOURCE_SPOTIFY: self._select_spotify,
+            
+            # Transport buttons
+            ButtonType.TRANSPORT_PLAY_PAUSE: self._play_pause,
+            ButtonType.TRANSPORT_STOP: self._stop,
+            ButtonType.TRANSPORT_NEXT: self._next,
+            ButtonType.TRANSPORT_PREVIOUS: self._previous,
+            
+            # Volume buttons
+            ButtonType.VOLUME_UP: self._volume_up,
+            ButtonType.VOLUME_DOWN: self._volume_down,
+            
+            # Menu buttons (basic implementation)
+            ButtonType.MENU_UP: self._menu_up,
+            ButtonType.MENU_DOWN: self._menu_down,
+            ButtonType.MENU_OK: self._menu_ok,
+            ButtonType.MENU_EXIT: self._menu_exit,
+            ButtonType.MENU_TOGGLE: self._menu_toggle,
+            ButtonType.MENU_SET: self._menu_set,
+            
+            # Power button
+            ButtonType.POWER: self._power,
+        }
         
         self.running = False
-        self.gpio_initialized = False
+        self.initialized = False
         
     def initialize(self) -> bool:
         """
-        Initialize GPIO and setup button pins.
+        Initialize button controller (display-based, no GPIO needed).
         
         Returns:
-            True if initialization successful
+            True if initialization successful (always succeeds)
         """
-        if not GPIO_AVAILABLE:
-            logger.warning("GPIO not available - running in simulation mode")
-            self.running = True
-            return True
-        
         try:
-            # Set GPIO mode to BCM numbering
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setwarnings(False)
-            
-            # Setup each button pin
-            for button_type, pin in self.pin_mapping.items():
-                # Configure as input with pull-up resistor
-                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-                
-                # Add event detection for both rising and falling edges
-                GPIO.add_event_detect(
-                    pin, 
-                    GPIO.BOTH, 
-                    callback=lambda channel, bt=button_type: self._gpio_callback(bt, channel),
-                    bouncetime=int(self.debounce_time * 1000)
-                )
-                
-                logger.debug(f"Setup button {button_type.value} on GPIO pin {pin}")
-            
-            self.gpio_initialized = True
+            self.initialized = True
             self.running = True
-            logger.info(f"ButtonController initialized with {len(self.pin_mapping)} buttons")
+            logger.info(f"ButtonController initialized in display mode with {len(self.button_actions)} buttons")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to initialize GPIO: {e}")
+            logger.error(f"Failed to initialize button controller: {e}")
             return False
     
     def cleanup(self):
-        """Clean up GPIO resources"""
+        """Clean up resources (no GPIO to clean up)"""
         self.running = False
-        
-        if GPIO_AVAILABLE and self.gpio_initialized:
-            try:
-                GPIO.cleanup()
-                logger.info("GPIO cleanup completed")
-            except Exception as e:
-                logger.warning(f"Error during GPIO cleanup: {e}")
+        self.initialized = False
+        logger.info("Button controller cleanup completed")
     
-    def set_button_callback(self, button_type: ButtonType, callback: Callable[[ButtonEvent], None]):
+    def press_button(self, button_name: str) -> bool:
         """
-        Set callback for specific button.
+        Programmatically press a button (for display-based control).
         
         Args:
-            button_type: Type of button
-            callback: Function to call when button event occurs
-        """
-        self.callbacks[button_type] = callback
-        logger.debug(f"Set callback for button {button_type.value}")
-    
-    def set_global_callback(self, callback: Callable[[ButtonEvent], None]):
-        """
-        Set global callback for all button events.
-        
-        Args:
-            callback: Function to call for any button event
-        """
-        self.global_callback = callback
-        logger.debug("Set global button callback")
-    
-    def simulate_button_press(self, button_type: ButtonType, event_type: str = 'press'):
-        """
-        Simulate a button press (for testing without hardware).
-        
-        Args:
-            button_type: Type of button to simulate
-            event_type: Type of event ('press', 'release', 'hold', 'double_press')
-        """
-        if not self.running:
-            logger.warning("ButtonController not running - cannot simulate button press")
-            return
-        
-        event = ButtonEvent(button_type, event_type)
-        self._fire_event(event)
-        logger.debug(f"Simulated {event_type} event for {button_type.value}")
-    
-    def _gpio_callback(self, button_type: ButtonType, channel: int):
-        """Handle GPIO interrupt callback"""
-        if not self.running:
-            return
-        
-        current_time = time.time()
-        pin = self.pin_mapping[button_type]
-        button_state = self.button_states[button_type]
-        
-        # Read current pin state (LOW = pressed with pull-up)
-        pin_pressed = GPIO.input(pin) == GPIO.LOW
-        
-        # Debounce check
-        if current_time - button_state['last_event_time'] < self.debounce_time:
-            return
-        
-        button_state['last_event_time'] = current_time
-        
-        if pin_pressed and not button_state['pressed']:
-            # Button press detected
-            button_state['pressed'] = True
-            button_state['press_start_time'] = current_time
-            button_state['long_press_fired'] = False
+            button_name: Name of the button to press
             
-            # Check for double press
-            if current_time - self.last_press_times[button_type] < self.double_press_time:
-                self._fire_event(ButtonEvent(button_type, 'double_press', current_time))
-            else:
-                self._fire_event(ButtonEvent(button_type, 'press', current_time))
+        Returns:
+            True if button action was successful
+        """
+        try:
+            # Find button type by name
+            button_type = None
+            for bt in ButtonType:
+                if bt.value == button_name:
+                    button_type = bt
+                    break
             
-            # Start long press detection thread
-            self._start_long_press_detection(button_type)
+            if not button_type:
+                logger.warning(f"Unknown button: {button_name}")
+                return False
             
-        elif not pin_pressed and button_state['pressed']:
-            # Button release detected
-            button_state['pressed'] = False
-            self.last_press_times[button_type] = current_time
+            # Simulate button press timing
+            current_time = time.time()
+            button_state = self.button_states[button_type]
             
-            # Cancel long press detection
+            # Debounce check
+            if current_time - button_state['last_event_time'] < self.debounce_time:
+                logger.debug(f"Button {button_name} debounced")
+                return False
+            
+            button_state['last_event_time'] = current_time
+            
+            logger.info(f"Button pressed: {button_type.value}")
+            
+            # Execute button action
+            return self._execute_button_action(button_type)
+            
+        except Exception as e:
+            logger.error(f"Error pressing button {button_name}: {e}")
+            return False
             self._cancel_long_press_detection(button_type)
             
-            # Fire release event if long press wasn't fired
-            if not button_state['long_press_fired']:
-                self._fire_event(ButtonEvent(button_type, 'release', current_time))
+            logger.debug(f"Button released: {button_type.value}")
+    
+    def _execute_button_action(self, button_type: ButtonType) -> bool:
+        """
+        Execute the KitchenRadio action for a button.
+        
+        Args:
+            button_type: The button that was pressed
+            
+        Returns:
+            True if action was successful
+        """
+        if button_type not in self.button_actions:
+            logger.warning(f"No action defined for button: {button_type.value}")
+            return False
+        
+        try:
+            action_method = self.button_actions[button_type]
+            result = action_method()
+            logger.debug(f"Button action {button_type.value} result: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error executing action for button {button_type.value}: {e}")
+            return False
     
     def _start_long_press_detection(self, button_type: ButtonType):
-        """Start long press detection for a button"""
+        """Start long press detection for volume buttons"""
         # Cancel any existing thread
         self._cancel_long_press_detection(button_type)
         
         def long_press_checker():
-            time.sleep(self.long_press_time)
-            button_state = self.button_states[button_type]
-            
-            if button_state['pressed'] and not button_state['long_press_fired']:
-                button_state['long_press_fired'] = True
-                self._fire_event(ButtonEvent(button_type, 'hold', time.time()))
+            while self.running and self.button_states[button_type]['pressed']:
+                time.sleep(0.3)  # Repeat every 300ms during long press
+                if self.running and self.button_states[button_type]['pressed']:
+                    self._execute_button_action(button_type)
         
         thread = threading.Thread(target=long_press_checker, daemon=True)
         self.press_threads[button_type] = thread
@@ -291,22 +237,86 @@ class ButtonController:
     def _cancel_long_press_detection(self, button_type: ButtonType):
         """Cancel long press detection for a button"""
         if button_type in self.press_threads:
-            # Thread will exit naturally when it checks the pressed state
             del self.press_threads[button_type]
     
-    def _fire_event(self, event: ButtonEvent):
-        """Fire button event to registered callbacks"""
-        try:
-            # Call specific button callback
-            if event.button_type in self.callbacks:
-                self.callbacks[event.button_type](event)
-            
-            # Call global callback
-            if self.global_callback:
-                self.global_callback(event)
-                
-        except Exception as e:
-            logger.error(f"Error in button callback: {e}")
+    # KitchenRadio Action Methods - Direct calls to KitchenRadio
+    
+    def _select_mpd(self) -> bool:
+        """Switch to MPD source"""
+        from ..kitchen_radio import BackendType
+        logger.info("Switching to MPD source")
+        return self.kitchen_radio.switch_source(BackendType.MPD)
+    
+    def _select_spotify(self) -> bool:
+        """Switch to Spotify (librespot) source"""
+        from ..kitchen_radio import BackendType
+        logger.info("Switching to Spotify source")
+        return self.kitchen_radio.switch_source(BackendType.LIBRESPOT)
+    
+    def _play_pause(self) -> bool:
+        """Toggle play/pause"""
+        logger.info("Toggle play/pause")
+        return self.kitchen_radio.play_pause()
+    
+    def _stop(self) -> bool:
+        """Stop playback"""
+        logger.info("Stop playback")
+        return self.kitchen_radio.stop()
+    
+    def _next(self) -> bool:
+        """Next track"""
+        logger.info("Next track")
+        return self.kitchen_radio.next()
+    
+    def _previous(self) -> bool:
+        """Previous track"""
+        logger.info("Previous track")
+        return self.kitchen_radio.previous()
+    
+    def _volume_up(self) -> bool:
+        """Increase volume"""
+        logger.debug("Volume up")
+        return self.kitchen_radio.volume_up(step=5)
+    
+    def _volume_down(self) -> bool:
+        """Decrease volume"""
+        logger.debug("Volume down")
+        return self.kitchen_radio.volume_down(step=5)
+    
+    def _menu_up(self) -> bool:
+        """Menu up navigation - placeholder"""
+        logger.info("Menu up - not implemented yet")
+        return True
+    
+    def _menu_down(self) -> bool:
+        """Menu down navigation - placeholder"""
+        logger.info("Menu down - not implemented yet")
+        return True
+    
+    def _menu_ok(self) -> bool:
+        """Menu OK/select - placeholder"""
+        logger.info("Menu OK - not implemented yet")
+        return True
+    
+    def _menu_exit(self) -> bool:
+        """Menu exit/back - placeholder"""
+        logger.info("Menu exit - not implemented yet")
+        return True
+    
+    def _menu_toggle(self) -> bool:
+        """Toggle menu display - placeholder"""
+        logger.info("Menu toggle - not implemented yet")
+        return True
+    
+    def _menu_set(self) -> bool:
+        """Menu set/confirm - placeholder"""
+        logger.info("Menu set - not implemented yet")
+        return True
+    
+    def _power(self) -> bool:
+        """Power button - stop all playback"""
+        logger.info("Power button pressed - stopping all playback")
+        return self.kitchen_radio.stop()
     
     def get_button_state(self, button_type: ButtonType) -> bool:
         """
@@ -333,16 +343,20 @@ class ButtonController:
 # Example usage and testing
 if __name__ == "__main__":
     import sys
+    from ..kitchen_radio import KitchenRadio
     
     # Setup logging
     logging.basicConfig(level=logging.DEBUG)
     
-    def button_event_handler(event: ButtonEvent):
-        print(f"Button {event.button_type.value}: {event.event_type} at {event.timestamp:.3f}")
+    # Create KitchenRadio instance
+    kitchen_radio = KitchenRadio()
+    
+    if not kitchen_radio.start():
+        print("Failed to start KitchenRadio")
+        sys.exit(1)
     
     # Create and initialize controller
-    controller = ButtonController()
-    controller.set_global_callback(button_event_handler)
+    controller = ButtonController(kitchen_radio)
     
     if controller.initialize():
         print("ButtonController initialized successfully")
@@ -351,19 +365,14 @@ if __name__ == "__main__":
         try:
             # Keep running
             while True:
-                time.sleep(0.1)
-                
-                # Simulate some button presses if GPIO not available
-                if not GPIO_AVAILABLE:
-                    time.sleep(2)
-                    controller.simulate_button_press(ButtonType.SOURCE_MPD, 'press')
-                    time.sleep(0.1)
-                    controller.simulate_button_press(ButtonType.SOURCE_MPD, 'release')
+                time.sleep(1)
                     
         except KeyboardInterrupt:
             print("\nShutting down...")
         finally:
             controller.cleanup()
+            kitchen_radio.stop()
     else:
         print("Failed to initialize ButtonController")
+        kitchen_radio.stop()
         sys.exit(1)

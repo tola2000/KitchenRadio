@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KitchenRadio Physical Emulator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #00ff96;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .radio-container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: #2a2a2a;
+            border: 3px solid #444;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 0 20px rgba(0, 255, 150, 0.3);
+        }
+        
+        .radio-title {
+            font-size: 2em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 255, 150, 0.5);
+        }
+        
+        .display {
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            min-height: 80px;
+            text-align: left;
+        }
+        
+        .display-line {
+            color: #00ff96;
+            text-shadow: 0 0 5px rgba(0, 255, 150, 0.5);
+            margin: 2px 0;
+        }
+        
+        .button-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        .radio-button {
+            background: linear-gradient(145deg, #4a4a4a, #3a3a3a);
+            border: 2px solid #666;
+            border-radius: 8px;
+            color: #ccc;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            min-width: 80px;
+        }
+        
+        .radio-button:hover {
+            background: linear-gradient(145deg, #5a5a5a, #4a4a4a);
+            color: #00ff96;
+            box-shadow: 0 0 15px rgba(0, 255, 150, 0.3);
+        }
+        
+        .radio-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 0 20px rgba(0, 255, 150, 0.5);
+        }
+        
+        .source-button {
+            font-size: 16px;
+            min-width: 120px;
+        }
+        
+        .transport-button {
+            font-size: 20px;
+            padding: 15px;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+        }
+        
+        .volume-button {
+            font-size: 18px;
+            padding: 10px 15px;
+        }
+        
+        .power-button {
+            background: linear-gradient(145deg, #660000, #440000);
+            border-color: #ff4444;
+            font-size: 24px;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+        }
+        
+        .power-button:hover {
+            background: linear-gradient(145deg, #880000, #660000);
+            color: #ff6666;
+        }
+        
+        .status {
+            margin: 10px 0;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 600px) {
+            .radio-container {
+                margin: 10px;
+                padding: 20px;
+            }
+            
+            .button-row {
+                gap: 10px;
+            }
+            
+            .radio-button {
+                min-width: 60px;
+                padding: 10px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="radio-container">
+        <h1 class="radio-title">🎛️ KitchenRadio</h1>
+        
+        <div class="status">
+            Status: <span id="radio-status">Loading...</span>
+        </div>
+        
+        <!-- Display -->
+        <div class="display">
+            <div class="display-line" id="line-0">KitchenRadio</div>
+            <div class="display-line" id="line-1">Physical Emulator</div>
+            <div class="display-line" id="line-2">Loading...</div>
+            <div class="display-line" id="line-3"></div>
+        </div>
+        
+        <!-- Source Buttons -->
+        <div class="button-row">
+            <button class="radio-button source-button" onclick="pressButton('source_mpd')">
+                📻 MPD
+            </button>
+            <button class="radio-button source-button" onclick="pressButton('source_spotify')">
+                🎵 Spotify
+            </button>
+        </div>
+        
+        <!-- Transport Controls -->
+        <div class="button-row">
+            <button class="radio-button transport-button" onclick="pressButton('transport_previous')">
+                ⏮
+            </button>
+            <button class="radio-button transport-button" onclick="pressButton('transport_play_pause')">
+                ⏯
+            </button>
+            <button class="radio-button transport-button" onclick="pressButton('transport_stop')">
+                ⏹
+            </button>
+            <button class="radio-button transport-button" onclick="pressButton('transport_next')">
+                ⏭
+            </button>
+        </div>
+        
+        <!-- Volume Controls -->
+        <div class="button-row">
+            <button class="radio-button volume-button" onclick="pressButton('volume_down')">
+                🔉 Vol-
+            </button>
+            <button class="radio-button" onclick="pressButton('menu_toggle')">
+                ☰ Menu
+            </button>
+            <button class="radio-button volume-button" onclick="pressButton('volume_up')">
+                🔊 Vol+
+            </button>
+        </div>
+        
+        <!-- Power Button -->
+        <div class="button-row">
+            <button class="radio-button power-button" onclick="pressButton('power')">
+                ⏻
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // Update display every 2 seconds
+        function updateDisplay() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    // Update status
+                    document.getElementById('radio-status').textContent = 
+                        data.radio_running ? 'Running' : 'Stopped';
+                    
+                    // Update display lines
+                    if (data.display_lines) {
+                        for (let i = 0; i < 4; i++) {
+                            const line = data.display_lines[i] || '';
+                            document.getElementById(`line-${i}`).textContent = line;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating display:', error);
+                    document.getElementById('radio-status').textContent = 'Error';
+                });
+        }
+        
+        // Press button function
+        function pressButton(buttonName) {
+            console.log('Pressing button:', buttonName);
+            
+            // Visual feedback
+            const button = event.target;
+            button.style.transform = 'translateY(2px)';
+            button.style.boxShadow = '0 0 20px rgba(0, 255, 150, 0.8)';
+            
+            setTimeout(() => {
+                button.style.transform = '';
+                button.style.boxShadow = '';
+            }, 150);
+            
+            // Send button press
+            fetch(`/api/button/${buttonName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Button press successful:', data.message);
+                    updateDisplay(); // Immediate update
+                } else {
+                    console.error('Button press failed:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Button press error:', error);
+            });
+        }
+        
+        // Start updating display
+        updateDisplay();
+        setInterval(updateDisplay, 2000);
+    </script>
+</body>
+</html>

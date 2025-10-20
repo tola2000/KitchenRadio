@@ -115,14 +115,14 @@ class KitchenRadio:
         Initialize both backends.
         
         Returns:
-            True if at least one backend was initialized successfully
+            Always True - daemon can start even if backends are unavailable
         """
         mpd_success = self._initialize_mpd()
         librespot_success = self._initialize_librespot()
         
         if not mpd_success and not librespot_success:
-            self.logger.error("Failed to initialize any backend")
-            return False
+            self.logger.warning("⚠️  No backends available - daemon starting in offline mode")
+            self.logger.info("   Backends can be connected later when services are available")
         
         if mpd_success:
             self.logger.info("✅ MPD backend available")
@@ -134,6 +134,7 @@ class KitchenRadio:
         else:
             self.logger.warning("❌ Librespot backend unavailable")
         
+        # Always return True - daemon can start without backends
         return True
     
     def _initialize_mpd(self) -> bool:
@@ -1222,6 +1223,47 @@ class KitchenRadio:
                 'success': False,
                 'error': str(e)
             }
+    
+    def reconnect_backends(self) -> Dict[str, bool]:
+        """
+        Attempt to reconnect to disconnected backends.
+        
+        Returns:
+            Dictionary with reconnection results for each backend
+        """
+        results = {'mpd': False, 'librespot': False}
+        
+        # Try to reconnect MPD if not connected
+        if not self.mpd_connected:
+            self.logger.info("Attempting to reconnect to MPD...")
+            try:
+                results['mpd'] = self._initialize_mpd()
+                if results['mpd']:
+                    # Start monitoring if reconnected
+                    self.mpd_monitor.add_callback('state_changed', self._on_mpd_state_changed)
+                    self.mpd_monitor.start_monitoring()
+                    self.logger.info("MPD reconnected and monitoring started")
+            except Exception as e:
+                self.logger.warning(f"MPD reconnection failed: {e}")
+        else:
+            results['mpd'] = True  # Already connected
+        
+        # Try to reconnect librespot if not connected  
+        if not self.librespot_connected:
+            self.logger.info("Attempting to reconnect to librespot...")
+            try:
+                results['librespot'] = self._initialize_librespot()
+                if results['librespot']:
+                    # Start monitoring if reconnected
+                    self.librespot_monitor.add_callback('state_changed', self._on_librespot_state_changed)
+                    self.librespot_monitor.start_monitoring()
+                    self.logger.info("Librespot reconnected and monitoring started")
+            except Exception as e:
+                self.logger.warning(f"Librespot reconnection failed: {e}")
+        else:
+            results['librespot'] = True  # Already connected
+        
+        return results
 
 def main():
     """Main entry point"""

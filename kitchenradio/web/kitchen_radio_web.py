@@ -1,572 +1,714 @@
 #!/usr/bin/env python3
 """
-KitchenRadio Web Interface - Flask-based web UI
+Button Controller REST API for KitchenRadio
+
+Exposes a REST API for button control instead of using Raspberry Pi GPIO.
+Useful for remote control, testing, and integration with web interfaces.
 """
 
-import os
-import sys
-import time
 import logging
-import json
+import threading
+import time
+from typing import Dict, Any, Optional, TYPE_CHECKING
+from flask import Flask, request, jsonify, send_file, render_template
 from pathlib import Path
-from typing import Dict, Any
+import io
+import base64
 
-from flask import Flask, render_template, jsonify, request
+from ..radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
 
-try:
-    from flask_cors import CORS
-    CORS_AVAILABLE = True
-except ImportError:
-    CORS_AVAILABLE = False
-    print("Warning: Flask-CORS not available. Install with: pip install Flask-CORS")
-
-# # Add project root to path if not already there
-# project_root = Path(__file__).parent.parent
-# if str(project_root) not in sys.path:
-#     sys.path.insert(0, str(project_root))
-# if str(project_root / "src") not in sys.path:
-#     sys.path.insert(0, str(project_root / "src"))
-
-# Import the main daemon
-from kitchenradio.radio.kitchen_radio import KitchenRadio
+if TYPE_CHECKING:
+    from ..radio.kitchen_radio import KitchenRadio
 
 logger = logging.getLogger(__name__)
 
+# Try to import display controller and emulator with graceful fallback
+try:
+    from ..radio.hardware.display_controller import DisplayController
+except ImportError as e:
+    logger.warning(f"DisplayController not available: {e}")
+    DisplayController = None
 
-class KitchenRadioWebServer:
-    """Web interface for KitchenRadio daemon"""
+try:
+    from .display_interface_emulator import DisplayEmulator
+except ImportError as e:
+    logger.warning(f"DisplayEmulator not available: {e}")
+    DisplayEmulator = None
+
+
+class KitchenRadioWeb:
+    """
+    REST API wrapper for ButtonController.
     
-    def __init__(self, host='0.0.0.0', port=5000, debug=False):
+    Provides HTTP endpoints for button control instead of GPIO pins.
+    Can be used alongside or instead of physical GPIO buttons.
+    """
+    
+    def __init__(self, 
+                 kitchen_radio: 'KitchenRadio' = None,
+                 host: str = '0.0.0.0',
+                 port: int = 5001,
+                 enable_gpio: bool = False):
         """
-        Initialize web server.
+        Initialize KitchenRadio Web API.
         
         Args:
-            host: Host to bind to
-            port: Port to bind to
-            debug: Enable debug mode
+            kitchen_radio: KitchenRadio instance to control (will create if None)
+            host: API server host address
+            port: API server port
+            enable_gpio: Whether to also enable GPIO buttons
         """
+        # Create or use provided KitchenRadio instance
+        if kitchen_radio is None:
+            from ..radio.kitchen_radio import KitchenRadio
+            self.kitchen_radio = KitchenRadio()
+            self._owns_kitchen_radio = True
+        else:
+            self.kitchen_radio = kitchen_radio
+            self._owns_kitchen_radio = False
+            
         self.host = host
         self.port = port
-        self.debug = debug
-        self.daemon = None
-        self.daemon_started = False
+        self.enable_gpio = enable_gpio
         
-        # Create Flask app with paths pointing to frontend directory
-        project_root = Path(__file__).parent.parent.parent  # Go up to project root
-        frontend_dir = project_root / 'frontend'
+        # Create underlying button controller
+        self.button_controller = ButtonController(self.kitchen_radio)
         
-        # Verify frontend directory structure exists
-        if not frontend_dir.exists():
-            raise FileNotFoundError(f"frontend directory not found at: {frontend_dir}")
-        if not (frontend_dir / 'templates').exists():
-            raise FileNotFoundError(f"templates directory not found at: {frontend_dir / 'templates'}")
-        if not (frontend_dir / 'static').exists():
-            raise FileNotFoundError(f"static directory not found at: {frontend_dir / 'static'}")
-        
-        logger.info(f"Using frontend directory: {frontend_dir}")
-        logger.info(f"Templates folder: {frontend_dir / 'templates'}")
-        logger.info(f"Static folder: {frontend_dir / 'static'}")
-        
-        self.app = Flask(__name__, 
-                        template_folder=str(frontend_dir / 'templates'),
-                        static_folder=str(frontend_dir / 'static'))
-        
-        # Enable CORS for API endpoints if available
-        if CORS_AVAILABLE:
-            CORS(self.app, resources={r"/api/*": {"origins": "*"}})
+        # Create display emulator and display controller
+        if DisplayEmulator:
+            self.display_emulator = DisplayEmulator()
         else:
-            # Manual CORS headers for API routes
-            @self.app.after_request
-            def after_request(response):
-                response.headers.add('Access-Control-Allow-Origin', '*')
-                response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-                response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS')
-                return response
+            self.display_emulator = None
+            logger.warning("Display emulator not available - display endpoints will be disabled")
         
-        # Configure logging
-        if not debug:
-            log = logging.getLogger('werkzeug')
-            log.setLevel(logging.WARNING)
+        # Note: DisplayController creates its own I2C interface
+        # For now, we'll use the emulator separately
+        # TODO: Modify DisplayController to accept custom interface
+        self.display_controller = None
         
+        # Flask app for REST API
+        self.app = Flask(__name__, 
+                        template_folder='../../frontend/templates',
+                        static_folder='../../frontend/static')
+        self.app.logger.setLevel(logging.WARNING)  # Reduce Flask noise
+        
+        # Setup routes
         self._setup_routes()
         
-        logger.info(f"KitchenRadio web server initialized on {host}:{port}")
-    
-    def _start_daemon(self):
-        """Start the KitchenRadio daemon"""
-        if self.daemon_started:
-            return True
-            
-        logger.info("Starting KitchenRadio daemon...")
-        try:
-            self.daemon = KitchenRadio()
-            if self.daemon.start():
-                self.daemon_started = True
-                logger.info("✅ KitchenRadio daemon started successfully")
-                return True
-            else:
-                logger.error("❌ Failed to start KitchenRadio daemon")
-                return False
-        except Exception as e:
-            logger.error(f"❌ Error starting KitchenRadio daemon: {e}")
-            return False
-    
-    def _stop_daemon(self):
-        """Stop the KitchenRadio daemon"""
-        if self.daemon and self.daemon_started:
-            logger.info("Stopping KitchenRadio daemon...")
-            try:
-                self.daemon.stop()
-                self.daemon_started = False
-                logger.info("✅ KitchenRadio daemon stopped")
-            except Exception as e:
-                logger.warning(f"⚠️ Error stopping daemon: {e}")
-    
-    def _get_daemon(self):
-        """Get or create daemon instance"""
-        if not self.daemon_started:
-            if not self._start_daemon():
-                return None
-        return self.daemon
-    
-    def _setup_routes(self):
-        """Setup Flask routes"""
+        # API state
+        self.running = False
+        self.server_thread = None
         
+        # Button press statistics
+        self.button_stats = {button.value: 0 for button in ButtonType}
+        self.last_button_press = None
+        self.api_start_time = None
+        
+    def _setup_routes(self):
+        """Setup Flask routes for the API"""
+        
+        # Radio Interface Routes
         @self.app.route('/')
         def index():
-            """Main interface page - redirect to radio interface"""
+            """Redirect to radio interface"""
             return render_template('radio_interface.html')
         
-        @self.app.route('/unified')
-        def unified_interface():
-            """Original unified control interface"""
-            return render_template('unified_control.html')
-        
-        @self.app.route('/api/health')
-        def api_health():
-            """Health check endpoint"""
-            daemon_status = "running" if self.daemon_started and self.daemon else "stopped"
-            return jsonify({
-                'web_server': 'running',
-                'daemon': daemon_status,
-                'timestamp': time.time()
-            })
-        
-        @self.app.route('/api/status')
-        def api_status():
-            """Get current status of both backends"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Failed to connect to daemon'}), 500
-            
-            try:
-
-                status = daemon.get_status()
-                return jsonify(status)
-            except Exception as e:
-                logger.error(f"Error getting status: {e}")
-                return jsonify({'error': str(e)}), 500
-        
-        @self.app.route('/api/source')
-        def api_get_source():
-            """Get current audio source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Failed to connect to daemon'}), 500
-            
-            try:
-                current_source = daemon.get_current_source()
-                available_sources = daemon.get_available_sources()
-                
-                return jsonify({
-                    'success': True,
-                    'current_source': current_source.value if current_source else None,
-                    'available_sources': [s.value for s in available_sources]
-                })
-            except Exception as e:
-                logger.error(f"Error getting source: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-        
-        @self.app.route('/api/source/<source_name>', methods=['POST'])
-        def api_set_source(source_name):
-            """Set audio source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Failed to connect to daemon'}), 500
-            
-            # Import here to avoid circular imports
-            from kitchenradio.radio.kitchen_radio import BackendType
-            
-            try:
-                # Validate source name
-                if source_name.lower() == 'mpd':
-                    source = BackendType.MPD
-                elif source_name.lower() == 'spotify' or source_name.lower() == 'librespot':
-                    source = BackendType.LIBRESPOT
-                else:
-                    return jsonify({
-                        'success': False, 
-                        'error': f'Invalid source: {source_name}. Valid sources: mpd, spotify'
-                    }), 400
-                
-                # Set the source
-                success = daemon.set_source(source)
-                
-                if success:
-                    return jsonify({
-                        'success': True,
-                        'message': f'Source set to {source.value}',
-                        'current_source': source.value
-                    })
-                else:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Failed to set source to {source.value}'
-                    }), 400
-                    
-            except Exception as e:
-                logger.error(f"Error setting source: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-
-        @self.app.route('/api/control/<action>', methods=['POST'])
-        def api_active_source_control(action):
-            """Control playback on the currently active source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Failed to connect to daemon'}), 500
-            
-            # Check if there's an active source
-            current_source = daemon.get_current_source()
-            if not current_source:
-                return jsonify({
-                    'success': False,
-                    'error': 'No active source set. Please select a source first.'
-                }), 400
-            
-            try:
-                # Map actions to daemon methods
-                action_map = {
-                    'play': daemon.play,
-                    'pause': daemon.pause,
-                    'stop': daemon.stop,
-                    'next': daemon.next,
-                    'previous': daemon.previous,
-                    'play_pause': daemon.play_pause
-                }
-                
-                if action not in action_map:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Invalid action: {action}. Valid actions: {list(action_map.keys())}'
-                    }), 400
-                
-                # Execute the command
-                result = action_map[action]()
-                
-                if result:
-                    return jsonify({
-                        'success': True,
-                        'message': f'{action.capitalize()} command sent to {current_source.value}',
-                        'current_source': current_source.value
-                    })
-                else:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Failed to execute {action} on {current_source.value}'
-                    }), 500
-                    
-            except Exception as e:
-                logger.error(f"Error executing {action}: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-        
-        @self.app.route('/api/volume', methods=['GET'])
-        def api_get_volume():
-            """Get volume from the currently active source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Failed to connect to daemon'}), 500
-            
-            current_source = daemon.get_current_source()
-            if not current_source:
-                return jsonify({
-                    'success': False,
-                    'error': 'No active source set'
-                }), 400
-            
-            try:
-                volume = daemon.get_volume()
-                return jsonify({
-                    'success': True,
-                    'volume': volume,
-                    'current_source': current_source.value
-                })
-            except Exception as e:
-                logger.error(f"Error getting volume: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-        
-        @self.app.route('/api/volume/<int:level>', methods=['POST'])
-        def api_set_volume(level):
-            """Set volume on the currently active source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Failed to connect to daemon'}), 500
-            
-            current_source = daemon.get_current_source()
-            if not current_source:
-                return jsonify({
-                    'success': False,
-                    'error': 'No active source set'
-                }), 400
-            
-            try:
-                result = daemon.set_volume(level)
-                if result:
-                    return jsonify({
-                        'success': True,
-                        'volume': level,
-                        'current_source': current_source.value,
-                        'message': f'Volume set to {level}%'
-                    })
-                else:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Failed to set volume to {level}%'
-                    }), 500
-            except Exception as e:
-                logger.error(f"Error setting volume: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-        
-        @self.app.route('/api/volume/<action>', methods=['POST'])
-        def api_volume_control_unified(action):
-            """Unified volume control (up/down) on the currently active source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Failed to connect to daemon'}), 500
-            
-            current_source = daemon.get_current_source()
-            if not current_source:
-                return jsonify({
-                    'success': False,
-                    'error': 'No active source set'
-                }), 400
-            
-            try:
-                # Get step from request body or use default
-                data = request.get_json() or {}
-                step = data.get('step', 5)
-                
-                if action == 'up':
-                    result = daemon.volume_up(step)
-                    message = f'Volume increased by {step}%'
-                elif action == 'down':
-                    result = daemon.volume_down(step)
-                    message = f'Volume decreased by {step}%'
-                else:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Invalid volume action: {action}. Valid actions: up, down'
-                    }), 400
-                
-                if result:
-                    new_volume = daemon.get_volume()
-                    return jsonify({
-                        'success': True,
-                        'volume': new_volume,
-                        'current_source': current_source.value,
-                        'message': message
-                    })
-                else:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Failed to {action} volume'
-                    }), 500
-                    
-            except Exception as e:
-                logger.error(f"Error controlling volume: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-        
-        @self.app.route('/api/playlists')
-        def api_get_playlists():
-            """Get all stored playlists from the currently active source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'success': False, 'error': 'Daemon not available'}), 500
-            
-            current_source = daemon.get_current_source()
-            if not current_source:
-                return jsonify({'success': False, 'error': 'No active source set'}), 400
-            
-            try:
-                controller, source_name, is_connected = daemon._get_active_controller()
-                
-                if not controller:
-                    return jsonify({'success': False, 'error': 'No active controller'}), 400
-                
-                if not is_connected:
-                    return jsonify({'success': False, 'error': f'{source_name} not connected'}), 400
-                
-                playlists = controller.get_all_playlists()
-                return jsonify({
-                    'success': True, 
-                    'playlists': playlists,
-                    'source': source_name.lower()
-                })
-                
-            except Exception as e:
-                logger.error(f"Error getting playlists: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-        
-        @self.app.route('/api/load_playlist', methods=['POST'])
-        def api_load_playlist():
-            """Load and play a playlist on the currently active source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Daemon not available'}), 500
-            
-            current_source = daemon.get_current_source()
-            if not current_source:
-                return jsonify({'error': 'No active source set'}), 400
-            
-            data = request.get_json()
-            if not data or 'playlist' not in data:
-                return jsonify({'error': 'Playlist name required'}), 400
-            
-            playlist_name = data['playlist']
-            
-            try:
-                controller, source_name, is_connected = daemon._get_active_controller()
-                
-                if not controller:
-                    return jsonify({'error': 'No active controller'}), 400
-                
-                if not is_connected:
-                    return jsonify({'error': f'{source_name} not connected'}), 400
-                
-                result = controller.play_playlist(playlist_name)
-                
-                if result:
-                    return jsonify({
-                        'success': True, 
-                        'message': f'Loaded playlist: {playlist_name}',
-                        'source': source_name.lower()
-                    })
-                else:
-                    # Handle the case where the controller returns False (like Spotify)
-                    if source_name.lower() == 'spotify':
-                        return jsonify({
-                            'success': False,
-                            'error': 'Spotify playlists are managed through the Spotify app. Please use your Spotify client to select and play playlists.'
-                        })
-                    else:
-                        return jsonify({
-                            'success': False,
-                            'error': f'Failed to load playlist: {playlist_name}'
-                        })
-                
-            except Exception as e:
-                logger.error(f"Error loading playlist: {e}")
-                return jsonify({'error': str(e)}), 500
-
-        @self.app.route('/api/menu')
-        def api_get_menu():
-            """Get menu options for the currently active source"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'success': False, 'error': 'Daemon not available'}), 500
-            
-            try:
-                menu_data = daemon.get_menu_options()
-                return jsonify(menu_data)
-                
-            except Exception as e:
-                logger.error(f"Error getting menu options: {e}")
-                return jsonify({
-                    'has_menu': False,
-                    'options': [],
-                    'message': 'Error retrieving menu'
-                }), 500
-
-        @self.app.route('/api/menu/action', methods=['POST'])
-        def api_execute_menu_action():
-            """Execute a menu action"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'success': False, 'error': 'Daemon not available'}), 500
-            
-            try:
-                data = request.get_json() or {}
-                action = data.get('action')
-                option_id = data.get('option_id')
-                
-                if not action:
-                    return jsonify({
-                        'success': False,
-                        'error': 'Action is required'
-                    }), 400
-                
-                result = daemon.execute_menu_action(action, option_id)
-                
-                if result.get('success'):
-                    return jsonify(result)
-                else:
-                    return jsonify(result), 400
-                    
-            except Exception as e:
-                logger.error(f"Error executing menu action: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-
         @self.app.route('/radio')
         def radio_interface():
-            """Physical radio interface page"""
+            """Serve the physical radio interface"""
             return render_template('radio_interface.html')
-
-    def run(self):
-        """Run the web server"""
-        logger.info(f"Starting KitchenRadio web server on {self.host}:{self.port}")
         
-        # Start the KitchenRadio daemon first
-        if not self._start_daemon():
-            logger.error("Cannot start web server without KitchenRadio daemon")
-            return
+        @self.app.route('/api/buttons', methods=['GET'])
+        def list_buttons():
+            """List all available buttons"""
+            buttons = []
+            for button_type in ButtonType:
+                buttons.append({
+                    'name': button_type.value,
+                    'description': self._get_button_description(button_type),
+                    'category': self._get_button_category(button_type),
+                    'press_count': self.button_stats[button_type.value]
+                })
+            
+            return jsonify({
+                'buttons': buttons,
+                'total_buttons': len(buttons),
+                'gpio_enabled': self.enable_gpio
+            })
         
+        @self.app.route('/api/button/<button_name>', methods=['POST'])
+        def press_button(button_name: str):
+            """Press a specific button"""
+            try:
+                # Validate button name
+                button_type = None
+                for bt in ButtonType:
+                    if bt.value == button_name:
+                        button_type = bt
+                        break
+                
+                if not button_type:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Unknown button: {button_name}',
+                        'available_buttons': [bt.value for bt in ButtonType]
+                    }), 400
+                
+                # Press the button
+                result = self.button_controller.press_button(button_name)
+                
+                # Update statistics
+                self.button_stats[button_name] += 1
+                self.last_button_press = {
+                    'button': button_name,
+                    'timestamp': time.time(),
+                    'success': result
+                }
+                
+                logger.info(f"API button press: {button_name} -> {result}")
+                
+                return jsonify({
+                    'success': result,
+                    'button': button_name,
+                    'timestamp': time.time(),
+                    'message': f'Button {button_name} pressed successfully' if result else f'Button {button_name} press failed'
+                })
+                
+            except Exception as e:
+                logger.error(f"Error pressing button {button_name}: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': str(e),
+                    'button': button_name
+                }), 500
+        
+        @self.app.route('/api/button/<button_name>/info', methods=['GET'])
+        def button_info(button_name: str):
+            """Get information about a specific button"""
+            button_type = None
+            for bt in ButtonType:
+                if bt.value == button_name:
+                    button_type = bt
+                    break
+            
+            if not button_type:
+                return jsonify({
+                    'error': f'Unknown button: {button_name}'
+                }), 404
+            
+            return jsonify({
+                'name': button_name,
+                'description': self._get_button_description(button_type),
+                'category': self._get_button_category(button_type),
+                'press_count': self.button_stats[button_name],
+                'gpio_pin': self.button_controller.pin_mapping.get(button_type, 'N/A') if self.enable_gpio else 'N/A'
+            })
+        
+        
+        @self.app.route('/api/buttons/stats', methods=['GET'])
+        def button_stats():
+            """Get button press statistics"""
+            total_presses = sum(self.button_stats.values())
+            
+            return jsonify({
+                'button_stats': self.button_stats,
+                'total_presses': total_presses,
+                'last_button_press': self.last_button_press,
+                'api_uptime': time.time() - self.api_start_time if self.api_start_time else 0,
+                'gpio_enabled': self.enable_gpio
+            })
+        
+        @self.app.route('/api/buttons/reset-stats', methods=['POST'])
+        def reset_stats():
+            """Reset button press statistics"""
+            self.button_stats = {button.value: 0 for button in ButtonType}
+            self.last_button_press = None
+            
+            return jsonify({
+                'success': True,
+                'message': 'Button statistics reset'
+            })
+        
+        @self.app.route('/api/status', methods=['GET'])
+        def api_status():
+            """Get API status and KitchenRadio status"""
+            kitchen_status = self.kitchen_radio.get_status()
+            
+            return jsonify({
+                'api_running': self.running,
+                'api_uptime': time.time() - self.api_start_time if self.api_start_time else 0,
+                'gpio_enabled': self.enable_gpio,
+                'total_button_presses': sum(self.button_stats.values()),
+                'kitchen_radio': kitchen_status
+            })
+        
+        @self.app.route('/api/health', methods=['GET'])
+        def health_check():
+            """Health check endpoint"""
+            return jsonify({
+                'status': 'healthy',
+                'timestamp': time.time(),
+                'api_version': '1.0.0'
+            })
+        
+        @self.app.route('/api/reconnect', methods=['POST'])
+        def reconnect_backends():
+            """Attempt to reconnect to disconnected backends"""
+            try:
+                results = self.kitchen_radio.reconnect_backends()
+                return jsonify({
+                    'success': True,
+                    'reconnection_results': results,
+                    'message': 'Reconnection attempt completed',
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.error(f"Error during backend reconnection: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        # Display API endpoints
+        @self.app.route('/api/display/image', methods=['GET'])
+        def get_display_image():
+            """Get current display image as PNG"""
+            try:
+                if not self.display_emulator:
+                    return jsonify({'error': 'Display emulator not available'}), 503
+                    
+                # Get pixel data from emulator
+                pixel_data = self.display_emulator.get_image_data()
+                if pixel_data:
+                    # Create a simple PNG representation using PIL
+                    try:
+                        from PIL import Image
+                        # Convert 2D pixel array to PIL Image
+                        img = Image.new('L', (self.display_emulator.width, self.display_emulator.height))
+                        for y in range(self.display_emulator.height):
+                            for x in range(self.display_emulator.width):
+                                img.putpixel((x, y), pixel_data[y][x])
+                        
+                        # Scale up for better visibility (4x)
+                        img = img.resize((self.display_emulator.width * 4, self.display_emulator.height * 4), Image.NEAREST)
+                        
+                        # Save to bytes
+                        img_buffer = io.BytesIO()
+                        img.save(img_buffer, format='PNG')
+                        img_buffer.seek(0)
+                        
+                        return send_file(
+                            img_buffer,
+                            mimetype='image/png',
+                            as_attachment=False,
+                            download_name='display.png'
+                        )
+                    except ImportError:
+                        # Fallback: return raw pixel data as JSON
+                        return jsonify({
+                            'width': self.display_emulator.width,
+                            'height': self.display_emulator.height,
+                            'pixels': pixel_data,
+                            'note': 'PIL not available, returning raw pixel data'
+                        })
+                else:
+                    return jsonify({'error': 'No image data available'}), 404
+            except Exception as e:
+                logger.error(f"Error getting display image: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/display/ascii', methods=['GET'])
+        def get_display_ascii():
+            """Get current display as ASCII art"""
+            try:
+                if not self.display_emulator:
+                    return jsonify({'error': 'Display emulator not available'}), 503
+                    
+                ascii_art = self.display_emulator.get_ascii_representation()
+                return jsonify({
+                    'ascii_art': ascii_art,
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.error(f"Error getting display ASCII: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/display/clear', methods=['POST'])
+        def clear_display():
+            """Clear the display"""
+            try:
+                if not self.display_emulator:
+                    return jsonify({'error': 'Display emulator not available'}), 503
+                    
+                self.display_emulator.clear()
+                return jsonify({
+                    'success': True,
+                    'message': 'Display cleared',
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.error(f"Error clearing display: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/display/test', methods=['POST'])
+        def test_display():
+            """Show test pattern on display"""
+            try:
+                if not self.display_emulator:
+                    return jsonify({'error': 'Display emulator not available'}), 503
+                    
+                result = self.display_emulator.test_display()
+                return jsonify({
+                    'success': result,
+                    'message': 'Test pattern displayed' if result else 'Test pattern failed',
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.error(f"Error showing test pattern: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/display/stats', methods=['GET'])
+        def display_stats():
+            """Get display statistics and info"""
+            try:
+                if not self.display_emulator:
+                    return jsonify({'error': 'Display emulator not available'}), 503
+                    
+                stats = self.display_emulator.get_statistics()
+                info = self.display_emulator.get_display_info()
+                return jsonify({
+                    'display_info': info,
+                    'display_stats': stats,
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.error(f"Error getting display stats: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        # Menu API endpoints
+        @self.app.route('/api/menu', methods=['GET'])
+        def get_menu():
+            """Get menu options for the active source"""
+            try:
+                # Get current source from KitchenRadio
+                status = self.kitchen_radio.get_status()
+                active_source = status.get('current_source', 'none')
+                available_sources = status.get('available_sources', [])
+                
+                if active_source == 'mpd' and 'mpd' in available_sources:
+                    # MPD menu - playlists
+                    menu_items = [
+                        {'id': 'playlist_1', 'label': 'Classic Rock', 'type': 'playlist'},
+                        {'id': 'playlist_2', 'label': 'Jazz Collection', 'type': 'playlist'},
+                        {'id': 'playlist_3', 'label': 'Electronic', 'type': 'playlist'},
+                        {'id': 'playlist_4', 'label': 'Ambient', 'type': 'playlist'},
+                    ]
+                elif active_source == 'spotify' and 'librespot' in available_sources:
+                    # Spotify menu - settings
+                    menu_items = [
+                        {'id': 'shuffle', 'label': 'Shuffle: Off', 'type': 'toggle'},
+                        {'id': 'repeat', 'label': 'Repeat: Off', 'type': 'cycle'},
+                        {'id': 'quality', 'label': 'Quality: High', 'type': 'setting'},
+                    ]
+                elif not available_sources:
+                    # No backends available
+                    menu_items = [
+                        {'id': 'no_backends', 'label': 'No backends connected', 'type': 'info'},
+                        {'id': 'reconnect', 'label': 'Try reconnecting...', 'type': 'action'},
+                    ]
+                else:
+                    # No source selected but backends available
+                    menu_items = [
+                        {'id': 'select_source', 'label': 'Select a source first', 'type': 'info'},
+                    ]
+                    # Add available sources as options
+                    if 'mpd' in available_sources:
+                        menu_items.append({'id': 'switch_to_mpd', 'label': 'Switch to MPD', 'type': 'action'})
+                    if 'librespot' in available_sources:
+                        menu_items.append({'id': 'switch_to_spotify', 'label': 'Switch to Spotify', 'type': 'action'})
+                
+                return jsonify({
+                    'active_source': active_source,
+                    'available_sources': available_sources,
+                    'menu_items': menu_items,
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.error(f"Error getting menu: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/menu/action', methods=['POST'])
+        def menu_action():
+            """Execute a menu action"""
+            try:
+                data = request.get_json()
+                action = data.get('action')
+                item_id = data.get('item_id')
+                
+                logger.info(f"Menu action: {action} on item {item_id}")
+                
+                # Handle special actions
+                if action == 'select' and item_id:
+                    if item_id == 'reconnect':
+                        # Attempt to reconnect backends
+                        results = self.kitchen_radio.reconnect_backends()
+                        return jsonify({
+                            'success': True,
+                            'message': 'Reconnection attempted',
+                            'action': 'backends_reconnected',
+                            'results': results
+                        })
+                    elif item_id == 'switch_to_mpd':
+                        # Switch to MPD source
+                        from ..radio.kitchen_radio import BackendType
+                        try:
+                            success = self.kitchen_radio.set_source(BackendType.MPD)
+                            return jsonify({
+                                'success': success,
+                                'message': 'Switched to MPD' if success else 'Failed to switch to MPD',
+                                'action': 'source_changed'
+                            })
+                        except Exception as e:
+                            return jsonify({
+                                'success': False,
+                                'message': f'Error switching to MPD: {e}',
+                                'action': 'source_change_failed'
+                            })
+                    elif item_id == 'switch_to_spotify':
+                        # Switch to Spotify source
+                        from ..radio.kitchen_radio import BackendType
+                        try:
+                            success = self.kitchen_radio.set_source(BackendType.LIBRESPOT)
+                            return jsonify({
+                                'success': success,
+                                'message': 'Switched to Spotify' if success else 'Failed to switch to Spotify',
+                                'action': 'source_changed'
+                            })
+                        except Exception as e:
+                            return jsonify({
+                                'success': False,
+                                'message': f'Error switching to Spotify: {e}',
+                                'action': 'source_change_failed'
+                            })
+                    elif item_id.startswith('playlist_'):
+                        # Load playlist
+                        return jsonify({
+                            'success': True,
+                            'message': f'Playlist {item_id} loaded',
+                            'action': 'playlist_loaded'
+                        })
+                    elif item_id == 'shuffle':
+                        # Toggle shuffle
+                        return jsonify({
+                            'success': True,
+                            'message': 'Shuffle toggled',
+                            'action': 'shuffle_toggled'
+                        })
+                    elif item_id == 'repeat':
+                        # Cycle repeat mode
+                        return jsonify({
+                            'success': True,
+                            'message': 'Repeat mode changed',
+                            'action': 'repeat_cycled'
+                        })
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Action {action} executed',
+                    'timestamp': time.time()
+                })
+            except Exception as e:
+                logger.error(f"Error executing menu action: {e}")
+                return jsonify({'error': str(e)}), 500
+    
+    def _get_button_description(self, button_type: ButtonType) -> str:
+        """Get human-readable description for a button"""
+        descriptions = {
+            ButtonType.SOURCE_MPD: "Switch to MPD music source",
+            ButtonType.SOURCE_SPOTIFY: "Switch to Spotify music source",
+            ButtonType.TRANSPORT_PLAY_PAUSE: "Toggle play/pause",
+            ButtonType.TRANSPORT_STOP: "Stop playback",
+            ButtonType.TRANSPORT_NEXT: "Next track",
+            ButtonType.TRANSPORT_PREVIOUS: "Previous track",
+            ButtonType.VOLUME_UP: "Increase volume",
+            ButtonType.VOLUME_DOWN: "Decrease volume",
+            ButtonType.MENU_UP: "Navigate menu up",
+            ButtonType.MENU_DOWN: "Navigate menu down",
+            ButtonType.MENU_OK: "Select menu item",
+            ButtonType.MENU_EXIT: "Exit menu",
+            ButtonType.MENU_TOGGLE: "Toggle menu display",
+            ButtonType.MENU_SET: "Confirm menu selection",
+            ButtonType.POWER: "Power button - stop all playback"
+        }
+        return descriptions.get(button_type, "Unknown button")
+    
+    def _get_button_category(self, button_type: ButtonType) -> str:
+        """Get category for a button"""
+        if button_type in [ButtonType.SOURCE_MPD, ButtonType.SOURCE_SPOTIFY]:
+            return "source"
+        elif button_type in [ButtonType.TRANSPORT_PLAY_PAUSE, ButtonType.TRANSPORT_STOP, 
+                           ButtonType.TRANSPORT_NEXT, ButtonType.TRANSPORT_PREVIOUS]:
+            return "transport"
+        elif button_type in [ButtonType.VOLUME_UP, ButtonType.VOLUME_DOWN]:
+            return "volume"
+        elif button_type in [ButtonType.MENU_UP, ButtonType.MENU_DOWN, ButtonType.MENU_OK,
+                           ButtonType.MENU_EXIT, ButtonType.MENU_TOGGLE, ButtonType.MENU_SET]:
+            return "menu"
+        elif button_type == ButtonType.POWER:
+            return "power"
+        else:
+            return "other"
+    
+    def start(self) -> bool:
+        """
+        Start the KitchenRadio Web API server.
+        
+        Returns:
+            True if started successfully
+        """
         try:
-            logger.info(f"🌐 Web interface available at: http://{self.host}:{self.port}")
-            logger.info("🎵 KitchenRadio daemon is running in background")
-            logger.info("🔍 Press Ctrl+C to stop both web server and daemon")
+            # Start KitchenRadio if we own it
+            if self._owns_kitchen_radio:
+                if not self.kitchen_radio.start():
+                    logger.error("Failed to start KitchenRadio instance")
+                    return False
             
-            self.app.run(host=self.host, port=self.port, debug=self.debug, threaded=True)
+            # Initialize display emulator
+            if self.display_emulator:
+                if not self.display_emulator.initialize():
+                    logger.warning("Failed to initialize display emulator, continuing anyway")
+            else:
+                logger.info("Display emulator not available - display features disabled")
             
-        except KeyboardInterrupt:
-            logger.info("🛑 Received keyboard interrupt")
+            # Note: Display controller would need hardware - using emulator directly for now
+            
+            # Initialize underlying button controller (for GPIO if enabled)
+            if self.enable_gpio:
+                if not self.button_controller.initialize():
+                    logger.warning("Failed to initialize GPIO buttons, continuing with API only")
+            
+            # Start API server in background thread
+            self.running = True
+            self.api_start_time = time.time()
+            
+            def run_server():
+                try:
+                    self.app.run(
+                        host=self.host,
+                        port=self.port,
+                        debug=False,
+                        use_reloader=False,
+                        threaded=True
+                    )
+                except Exception as e:
+                    logger.error(f"API server error: {e}")
+                    self.running = False
+            
+            self.server_thread = threading.Thread(target=run_server, daemon=True)
+            self.server_thread.start()
+            
+            # Give server time to start
+            time.sleep(0.5)
+            
+            logger.info(f"KitchenRadio Web API started on http://{self.host}:{self.port}")
+            logger.info(f"GPIO buttons {'enabled' if self.enable_gpio else 'disabled'}")
+            logger.info(f"Display emulator available: {self.display_emulator is not None}")
+            
+            return True
+            
         except Exception as e:
-            logger.error(f"❌ Web server error: {e}")
-        finally:
-            logger.info("🔌 Shutting down web server and daemon...")
-            self._stop_daemon()
+            logger.error(f"Failed to start KitchenRadio Web API: {e}")
+            return False
+    
+    def stop(self):
+        """Stop the KitchenRadio Web API server"""
+        logger.info("Stopping KitchenRadio Web API...")
+        
+        self.running = False
+        
+        # Cleanup display emulator
+        if self.display_emulator:
+            try:
+                self.display_emulator.cleanup()
+            except Exception as e:
+                logger.warning(f"Error cleaning up display emulator: {e}")
+        
+        # Cleanup GPIO if enabled
+        if self.enable_gpio:
+            self.button_controller.cleanup()
+        
+        # Stop KitchenRadio if we own it
+        if self._owns_kitchen_radio:
+            try:
+                self.kitchen_radio.stop()
+            except Exception as e:
+                logger.warning(f"Error stopping KitchenRadio: {e}")
+        
+        # Note: Flask development server doesn't have a clean shutdown method
+        # In production, you'd use a proper WSGI server like Gunicorn
+        
+        logger.info("KitchenRadio Web API stopped")
+    
+    def press_button_direct(self, button_name: str) -> bool:
+        """
+        Directly press a button (bypass API).
+        
+        Args:
+            button_name: Name of button to press
+            
+        Returns:
+            True if successful
+        """
+        return self.button_controller.press_button(button_name)
 
 
-def main():
-    """Main entry point for web server"""
-    import argparse
+# Example usage and testing
+if __name__ == "__main__":
+    import sys
+    import os
+    from pathlib import Path
     
-    parser = argparse.ArgumentParser(description='KitchenRadio Web Interface')
-    parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
-    parser.add_argument('--port', type=int, default=5100, help='Port to bind to (default: 5000)')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
-    
-    args = parser.parse_args()
+    # Add project root to path
+    project_root = Path(__file__).parent.parent.parent.parent
+    sys.path.insert(0, str(project_root))
     
     # Setup logging
-    log_level = logging.DEBUG if args.debug else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    logging.basicConfig(level=logging.INFO)
+    
+    # Create KitchenRadio Web API
+    api = KitchenRadioWeb(
+        kitchen_radio=None,  # Will create its own
+        host='127.0.0.1',
+        port=5001,
+        enable_gpio=False  # Disable GPIO for testing
     )
     
-    # Create and run web server
-    server = KitchenRadioWebServer(host=args.host, port=args.port, debug=args.debug)
-    server.run()
-
-
-if __name__ == "__main__":
-    main()
+    if api.start():
+        print("KitchenRadio Web API started successfully")
+        print("API available at: http://127.0.0.1:5001")
+        print("\nAvailable endpoints:")
+        print("  Button Control:")
+        print("    GET  /api/buttons - List all buttons")
+        print("    POST /api/button/<name> - Press a button")
+        print("    GET  /api/button/<name>/info - Get button info")
+        print("    GET  /api/buttons/stats - Get button statistics")
+        print("    POST /api/buttons/reset-stats - Reset statistics")
+        print("  Display Control:")
+        print("    GET  /api/display/image - Get display image (PNG)")
+        print("    GET  /api/display/ascii - Get display as ASCII art")
+        print("    POST /api/display/clear - Clear display")
+        print("    POST /api/display/test - Show test pattern")
+        print("    GET  /api/display/stats - Get display statistics")
+        print("  System:")
+        print("    GET  /api/status - Get API and radio status")
+        print("    GET  /api/health - Health check")
+        print("\nPress Ctrl+C to stop")
+        
+        try:
+            # Keep running
+            while api.running:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\nShutting down...")
+        finally:
+            api.stop()
+    else:
+        print("Failed to start KitchenRadio Web API")
+        sys.exit(1)

@@ -160,7 +160,7 @@ def test_web_integration():
     print("-" * 30)
     
     try:
-        from kitchenradio.web.kitchen_radio_web import KitchenRadioWebServer
+        from kitchenradio.web.kitchen_radio_web_POH import KitchenRadioWebServer
         
         # This would normally start the web server with hardware integration
         print("Web server class available for hardware integration")

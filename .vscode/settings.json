@@ -5,5 +5,11 @@
     "git.autofetch": true,
     "terminal.integrated.env.windows": {
         "PATH": "${env:PATH};C:\\Program Files\\Git\\bin"
-    }
+    },
+    "python.defaultInterpreterPath": "C:\\Program Files\\Python313\\python.exe",
+    "python.terminal.activateEnvironment": false,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "python.analysis.autoImportCompletions": true
 }
