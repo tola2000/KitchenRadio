@@ -85,28 +85,18 @@ class KitchenRadioWeb:
         logger.info("Display emulator initialized successfully")
 
         # Initialize display controller using the emulator as the interface
-        if DisplayController and self.display_emulator:
-            try:
-                # Create display controller with emulator as the I2C interface and kitchen_radio
-                self.display_controller = DisplayController(
-                    kitchen_radio=self.kitchen_radio,
-                    i2c_interface=self.display_emulator
-                )
-                self.display_controller.initialize()
-                logger.info("Display controller initialized with emulator interface and update loop started")
-            except Exception as e:
-                logger.warning(f"Failed to initialize display controller with emulator: {e}")
-                self.display_controller = None
-        else:
+        try:
+            # Create display controller with emulator as the I2C interface and kitchen_radio
+            self.display_controller = DisplayController(
+                kitchen_radio=self.kitchen_radio,
+                i2c_interface=self.display_emulator
+            )
+            self.display_controller.initialize()
+            
+            logger.info("Display controller initialized with emulator interface and update loop started")
+        except Exception as e:
+            logger.warning(f"Failed to initialize display controller with emulator: {e}")
             self.display_controller = None
-            if not DisplayController:
-                logger.info("Display controller not available - using emulator only")
-            elif not self.display_emulator:
-                logger.info("Display controller disabled - no emulator interface available")
-                logger.info("Display controller not available - using emulator only")
-            elif not self.display_emulator:
-                logger.info("Display controller disabled - no emulator interface available")
-
 
         # Flask app for REST API
         self.app = Flask(__name__, 
