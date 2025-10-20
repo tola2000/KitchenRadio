@@ -229,8 +229,11 @@ class DisplayController:
             playing = mpd_status.get('state') == 'play'
             volume = mpd_status.get('volume', 50)
             
-            # Use formatter to create draw function
-            draw_func = self.formatter.format_track_info(title, artist, album, playing, volume)
+            # Use unified track info formatter without progress bar for MPD
+            draw_func = self.formatter.format_track_info_with_progress(
+                title, artist, album, playing, volume, 
+                progress_ms=0, duration_ms=0, showProgress=False
+            )
             self.i2c_interface.render_frame(draw_func)
         else:
             # No track playing
@@ -251,9 +254,9 @@ class DisplayController:
             progress_ms = librespot_status.get('progress_ms', 0)
             duration_ms = current_track.get('duration_ms', 0)
             
-            # Use formatter with progress bar for Spotify
+            # Use unified track info formatter with progress bar for Spotify
             draw_func = self.formatter.format_track_info_with_progress(
-                title, artist, album, playing, volume, progress_ms, duration_ms
+                title, artist, album, playing, volume, progress_ms, duration_ms, showProgress=True
             )
             self.i2c_interface.render_frame(draw_func)
         else:

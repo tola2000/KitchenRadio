@@ -539,9 +539,10 @@ class DisplayFormatter:
     
     def format_track_info_with_progress(self, title: str, artist: str = "", album: str = "", 
                                        playing: bool = False, volume: int = 50,
-                                       progress_ms: int = 0, duration_ms: int = 0) -> Callable:
+                                       progress_ms: int = 0, duration_ms: int = 0, 
+                                       showProgress: bool = True) -> Callable:
         """
-        Format track information display with progress bar at bottom.
+        Format track information display with optional progress bar at bottom.
         
         Args:
             title: Track title
@@ -551,9 +552,10 @@ class DisplayFormatter:
             volume: Current volume level
             progress_ms: Current progress in milliseconds
             duration_ms: Total track duration in milliseconds
+            showProgress: Whether to show the progress bar (default True)
             
         Returns:
-            Drawing function for track info with progress bar
+            Drawing function for track info with optional progress bar
         """
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Clear background
@@ -596,36 +598,37 @@ class DisplayFormatter:
                 artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
                 draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
             
-            # Progress bar at the bottom - starts after volume bar with aligned bottom
-            progress_bar_height = 4
-            # Align progress bar bottom with volume bar bottom, but one pixel lower
-            volume_bar_bottom = bar_y + bar_height - 1
-            progress_bar_y = volume_bar_bottom - progress_bar_height + 1  # One pixel lower
-            progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with 10px gap (matching right margin)
-            progress_bar_width = self.width - progress_bar_x - 5  # Span from after volume bar to right edge
-            
-            # Draw progress bar background
-            draw.rectangle([
-                (progress_bar_x, progress_bar_y), 
-                (progress_bar_x + progress_bar_width, progress_bar_y + progress_bar_height)
-            ], outline=255)
-            
-            # Draw progress bar fill
-            if duration_ms > 0 and progress_ms >= 0:
-                progress_ratio = min(progress_ms / duration_ms, 1.0)
-                fill_width = int(progress_ratio * (progress_bar_width - 2))
-                if fill_width > 0:
-                    draw.rectangle([
-                        (progress_bar_x + 1, progress_bar_y + 1),
-                        (progress_bar_x + 1 + fill_width, progress_bar_y + progress_bar_height - 1)
-                    ], fill=255)
+            # Progress bar at the bottom - only if showProgress is True
+            if showProgress:
+                progress_bar_height = 4
+                # Align progress bar bottom with volume bar bottom, but one pixel lower
+                volume_bar_bottom = bar_y + bar_height - 1
+                progress_bar_y = volume_bar_bottom - progress_bar_height + 1  # One pixel lower
+                progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with 10px gap (matching right margin)
+                progress_bar_width = self.width - progress_bar_x - 25  # Span from after volume bar to right edge
+                
+                # Draw progress bar background
+                draw.rectangle([
+                    (progress_bar_x, progress_bar_y), 
+                    (progress_bar_x + progress_bar_width, progress_bar_y + progress_bar_height)
+                ], outline=255)
+                
+                # Draw progress bar fill
+                if duration_ms > 0 and progress_ms >= 0:
+                    progress_ratio = min(progress_ms / duration_ms, 1.0)
+                    fill_width = int(progress_ratio * (progress_bar_width - 2))
+                    if fill_width > 0:
+                        draw.rectangle([
+                            (progress_bar_x + 1, progress_bar_y + 1),
+                            (progress_bar_x + 1 + fill_width, progress_bar_y + progress_bar_height - 1)
+                        ], fill=255)
             
             # Playing icon in bottom right corner
             icon_size = 12
             icon_x = self.width - icon_size - 5
-            icon_y = self.height - icon_size - 5
+            icon_y = self.height - icon_size - 0
             play_icon = "▶" if playing else "⏸"
-            draw.text((icon_x, icon_y), play_icon, font=self.fonts['medium'], fill=255)
+            draw.text((icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)
             
             # Border around entire display
             draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
