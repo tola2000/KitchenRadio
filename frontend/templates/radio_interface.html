@@ -21,10 +21,6 @@
                     <i class="fab fa-spotify"></i>
                     <span>Spotify</span>
                 </button>
-                <button id="btn-source-off" onclick="selectSource('')" class="source-btn active" data-source="">
-                    <i class="fas fa-power-off"></i>
-                    <span>OFF</span>
-                </button>
             </div>
 
             <!-- Middle Section with Menu Buttons and OLED Display -->
@@ -136,6 +132,14 @@
                 <button id="btn-volume-up" onclick="adjustVolume('up')" class="volume-btn" disabled>
                     <i class="fas fa-volume-up"></i>
                     <span>VOL+</span>
+                </button>
+            </div>
+
+            <!-- Power Button -->
+            <div class="power-controls">
+                <button id="btn-power" onclick="togglePower()" class="power-btn">
+                    <i class="fas fa-power-off"></i>
+                    <span>POWER</span>
                 </button>
             </div>
         </div>

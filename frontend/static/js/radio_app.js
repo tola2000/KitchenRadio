@@ -88,8 +88,14 @@ class PhysicalRadioApp {
             if (sourceBtn) {
                 sourceBtn.classList.add('active');
             }
+        }
+        
+        // Update power button state
+        const powerBtn = document.getElementById('btn-power');
+        if (this.currentSource) {
+            powerBtn.classList.add('power-on');
         } else {
-            document.getElementById('btn-source-off').classList.add('active');
+            powerBtn.classList.remove('power-on');
         }
         
         // Update source indicator in display
@@ -521,4 +527,17 @@ function hideMenu() {
     radioApp.currentMenuData = null;
     radioApp.selectedMenuIndex = 0;
     radioApp.updateDisplay();
+}
+
+// Power button function
+async function togglePower() {
+    if (!radioApp) return;
+    
+    if (radioApp.currentSource) {
+        // Turn off - clear source
+        await selectSource('');
+    } else {
+        // Show source selection message or default to last used source
+        radioApp.showMessage('Select a source to power on', 'info');
+    }
 }

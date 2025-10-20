@@ -24,8 +24,7 @@ class ButtonType(Enum):
     """Types of buttons on the physical radio"""
     # Source buttons (top row)
     SOURCE_MPD = "source_mpd"
-    SOURCE_SPOTIFY = "source_spotify" 
-    SOURCE_OFF = "source_off"
+    SOURCE_SPOTIFY = "source_spotify"
     
     # Menu buttons (around display)
     MENU_UP = "menu_up"
@@ -44,6 +43,9 @@ class ButtonType(Enum):
     # Volume buttons (bottom)
     VOLUME_DOWN = "volume_down"
     VOLUME_UP = "volume_up"
+    
+    # Power button (bottom center)
+    POWER = "power"
 
 
 class ButtonEvent:
@@ -71,7 +73,6 @@ class ButtonController:
         # Source buttons (top row)
         ButtonType.SOURCE_MPD: 2,
         ButtonType.SOURCE_SPOTIFY: 3,
-        ButtonType.SOURCE_OFF: 4,
         
         # Menu buttons (around display)
         ButtonType.MENU_UP: 5,
@@ -87,9 +88,12 @@ class ButtonController:
         ButtonType.TRANSPORT_STOP: 13,
         ButtonType.TRANSPORT_NEXT: 14,
         
-        # Volume buttons (bottom)
+        # Volume buttons (bottom left/right)
         ButtonType.VOLUME_DOWN: 15,
         ButtonType.VOLUME_UP: 16,
+        
+        # Power button (bottom center)
+        ButtonType.POWER: 4,
     }
     
     def __init__(self, 

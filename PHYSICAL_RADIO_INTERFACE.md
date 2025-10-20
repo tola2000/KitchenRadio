@@ -7,7 +7,7 @@ The KitchenRadio Physical Interface is designed to look and feel like a real phy
 ## Layout
 
 ```
-    [MPD]    [Spotify]    [OFF]         <- Source Selection
+        [MPD]    [Spotify]              <- Source Selection
     
 [UP ]                            [SET ]
 [MENU]     [OLED DISPLAY]        [OK  ]  <- Menu Navigation
@@ -16,6 +16,8 @@ The KitchenRadio Physical Interface is designed to look and feel like a real phy
     [◄◄]   [►/❚❚]  [■]    [►►]        <- Transport Controls
     
     [VOL-]  ▓▓▓▓░░░░░░  [VOL+]         <- Volume Control
+    
+            [POWER]                     <- Power Button
 ```
 
 ## Features
@@ -29,8 +31,12 @@ The KitchenRadio Physical Interface is designed to look and feel like a real phy
 ### Source Controls
 - **MPD Button**: Switches to MPD music server
 - **Spotify Button**: Switches to Spotify (via librespot)
-- **OFF Button**: Turns off the radio
 - **Double-press**: Shows source-specific menu
+
+### Power Control
+- **Power Button**: Toggle radio on/off (located at bottom center)
+- When on: Shows selected source
+- When off: All functions disabled
 
 ### Menu System
 - **UP/DOWN**: Navigate through menu options

@@ -13,7 +13,7 @@ from .kitchen_radio import KitchenRadio, BackendType
 # Try to import hardware controllers if available
 try:
     from .hardware.button_controller import ButtonController
-    from .hardware.display_controller import DisplayController
+    from .hardware.display_controller import DisplayController  
     from .hardware.hardware_integration import HardwareIntegration
     HARDWARE_CONTROLLERS_AVAILABLE = True
 except ImportError:
@@ -23,14 +23,24 @@ except ImportError:
     HardwareIntegration = None
     HARDWARE_CONTROLLERS_AVAILABLE = False
 
+# Import hardware configuration utilities
+from .hardware_config import HardwareConfig, setup_hardware_environment
+
 __version__ = "1.0.0"
 __author__ = "KitchenRadio Team"
 
+# Main exports
 __all__ = [
-    'ButtonController',
-    'DisplayController', 
-    'HardwareIntegration'
+    'KitchenRadio',
+    'BackendType',
+    'HARDWARE_CONTROLLERS_AVAILABLE',
+    'HardwareConfig',
+    'setup_hardware_environment'
 ]
+
+# Add hardware exports if available
+if HARDWARE_CONTROLLERS_AVAILABLE:
+    __all__.extend(['ButtonController', 'DisplayController', 'HardwareIntegration'])
 
 # Hardware availability flags
 HARDWARE_AVAILABLE = {

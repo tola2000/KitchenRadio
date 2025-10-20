@@ -49,9 +49,9 @@ body {
 /* Source Buttons Row */
 .source-row {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     margin-bottom: 20px;
-    gap: 10px;
+    gap: 20px;
 }
 
 .source-btn {
@@ -481,6 +481,68 @@ body {
     box-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
 }
 
+/* Power Controls */
+.power-controls {
+    display: flex;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.power-btn {
+    width: 80px;
+    height: 50px;
+    background: linear-gradient(145deg, #4a4a4a, #3a3a3a);
+    border: 2px solid #555;
+    border-radius: 15px;
+    color: #ccc;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.power-btn:hover {
+    background: linear-gradient(145deg, #5a5a5a, #4a4a4a);
+    color: #fff;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.power-btn:active {
+    background: linear-gradient(145deg, #3a3a3a, #4a4a4a);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.power-btn.power-on {
+    background: linear-gradient(145deg, #e74c3c, #c0392b);
+    color: white;
+    border-color: #e74c3c;
+    box-shadow: 
+        0 0 15px rgba(231, 76, 60, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.power-btn.power-on:hover {
+    background: linear-gradient(145deg, #c0392b, #e74c3c);
+    box-shadow: 
+        0 6px 12px rgba(0, 0, 0, 0.3),
+        0 0 20px rgba(231, 76, 60, 0.5);
+}
+
+.power-btn i {
+    font-size: 16px;
+}
+
+.power-btn span {
+    font-size: 10px;
+}
+
 /* Status Messages */
 .status-messages {
     position: fixed;
@@ -549,6 +611,7 @@ body {
     .source-btn,
     .transport-btn,
     .volume-btn,
+    .power-btn,
     .menu-btn {
         font-size: 10px;
     }
@@ -560,6 +623,11 @@ body {
     
     .play-btn {
         width: 65px;
+    }
+    
+    .power-btn {
+        width: 70px;
+        height: 45px;
     }
     
     .oled-display {
