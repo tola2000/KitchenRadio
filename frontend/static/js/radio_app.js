@@ -185,9 +185,8 @@ class PhysicalRadioApp {
         
         this.currentVolume = volume;
         
-        // Update volume display
+        // Update volume display in OLED (volume-level still exists in OLED display area)
         document.getElementById('volume-level').textContent = volume + '%';
-        document.getElementById('volume-fill').style.width = volume + '%';
         
         // Hardware volume buttons should always be enabled
         // No need to disable based on source availability

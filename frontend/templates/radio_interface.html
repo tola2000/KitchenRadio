@@ -112,19 +112,19 @@
 
             <!-- Transport Controls -->
             <div class="transport-controls">
-                <button id="btn-previous" onclick="sendCommand('previous')" class="transport-btn" disabled>
+                <button id="btn-previous" onclick="sendCommand('previous')" class="transport-btn">
                     <i class="fas fa-step-backward"></i>
                     <span>PREV</span>
                 </button>
-                <button id="btn-play" onclick="sendCommand('play_pause')" class="transport-btn play-btn" disabled>
+                <button id="btn-play" onclick="sendCommand('play_pause')" class="transport-btn play-btn">
                     <i class="fas fa-play"></i>
                     <span>PLAY</span>
                 </button>
-                <button id="btn-stop" onclick="sendCommand('stop')" class="transport-btn" disabled>
+                <button id="btn-stop" onclick="sendCommand('stop')" class="transport-btn">
                     <i class="fas fa-stop"></i>
                     <span>STOP</span>
                 </button>
-                <button id="btn-next" onclick="sendCommand('next')" class="transport-btn" disabled>
+                <button id="btn-next" onclick="sendCommand('next')" class="transport-btn">
                     <i class="fas fa-step-forward"></i>
                     <span>NEXT</span>
                 </button>
@@ -132,16 +132,12 @@
 
             <!-- Volume Controls -->
             <div class="volume-controls">
-                <button id="btn-volume-down" onclick="adjustVolume('down')" class="volume-btn" disabled>
+                <button id="btn-volume-down" onclick="adjustVolume('down')" class="volume-btn">
                     <i class="fas fa-volume-down"></i>
                     <span>VOL-</span>
                 </button>
-                <div class="volume-display">
-                    <div class="volume-bar" id="volume-bar">
-                        <div class="volume-fill" id="volume-fill" style="width: 0%"></div>
-                    </div>
-                </div>
-                <button id="btn-volume-up" onclick="adjustVolume('up')" class="volume-btn" disabled>
+                <!-- Volume display removed - now shown on OLED display -->
+                <button id="btn-volume-up" onclick="adjustVolume('up')" class="volume-btn">
                     <i class="fas fa-volume-up"></i>
                     <span>VOL+</span>
                 </button>
