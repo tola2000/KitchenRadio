@@ -579,11 +579,11 @@ class DisplayFormatter:
                 album_truncated = self._truncate_text(album_text, content_width, self.fonts['small'])
                 draw.text((content_x, 20), album_truncated, font=self.fonts['small'], fill=255)
             
-            # Progress bar at the bottom
+            # Progress bar at the bottom - starts next to volume bar
             progress_bar_height = 4
             progress_bar_y = self.height - progress_bar_height - 3
-            progress_bar_x = content_x
-            progress_bar_width = content_width - 40  # Leave space for time text
+            progress_bar_x = bar_x  # Start at same x as volume bar
+            progress_bar_width = self.width - bar_x - 10  # Span from volume bar to right edge
             
             # Draw progress bar background
             draw.rectangle([
@@ -600,23 +600,6 @@ class DisplayFormatter:
                         (progress_bar_x + 1, progress_bar_y + 1),
                         (progress_bar_x + 1 + fill_width, progress_bar_y + progress_bar_height - 1)
                     ], fill=255)
-            
-            # Time text (current/total)
-            def ms_to_time_str(ms):
-                if ms <= 0:
-                    return "0:00"
-                seconds = ms // 1000
-                minutes = seconds // 60
-                seconds = seconds % 60
-                return f"{minutes}:{seconds:02d}"
-            
-            current_time = ms_to_time_str(progress_ms)
-            total_time = ms_to_time_str(duration_ms)
-            time_text = f"{current_time}/{total_time}"
-            
-            # Position time text to the right of progress bar
-            time_x = progress_bar_x + progress_bar_width + 5
-            draw.text((time_x, progress_bar_y - 2), time_text, font=self.fonts['small'], fill=255)
             
             # Playing icon in bottom right corner
             icon_size = 12
