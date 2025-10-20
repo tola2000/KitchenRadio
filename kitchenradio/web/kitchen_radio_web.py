@@ -51,11 +51,25 @@ class KitchenRadioWebServer:
         self.daemon = None
         self.daemon_started = False
         
-        # Create Flask app with absolute paths
-        web_dir = Path(__file__).parent
+        # Create Flask app with paths pointing to frontend directory
+        project_root = Path(__file__).parent.parent.parent  # Go up to project root
+        frontend_dir = project_root / 'frontend'
+        
+        # Verify frontend directory structure exists
+        if not frontend_dir.exists():
+            raise FileNotFoundError(f"frontend directory not found at: {frontend_dir}")
+        if not (frontend_dir / 'templates').exists():
+            raise FileNotFoundError(f"templates directory not found at: {frontend_dir / 'templates'}")
+        if not (frontend_dir / 'static').exists():
+            raise FileNotFoundError(f"static directory not found at: {frontend_dir / 'static'}")
+        
+        logger.info(f"Using frontend directory: {frontend_dir}")
+        logger.info(f"Templates folder: {frontend_dir / 'templates'}")
+        logger.info(f"Static folder: {frontend_dir / 'static'}")
+        
         self.app = Flask(__name__, 
-                        template_folder=str(web_dir / 'templates'),
-                        static_folder=str(web_dir / 'static'))
+                        template_folder=str(frontend_dir / 'templates'),
+                        static_folder=str(frontend_dir / 'static'))
         
         # Enable CORS for API endpoints if available
         if CORS_AVAILABLE:
