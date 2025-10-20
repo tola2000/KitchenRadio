@@ -289,42 +289,6 @@ class KitchenRadio:
         # If source switching is enabled, handle exclusive playback
         if new_state == 'play':
             self.set_source(BackendType.LIBRESPOT)
-
-    # Source management methods
-    def set_source(self, source: BackendType) -> bool:
-        """
-        Set the active audio source, stopping the currently active one.
-        
-        Args:
-            source: Backend type to activate (MPD or LIBRESPOT)
-            
-        Returns:
-            True if source was set successfully
-        """
-        self.logger.info(f"Setting audio source to: {source.value}")
-        
-        # Validate source
-        if source not in [BackendType.MPD, BackendType.LIBRESPOT]:
-            self.logger.error(f"Invalid source: {source}")
-            return False
-        
-        # Check if the requested backend is available
-        if source == BackendType.MPD and not self.mpd_connected:
-            self.logger.error("Cannot set source to MPD: not connected")
-            return False
-        
-        if source == BackendType.LIBRESPOT and not self.librespot_connected:
-            self.logger.error("Cannot set source to librespot: not connected")
-            return False
-        
-        # Stop current source if different
-        if self.source and self.source != source:
-            self._stop_source(self.source)
-        
-        # Set new source
-        self.source = source
-        self.logger.info(f"✅ Active source set to: {source.value}")
-        return True
     
     def get_current_source(self) -> Optional[BackendType]:
         """
@@ -803,22 +767,28 @@ class KitchenRadio:
             self.logger.error(f"Invalid source: {source}")
             return False
         
-        # Check if the requested backend is available
-        if source == BackendType.MPD and not self.mpd_connected:
-            self.logger.error("Cannot set source to MPD: not connected")
-            return False
+        # Always allow source selection for display purposes, even if backend is disconnected
+        # We'll store the selected source and use it when the backend connects
         
-        if source == BackendType.LIBRESPOT and not self.librespot_connected:
-            self.logger.error("Cannot set source to librespot: not connected")
-            return False
-        
-        # Stop current source if different
+        # Stop current source if different and connected
         if self.source and self.source != source:
-            self._stop_source(self.source)
+            if ((self.source == BackendType.MPD and self.mpd_connected) or 
+                (self.source == BackendType.LIBRESPOT and self.librespot_connected)):
+                self._stop_source(self.source)
         
-        # Set new source
+        # Set new source (always successful for display purposes)
         self.source = source
-        self.logger.info(f"✅ Active source set to: {source.value}")
+        
+        # Check if the requested backend is available for actual playback
+        if source == BackendType.MPD and not self.mpd_connected:
+            self.logger.warning(f"Source set to {source.value} but backend is not connected")
+        elif source == BackendType.LIBRESPOT and not self.librespot_connected:
+            self.logger.warning(f"Source set to {source.value} but backend is not connected")
+        else:
+            self.logger.info(f"✅ Active source set to: {source.value} (backend connected)")
+        
+        # Always return True so the display updates
+        self.logger.info(f"✅ Source selection set to: {source.value}")
         return True
     
     def get_current_source(self) -> Optional[BackendType]:

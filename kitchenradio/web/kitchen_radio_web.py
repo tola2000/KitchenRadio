@@ -77,14 +77,27 @@ class KitchenRadioWeb:
         # Create display emulator and display controller
         if DisplayEmulator:
             self.display_emulator = DisplayEmulator()
+            logger.info("Display emulator initialized successfully")
         else:
             self.display_emulator = None
             logger.warning("Display emulator not available - display endpoints will be disabled")
         
-        # Note: DisplayController creates its own I2C interface
-        # For now, we'll use the emulator separately
-        # TODO: Modify DisplayController to accept custom interface
-        self.display_controller = None
+        # Initialize display controller using the emulator as the interface
+        if DisplayController and self.display_emulator:
+            try:
+                # Create display controller with emulator as the I2C interface
+                self.display_controller = DisplayController(i2c_interface=self.display_emulator)
+                self.display_controller.initialize()
+                logger.info("Display controller initialized with emulator interface")
+            except Exception as e:
+                logger.warning(f"Failed to initialize display controller with emulator: {e}")
+                self.display_controller = None
+        else:
+            self.display_controller = None
+            if not DisplayController:
+                logger.info("Display controller not available - using emulator only")
+            elif not self.display_emulator:
+                logger.info("Display controller disabled - no emulator interface available")
         
         # Flask app for REST API
         self.app = Flask(__name__, 
@@ -380,6 +393,31 @@ class KitchenRadioWeb:
                 })
             except Exception as e:
                 logger.error(f"Error getting display stats: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/display/status', methods=['GET'])
+        def display_status():
+            """Get display controller and emulator status"""
+            try:
+                status = {
+                    'emulator_available': self.display_emulator is not None,
+                    'controller_available': self.display_controller is not None,
+                    'timestamp': time.time()
+                }
+                
+                if self.display_emulator:
+                    status['emulator_info'] = self.display_emulator.get_display_info()
+                    status['emulator_stats'] = self.display_emulator.get_statistics()
+                
+                if self.display_controller:
+                    status['controller_initialized'] = True
+                    # Add any display controller specific status here
+                else:
+                    status['controller_initialized'] = False
+                    
+                return jsonify(status)
+            except Exception as e:
+                logger.error(f"Error getting display status: {e}")
                 return jsonify({'error': str(e)}), 500
         
         # Menu API endpoints
@@ -696,6 +734,7 @@ if __name__ == "__main__":
         print("    POST /api/display/clear - Clear display")
         print("    POST /api/display/test - Show test pattern")
         print("    GET  /api/display/stats - Get display statistics")
+        print("    GET  /api/display/status - Get display status")
         print("  System:")
         print("    GET  /api/status - Get API and radio status")
         print("    GET  /api/health - Health check")
