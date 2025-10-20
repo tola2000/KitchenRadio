@@ -209,6 +209,57 @@ class KitchenRadioWebServer:
                 logger.error(f"Error setting source: {e}")
                 return jsonify({'success': False, 'error': str(e)}), 500
 
+        @self.app.route('/api/control/<action>', methods=['POST'])
+        def api_active_source_control(action):
+            """Control playback on the currently active source"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'error': 'Failed to connect to daemon'}), 500
+            
+            # Check if there's an active source
+            current_source = daemon.get_current_source()
+            if not current_source:
+                return jsonify({
+                    'success': False,
+                    'error': 'No active source set. Please select a source first.'
+                }), 400
+            
+            try:
+                # Map actions to daemon methods
+                action_map = {
+                    'play': daemon.play,
+                    'pause': daemon.pause,
+                    'stop': daemon.stop,
+                    'next': daemon.next,
+                    'previous': daemon.previous,
+                    'play_pause': daemon.play_pause
+                }
+                
+                if action not in action_map:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid action: {action}. Valid actions: {list(action_map.keys())}'
+                    }), 400
+                
+                # Execute the command
+                result = action_map[action]()
+                
+                if result:
+                    return jsonify({
+                        'success': True,
+                        'message': f'{action.capitalize()} command sent to {current_source.value}',
+                        'active_source': current_source.value
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Failed to execute {action} on {current_source.value}'
+                    }), 500
+                    
+            except Exception as e:
+                logger.error(f"Error executing {action}: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+
         @self.app.route('/api/mpd/<action>', methods=['POST'])
         def api_mpd_control(action):
             """Control MPD backend"""

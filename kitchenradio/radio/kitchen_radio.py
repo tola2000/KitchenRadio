@@ -188,75 +188,7 @@ class KitchenRadio:
         except Exception as e:
             self.logger.warning(f"Librespot initialization failed: {e}")
             return False
-    
-    # def _mpd_monitor_loop(self):
-    #     """Background monitoring loop for MPD"""
-    #     self.logger.info("Starting MPD monitor loop...")
-        
-    #     last_track = None
-    #     last_state = None
-    #     last_volume = None
-        
-    #     while self.running and self.mpd_connected:
-    #         try:
-    #             # Get current status from MPD
-    #             #current_track = self.mpd_monitor.get_current_song()
-    #             current_state = self.mpd_monitor.get_status().get('state', 'unknown')
-    #             current_volume = self.mpd_monitor.get_volume()
-                
-    #             # Check for changes
-    #             if current_track != last_track:
-    #                 self._on_mpd_track_change(current_track, last_track)
-    #                 last_track = current_track
-                
-    #             if current_state != last_state:
-    #                 self._on_mpd_state_change(current_state, last_state)
-    #                 last_state = current_state
-                
-    #             if current_volume != last_volume:
-    #                 self._on_mpd_volume_change(current_volume, last_volume)
-    #                 last_volume = current_volume
-                
-    #             time.sleep(1)  # Check every second
-                
-    #         except Exception as e:
-    #             self.logger.error(f"MPD monitor loop error: {e}")
-    #             time.sleep(5)  # Wait longer on error
-    
-    # def _librespot_monitor_loop(self):
-    #     """Background monitoring loop for librespot"""
-    #     self.logger.info("Starting librespot monitor loop...")
-        
-    #     last_track = None
-    #     last_state = None
-    #     last_volume = None
-        
-    #     while self.running and self.librespot_connected:
-    #         try:
-    #             # Get current status from librespot
-    #             current_track = self.librespot_monitor.get_current_track()
-    #             current_state = self.librespot_monitor.get_player_state()
-    #             current_volume = self.librespot_monitor.get_volume()
-                
-    #             # Check for changes
-    #             if current_track != last_track:
-    #                 self._on_librespot_track_change(current_track, last_track)
-    #                 last_track = current_track
-                
-    #             if current_state != last_state:
-    #                 self._on_librespot_state_change(current_state, last_state)
-    #                 last_state = current_state
-                
-    #             if current_volume != last_volume:
-    #                 self._on_librespot_volume_change(current_volume, last_volume)
-    #                 last_volume = current_volume
-                
-    #             time.sleep(1)  # Check every second
-                
-    #         except Exception as e:
-    #             self.logger.error(f"Librespot monitor loop error: {e}")
-    #             time.sleep(5)  # Wait longer on error
-    
+
     def _on_mpd_track_change(self, current_track, last_track):
         """Handle MPD track change events"""
         if current_track:
@@ -454,6 +386,187 @@ class KitchenRadio:
             True if successful
         """
         return self.set_source(BackendType.LIBRESPOT)
+
+    # Helper method for getting active controller
+    def _get_active_controller(self):
+        """
+        Get the controller for the currently active source.
+        
+        Returns:
+            Tuple of (controller, source_name, is_connected) or (None, None, False) if no active source
+        """
+        if not self.source:
+            return None, None, False
+        
+        if self.source == BackendType.MPD:
+            return self.mpd_controller, "MPD", self.mpd_connected
+        elif self.source == BackendType.LIBRESPOT:
+            return self.librespot_controller, "Spotify", self.librespot_connected
+        else:
+            return None, None, False
+
+    # Playback control methods for active source
+    def play_pause(self) -> bool:
+        """
+        Toggle play/pause on the currently active source.
+        
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for play/pause command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        try:
+            result = controller.playpause()
+            if result:
+                self.logger.info(f"▶️ [{source_name}] Started playback")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error in play/pause command on {source_name}: {e}")
+            return False
+    
+    def play(self) -> bool:
+        """
+        Start playback on the currently active source.
+        
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for play command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        try:
+            result = controller.play()
+            if result:
+                self.logger.info(f"▶️ [{source_name}] Started playback")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error in play command on {source_name}: {e}")
+            return False
+    
+    def pause(self) -> bool:
+        """
+        Pause playback on the currently active source.
+        
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for pause command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        try:
+            result = controller.pause()
+            if result:
+                self.logger.info(f"⏸️ [{source_name}] Paused playback")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error in pause command on {source_name}: {e}")
+            return False
+    
+    def stop(self) -> bool:
+        """
+        Stop playback on the currently active source.
+        
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for stop command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        try:
+            result = controller.stop()
+            if result:
+                self.logger.info(f"⏹️ [{source_name}] Stopped playback")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error in stop command on {source_name}: {e}")
+            return False
+    
+    def next(self) -> bool:
+        """
+        Skip to next track on the currently active source.
+        
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for next command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        try:
+            result = controller.next()
+            if result:
+                self.logger.info(f"⏭️ [{source_name}] Skipped to next track")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error in next command on {source_name}: {e}")
+            return False
+    
+    def previous(self) -> bool:
+        """
+        Skip to previous track on the currently active source.
+        
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for previous command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        try:
+            result = controller.previous()
+            if result:
+                self.logger.info(f"⏮️ [{source_name}] Skipped to previous track")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error in previous command on {source_name}: {e}")
+            return False
 
     def start(self) -> bool:
         """

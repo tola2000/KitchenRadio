@@ -79,6 +79,30 @@ class PlaybackController:
         """
         return self.client.pause(False)
     
+    def playpause(self) -> bool:
+        """
+        Toggle between play and pause.
+        
+        Returns:
+            True if successful
+        """
+        try:
+            # Get current status to determine current state
+            status = self.client.get_status()
+            if not status:
+                return False
+            
+            current_state = status.get('state', 'stop')
+            
+            if current_state == 'play':
+                return self.pause()
+            else:
+                return self.client.play()
+                
+        except Exception as e:
+            logger.error(f"Error in playpause: {e}")
+            return False
+    
     def stop(self) -> bool:
         """
         Stop playback.
@@ -105,6 +129,24 @@ class PlaybackController:
             True if successful
         """
         return self.client.previous()
+    
+    def next(self) -> bool:
+        """
+        Skip to next track.
+        
+        Returns:
+            True if successful
+        """
+        return self.next_track()
+    
+    def previous(self) -> bool:
+        """
+        Skip to previous track.
+        
+        Returns:
+            True if successful
+        """
+        return self.previous_track()
     
     def set_volume(self, volume: int) -> bool:
         """
