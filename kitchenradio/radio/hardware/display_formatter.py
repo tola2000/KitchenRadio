@@ -307,9 +307,6 @@ class DisplayFormatter:
             if error_code:
                 code_text = f"Code: {error_code}"
                 draw.text((10, 45), code_text, font=font_small, fill=200)
-            
-            # Border
-            draw.rectangle([(5, 5), (self.width-6, self.height-6)], outline=255)
         
         return draw_error
     
@@ -331,9 +328,6 @@ class DisplayFormatter:
             # Status
             draw.text((10, 32), "Ready to Play", font=font_medium, fill=200)
             draw.text((10, 48), "Select a Source", font=font_small, fill=150)
-            
-            # Border
-            draw.rectangle([(2, 2), (self.width-3, self.height-3)], outline=255)
         
         return draw_default
     
@@ -405,9 +399,6 @@ class DisplayFormatter:
             icon_y = self.height - icon_height - 5  # 5px margin from bottom edge
             
             draw.text((icon_x, icon_y), play_icon, font=icon_font, fill=255)
-            
-            # Border around entire display
-            draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
         
         return draw_track_info
     
@@ -447,23 +438,6 @@ class DisplayFormatter:
             for line in lines[:3]:  # Max 3 lines
                 draw.text((text_x, y), line, font=self.fonts['medium'], fill=255)
                 y += 16
-            
-            # Border color based on message type
-            if message_type == "error":
-                # Double border for errors
-                draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
-                draw.rectangle([(1, 1), (self.width-2, self.height-2)], outline=255)
-            elif message_type == "warning":
-                # Dashed-style border for warnings
-                for i in range(0, self.width, 4):
-                    draw.point((i, 0), fill=255)
-                    draw.point((i, self.height-1), fill=255)
-                for i in range(0, self.height, 4):
-                    draw.point((0, i), fill=255)
-                    draw.point((self.width-1, i), fill=255)
-            else:
-                # Normal border for info
-                draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
         
         return draw_status_message
     
@@ -623,8 +597,5 @@ class DisplayFormatter:
             icon_y = self.height - icon_size - 0
             play_icon = "▶" if playing else "⏸"
             draw.text((icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)
-            
-            # Border around entire display
-            draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
         
         return draw_track_info_with_progress
