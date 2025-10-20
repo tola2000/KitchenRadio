@@ -326,13 +326,14 @@ async function selectSource(source) {
         
         let response;
         if (source === '') {
-            // Turn off - clear source
-            response = await fetch('/api/source', {
-                method: 'DELETE'
+            // Turn off - use power button
+            response = await fetch('/api/button/power', {
+                method: 'POST'
             });
         } else {
-            // Set new source
-            response = await fetch(`/api/source/${source}`, {
+            // Set new source - use source button
+            const buttonName = source === 'spotify' ? 'source_spotify' : 'source_mpd';
+            response = await fetch(`/api/button/${buttonName}`, {
                 method: 'POST'
             });
         }
@@ -355,23 +356,22 @@ async function selectSource(source) {
 
 // Show source-specific menu
 async function showSourceMenu() {
-    if (!radioApp || !radioApp.currentSource) return;
-    
     try {
         const response = await fetch('/api/menu');
         if (response.ok) {
             const menuData = await response.json();
-            if (menuData.has_menu) {
+            if (menuData.menu_items && menuData.menu_items.length > 0) {
                 radioApp.currentMenuData = menuData;
-                radioApp.currentMenuOptions = menuData.options;
+                radioApp.currentMenuOptions = menuData.menu_items;
                 radioApp.selectedMenuIndex = 0;
                 radioApp.menuVisible = true;
                 radioApp.updateDisplay();
             } else {
-                radioApp.showMessage(menuData.message || 'No menu available');
+                radioApp.showMessage('No menu items available');
             }
         } else {
-            radioApp.showError('Failed to get menu');
+            const errorData = await response.json();
+            radioApp.showError(errorData.error || 'Failed to get menu');
         }
     } catch (error) {
         console.error('Error getting menu:', error);
@@ -389,7 +389,23 @@ async function sendCommand(action) {
     }
     
     try {
-        const response = await fetch(`/api/control/${action}`, {
+        // Map action to button name
+        const buttonMap = {
+            'play': 'transport_play_pause',
+            'pause': 'transport_play_pause',
+            'play_pause': 'transport_play_pause',
+            'stop': 'transport_stop',
+            'next': 'transport_next',
+            'previous': 'transport_previous'
+        };
+        
+        const buttonName = buttonMap[action];
+        if (!buttonName) {
+            radioApp.showError(`Unknown action: ${action}`);
+            return;
+        }
+        
+        const response = await fetch(`/api/button/${buttonName}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -419,23 +435,20 @@ async function adjustVolume(direction) {
     }
     
     try {
-        const response = await fetch(`/api/volume/${direction}`, {
+        // Map direction to button name
+        const buttonName = direction === 'up' ? 'volume_up' : 'volume_down';
+        
+        const response = await fetch(`/api/button/${buttonName}`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ step: 5 })
+            headers: {'Content-Type': 'application/json'}
         });
         
         const result = await response.json();
         
         if (response.ok && result.success) {
-            // Update volume display immediately
-            if (result.volume !== undefined) {
-                radioApp.currentVolume = result.volume;
-                document.getElementById('volume-level').textContent = result.volume + '%';
-                document.getElementById('volume-fill').style.width = result.volume + '%';
-            }
-            
             radioApp.showSuccess(result.message || `Volume ${direction}`);
+            // Refresh status to get updated volume
+            setTimeout(() => radioApp.refreshStatus(), 300);
         } else {
             radioApp.showError(result.error || 'Volume control failed');
         }
@@ -446,44 +459,74 @@ async function adjustVolume(direction) {
 }
 
 // Menu functions
-function menuAction(buttonNumber) {
+async function menuAction(buttonNumber) {
     if (!radioApp) return;
     
-    switch (buttonNumber) {
-        case 1: // Up
-            if (radioApp.menuVisible && radioApp.currentMenuOptions.length > 1) {
-                radioApp.selectedMenuIndex = Math.max(0, radioApp.selectedMenuIndex - 1);
-                radioApp.updateDisplay();
-            }
-            break;
-        case 2: // Menu - Toggle menu visibility
-            if (radioApp.menuVisible) {
-                hideMenu();
+    // Map button numbers to button names for API calls
+    const buttonMap = {
+        1: 'menu_up',
+        2: 'menu_toggle', 
+        3: 'menu_down',
+        4: 'menu_set',
+        5: 'menu_ok',
+        6: 'menu_exit'
+    };
+    
+    const buttonName = buttonMap[buttonNumber];
+    if (buttonName) {
+        try {
+            const response = await fetch(`/api/button/${buttonName}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                // Handle local UI updates for menu navigation
+                switch (buttonNumber) {
+                    case 1: // Up
+                        if (radioApp.menuVisible && radioApp.currentMenuOptions.length > 1) {
+                            radioApp.selectedMenuIndex = Math.max(0, radioApp.selectedMenuIndex - 1);
+                            radioApp.updateDisplay();
+                        }
+                        break;
+                    case 2: // Menu - Toggle menu visibility
+                        if (radioApp.menuVisible) {
+                            hideMenu();
+                        } else {
+                            showSourceMenu();
+                        }
+                        break;
+                    case 3: // Down
+                        if (radioApp.menuVisible && radioApp.currentMenuOptions.length > 1) {
+                            radioApp.selectedMenuIndex = Math.min(radioApp.currentMenuOptions.length - 1, radioApp.selectedMenuIndex + 1);
+                            radioApp.updateDisplay();
+                        }
+                        break;
+                    case 5: // Confirm/OK
+                        if (radioApp.menuVisible) {
+                            executeMenuOption();
+                        }
+                        break;
+                    case 6: // Cancel/Exit
+                        if (radioApp.menuVisible) {
+                            hideMenu();
+                        }
+                        break;
+                }
+                
+                // Show success briefly
+                if (result.message) {
+                    radioApp.showSuccess(result.message);
+                }
             } else {
-                showSourceMenu();
+                radioApp.showError(result.error || 'Menu action failed');
             }
-            break;
-        case 3: // Down
-            if (radioApp.menuVisible && radioApp.currentMenuOptions.length > 1) {
-                radioApp.selectedMenuIndex = Math.min(radioApp.currentMenuOptions.length - 1, radioApp.selectedMenuIndex + 1);
-                radioApp.updateDisplay();
-            }
-            break;
-        case 4: // Settings (could be used for additional functions)
-            if (radioApp.menuVisible) {
-                // Could be used for secondary functions
-            }
-            break;
-        case 5: // Confirm/OK
-            if (radioApp.menuVisible) {
-                executeMenuOption();
-            }
-            break;
-        case 6: // Cancel/Exit
-            if (radioApp.menuVisible) {
-                hideMenu();
-            }
-            break;
+        } catch (error) {
+            console.error('Error with menu action:', error);
+            radioApp.showError('Connection error');
+        }
     }
 }
 
@@ -498,8 +541,8 @@ async function executeMenuOption() {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                action: selectedOption.action,
-                option_id: selectedOption.id
+                action: 'select',
+                item_id: selectedOption.id
             })
         });
         
@@ -539,5 +582,30 @@ async function togglePower() {
     } else {
         // Show source selection message or default to last used source
         radioApp.showMessage('Select a source to power on', 'info');
+    }
+}
+
+// Power control function
+async function togglePower() {
+    if (!radioApp) return;
+    
+    try {
+        const response = await fetch('/api/button/power', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            radioApp.showSuccess(result.message || 'Power toggled');
+            // Refresh status immediately
+            setTimeout(() => radioApp.refreshStatus(), 500);
+        } else {
+            radioApp.showError(result.error || 'Power toggle failed');
+        }
+    } catch (error) {
+        console.error('Error toggling power:', error);
+        radioApp.showError('Connection error');
     }
 }
