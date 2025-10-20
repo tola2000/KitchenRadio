@@ -447,47 +447,6 @@ class KitchenRadioWebServer:
             except Exception as e:
                 logger.error(f"Error loading playlist: {e}")
                 return jsonify({'error': str(e)}), 500
-        
-        # Keep legacy MPD endpoints for backward compatibility
-        @self.app.route('/api/mpd/playlists')
-        def api_mpd_playlists():
-            """Get all MPD stored playlists (legacy endpoint)"""
-            daemon = self._get_daemon()
-            if not daemon or not daemon.mpd_connected:
-                return jsonify({'success': False, 'error': 'MPD not connected'}), 400
-            
-            try:
-                controller = daemon.mpd_controller
-                playlists = controller.get_all_playlists()
-                return jsonify({'success': True, 'playlists': playlists})
-                
-            except Exception as e:
-                logger.error(f"Error getting MPD playlists: {e}")
-                return jsonify({'success': False, 'error': str(e)}), 500
-        
-        @self.app.route('/api/mpd/load_playlist', methods=['POST'])
-        def api_mpd_load_playlist():
-            """Load and play an MPD stored playlist (legacy endpoint)"""
-            daemon = self._get_daemon()
-            if not daemon or not daemon.mpd_connected:
-                return jsonify({'error': 'MPD not connected'}), 400
-            
-            data = request.get_json()
-            if not data or 'playlist' not in data:
-                return jsonify({'error': 'Playlist name required'}), 400
-            
-            playlist_name = data['playlist']
-            
-            try:
-                controller = daemon.mpd_controller
-                
-                result = controller.play_playlist(playlist_name)
-                
-                return jsonify({'success': result, 'message': f'Loaded playlist: {playlist_name}'})
-                
-            except Exception as e:
-                logger.error(f"Error loading MPD playlist: {e}")
-                return jsonify({'error': str(e)}), 500
 
     def run(self):
         """Run the web server"""

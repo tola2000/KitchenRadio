@@ -542,34 +542,6 @@
                 showMessage('Failed to load playlist', 'error');
             });
         }
-        
-        // Legacy MPD playlist functions (for backward compatibility)
-        function loadMPDPlaylist() {
-            const select = document.getElementById('mpd-playlist-select');
-            const playlist = select.value;
-            if (!playlist) {
-                showMessage('Please select a playlist', 'error');
-                return;
-            }
-            
-            fetch('/api/mpd/load_playlist', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({playlist: playlist})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showMessage(`Loaded playlist: ${playlist}`, 'success');
-                } else {
-                    showMessage(data.error || 'Failed to load playlist', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showMessage('Failed to load playlist', 'error');
-            });
-        }
     </script>
 </body>
 </html>
