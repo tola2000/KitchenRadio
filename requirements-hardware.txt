@@ -1,0 +1,22 @@
+# Hardware dependencies for KitchenRadio Physical Interface
+# Install with: pip install -r requirements-hardware.txt
+
+# Raspberry Pi GPIO control
+RPi.GPIO>=0.7.1
+
+# OLED Display control via I2C
+luma.oled>=3.10.0
+luma.core>=2.4.0
+
+# Image processing for display graphics
+Pillow>=9.0.0
+
+# I2C communication
+smbus2>=0.4.0
+
+# Alternative GPIO library (optional)
+# gpiozero>=1.6.0
+
+# Dependencies for display fonts
+# On Raspberry Pi, also install system fonts:
+# sudo apt-get install fonts-dejavu-core fonts-dejavu-extra
