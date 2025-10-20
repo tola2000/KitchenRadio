@@ -139,12 +139,8 @@ class PhysicalRadioApp {
     }
     
     updateTransportButtons(isPlaying) {
-        const hasActiveSource = this.currentSource && this.availableSources.includes(this.currentSource);
-        
-        // Enable/disable transport buttons based on active source
-        document.querySelectorAll('.transport-btn').forEach(btn => {
-            btn.disabled = !hasActiveSource;
-        });
+        // Hardware buttons should always be enabled
+        // No need to disable based on source availability
         
         // Update play button
         const playBtn = document.getElementById('btn-play');
@@ -193,11 +189,8 @@ class PhysicalRadioApp {
         document.getElementById('volume-level').textContent = volume + '%';
         document.getElementById('volume-fill').style.width = volume + '%';
         
-        // Enable/disable volume buttons
-        const hasActiveSource = this.currentSource && this.availableSources.includes(this.currentSource);
-        document.querySelectorAll('.volume-btn').forEach(btn => {
-            btn.disabled = !hasActiveSource;
-        });
+        // Hardware volume buttons should always be enabled
+        // No need to disable based on source availability
     }
     
     updateDaemonStatus(status) {
