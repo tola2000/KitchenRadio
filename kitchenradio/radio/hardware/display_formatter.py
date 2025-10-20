@@ -16,10 +16,10 @@ DISPLAY_WIDTH = 256
 DISPLAY_HEIGHT = 64
 
 # Font sizes optimized for SSD1322
-FONT_SMALL = 10
-FONT_MEDIUM = 16
-FONT_LARGE = 24
-FONT_XLARGE = 30
+FONT_SMALL = 12
+FONT_MEDIUM = 14
+FONT_LARGE = 16
+FONT_XLARGE = 18
 
 
 class DisplayFormatter:
@@ -581,8 +581,8 @@ class DisplayFormatter:
             # Title (main line) - larger font and truncate to fit in available space
             title_text = title if title else "No Track"
             title_max_width = content_width - 10
-            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['xlarge'])
-            draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
+            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['large'])
+            draw.text((content_x, 5), title_truncated, font=self.fonts['large'], fill=255)
             
             # Artist and Album on one line - truncate to fit
             if artist or album:
