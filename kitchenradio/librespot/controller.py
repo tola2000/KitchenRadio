@@ -3,7 +3,7 @@ LibreSpot Controller - Control go-librespot playback
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from .client import KitchenRadioLibrespotClient
 
 logger = logging.getLogger(__name__)
@@ -228,6 +228,32 @@ class LibrespotController:
         """
         return self.client.get_devices()
     
+    # Playlist methods (dummy implementations for Spotify)
+    def get_all_playlists(self) -> List[str]:
+        """
+        Get all stored playlist names.
+        Note: Spotify playlists are managed through the Spotify app.
+        
+        Returns:
+            Empty list (Spotify doesn't support local playlists)
+        """
+        logger.info("Spotify playlists are managed through the Spotify app")
+        return []
+    
+    def play_playlist(self, playlist: str) -> bool:
+        """
+        Load and play a playlist.
+        Note: Spotify playlists are managed through the Spotify app.
+        
+        Args:
+            playlist: Playlist name (ignored for Spotify)
+            
+        Returns:
+            False (Spotify doesn't support loading local playlists)
+        """
+        logger.warning(f"Cannot load playlist '{playlist}' - Spotify playlists are managed through the Spotify app")
+        return False
+
     def print_status(self):
         """Print current status to console."""
         try:

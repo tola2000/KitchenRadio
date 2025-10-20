@@ -121,7 +121,7 @@ class KitchenRadioWebServer:
         @self.app.route('/')
         def index():
             """Main interface page"""
-            return render_template('index.html')
+            return render_template('unified_control.html')
         
         @self.app.route('/api/health')
         def api_health():
@@ -248,7 +248,7 @@ class KitchenRadioWebServer:
                     return jsonify({
                         'success': True,
                         'message': f'{action.capitalize()} command sent to {current_source.value}',
-                        'active_source': current_source.value
+                        'current_source': current_source.value
                     })
                 else:
                     return jsonify({
@@ -259,48 +259,199 @@ class KitchenRadioWebServer:
             except Exception as e:
                 logger.error(f"Error executing {action}: {e}")
                 return jsonify({'success': False, 'error': str(e)}), 500
-
-        @self.app.route('/api/mpd/<action>', methods=['POST'])
-        def api_mpd_control(action):
-            """Control MPD backend"""
+        
+        @self.app.route('/api/volume', methods=['GET'])
+        def api_get_volume():
+            """Get volume from the currently active source"""
             daemon = self._get_daemon()
-            if not daemon or not daemon.mpd_connected:
-                return jsonify({'error': 'MPD not connected'}), 400
+            if not daemon:
+                return jsonify({'error': 'Failed to connect to daemon'}), 500
+            
+            current_source = daemon.get_current_source()
+            if not current_source:
+                return jsonify({
+                    'success': False,
+                    'error': 'No active source set'
+                }), 400
             
             try:
-                controller = daemon.mpd_controller
-                
-                if action == 'play':
-                    result = controller.play()
-                elif action == 'pause':
-                    result = controller.pause()
-                elif action == 'stop':
-                    result = controller.stop() if hasattr(controller, 'stop') else False
-                elif action == 'next':
-                    result = controller.next_track()
-                elif action == 'previous':
-                    result = controller.previous_track()
-                elif action == 'volume':
-                    data = request.get_json()
-                    if not data or 'level' not in data:
-                        return jsonify({'error': 'Volume level required'}), 400
-                    level = int(data['level'])
-                    if 0 <= level <= 100:
-                        result = controller.set_volume(level)
-                    else:
-                        return jsonify({'error': 'Volume must be 0-100'}), 400
+                volume = daemon.get_volume()
+                return jsonify({
+                    'success': True,
+                    'volume': volume,
+                    'current_source': current_source.value
+                })
+            except Exception as e:
+                logger.error(f"Error getting volume: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+        
+        @self.app.route('/api/volume/<int:level>', methods=['POST'])
+        def api_set_volume(level):
+            """Set volume on the currently active source"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'error': 'Failed to connect to daemon'}), 500
+            
+            current_source = daemon.get_current_source()
+            if not current_source:
+                return jsonify({
+                    'success': False,
+                    'error': 'No active source set'
+                }), 400
+            
+            try:
+                result = daemon.set_volume(level)
+                if result:
+                    return jsonify({
+                        'success': True,
+                        'volume': level,
+                        'current_source': current_source.value,
+                        'message': f'Volume set to {level}%'
+                    })
                 else:
-                    return jsonify({'error': f'Unknown action: {action}'}), 400
+                    return jsonify({
+                        'success': False,
+                        'error': f'Failed to set volume to {level}%'
+                    }), 500
+            except Exception as e:
+                logger.error(f"Error setting volume: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+        
+        @self.app.route('/api/volume/<action>', methods=['POST'])
+        def api_volume_control_unified(action):
+            """Unified volume control (up/down) on the currently active source"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'error': 'Failed to connect to daemon'}), 500
+            
+            current_source = daemon.get_current_source()
+            if not current_source:
+                return jsonify({
+                    'success': False,
+                    'error': 'No active source set'
+                }), 400
+            
+            try:
+                # Get step from request body or use default
+                data = request.get_json() or {}
+                step = data.get('step', 5)
                 
-                return jsonify({'success': result})
+                if action == 'up':
+                    result = daemon.volume_up(step)
+                    message = f'Volume increased by {step}%'
+                elif action == 'down':
+                    result = daemon.volume_down(step)
+                    message = f'Volume decreased by {step}%'
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid volume action: {action}. Valid actions: up, down'
+                    }), 400
+                
+                if result:
+                    new_volume = daemon.get_volume()
+                    return jsonify({
+                        'success': True,
+                        'volume': new_volume,
+                        'current_source': current_source.value,
+                        'message': message
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Failed to {action} volume'
+                    }), 500
+                    
+            except Exception as e:
+                logger.error(f"Error controlling volume: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+        
+        @self.app.route('/api/playlists')
+        def api_get_playlists():
+            """Get all stored playlists from the currently active source"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'success': False, 'error': 'Daemon not available'}), 500
+            
+            current_source = daemon.get_current_source()
+            if not current_source:
+                return jsonify({'success': False, 'error': 'No active source set'}), 400
+            
+            try:
+                controller, source_name, is_connected = daemon._get_active_controller()
+                
+                if not controller:
+                    return jsonify({'success': False, 'error': 'No active controller'}), 400
+                
+                if not is_connected:
+                    return jsonify({'success': False, 'error': f'{source_name} not connected'}), 400
+                
+                playlists = controller.get_all_playlists()
+                return jsonify({
+                    'success': True, 
+                    'playlists': playlists,
+                    'source': source_name.lower()
+                })
                 
             except Exception as e:
-                logger.error(f"Error controlling MPD: {e}")
+                logger.error(f"Error getting playlists: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+        
+        @self.app.route('/api/load_playlist', methods=['POST'])
+        def api_load_playlist():
+            """Load and play a playlist on the currently active source"""
+            daemon = self._get_daemon()
+            if not daemon:
+                return jsonify({'error': 'Daemon not available'}), 500
+            
+            current_source = daemon.get_current_source()
+            if not current_source:
+                return jsonify({'error': 'No active source set'}), 400
+            
+            data = request.get_json()
+            if not data or 'playlist' not in data:
+                return jsonify({'error': 'Playlist name required'}), 400
+            
+            playlist_name = data['playlist']
+            
+            try:
+                controller, source_name, is_connected = daemon._get_active_controller()
+                
+                if not controller:
+                    return jsonify({'error': 'No active controller'}), 400
+                
+                if not is_connected:
+                    return jsonify({'error': f'{source_name} not connected'}), 400
+                
+                result = controller.play_playlist(playlist_name)
+                
+                if result:
+                    return jsonify({
+                        'success': True, 
+                        'message': f'Loaded playlist: {playlist_name}',
+                        'source': source_name.lower()
+                    })
+                else:
+                    # Handle the case where the controller returns False (like Spotify)
+                    if source_name.lower() == 'spotify':
+                        return jsonify({
+                            'success': False,
+                            'error': 'Spotify playlists are managed through the Spotify app. Please use your Spotify client to select and play playlists.'
+                        })
+                    else:
+                        return jsonify({
+                            'success': False,
+                            'error': f'Failed to load playlist: {playlist_name}'
+                        })
+                
+            except Exception as e:
+                logger.error(f"Error loading playlist: {e}")
                 return jsonify({'error': str(e)}), 500
         
+        # Keep legacy MPD endpoints for backward compatibility
         @self.app.route('/api/mpd/playlists')
         def api_mpd_playlists():
-            """Get all MPD stored playlists"""
+            """Get all MPD stored playlists (legacy endpoint)"""
             daemon = self._get_daemon()
             if not daemon or not daemon.mpd_connected:
                 return jsonify({'success': False, 'error': 'MPD not connected'}), 400
@@ -316,7 +467,7 @@ class KitchenRadioWebServer:
         
         @self.app.route('/api/mpd/load_playlist', methods=['POST'])
         def api_mpd_load_playlist():
-            """Load and play an MPD stored playlist"""
+            """Load and play an MPD stored playlist (legacy endpoint)"""
             daemon = self._get_daemon()
             if not daemon or not daemon.mpd_connected:
                 return jsonify({'error': 'MPD not connected'}), 400
@@ -337,80 +488,7 @@ class KitchenRadioWebServer:
             except Exception as e:
                 logger.error(f"Error loading MPD playlist: {e}")
                 return jsonify({'error': str(e)}), 500
-        
-        @self.app.route('/api/librespot/<action>', methods=['POST'])
-        def api_librespot_control(action):
-            """Control librespot backend"""
-            daemon = self._get_daemon()
-            if not daemon or not daemon.librespot_connected:
-                return jsonify({'error': 'Librespot not connected'}), 400
-            
-            try:
-                controller = daemon.librespot_controller
-                
-                if action == 'play':
-                    result = controller.resume()
-                elif action == 'stop':
-                    result = controller.pause()
-                elif action == 'pause':
-                    result = controller.pause()
-                elif action == 'next':
-                    result = controller.next_track()
-                elif action == 'previous':
-                    result = controller.previous_track()
-                elif action == 'volume':
-                    data = request.get_json()
-                    if not data or 'level' not in data:
-                        return jsonify({'error': 'Volume level required'}), 400
-                    level = int(data['level'])
-                    if 0 <= level <= 100:
-                        result = controller.set_volume(level)
-                    else:
-                        return jsonify({'error': 'Volume must be 0-100'}), 400
-                else:
-                    return jsonify({'error': f'Unknown action: {action}'}), 400
-                
-                return jsonify({'success': result})
-                
-            except Exception as e:
-                logger.error(f"Error controlling librespot: {e}")
-                return jsonify({'error': str(e)}), 500
-        
-        @self.app.route('/api/volume/<backend>/<action>', methods=['POST'])
-        def api_volume_control(backend, action):
-            """Quick volume control"""
-            daemon = self._get_daemon()
-            if not daemon:
-                return jsonify({'error': 'Daemon not available'}), 400
-            
-            try:
-                if backend == 'mpd' and daemon.mpd_connected:
-                    controller = daemon.mpd_controller
-                    monitor = daemon.mpd_monitor
-                elif backend == 'librespot' and daemon.librespot_connected:
-                    controller = daemon.librespot_controller
-                    monitor = daemon.librespot_monitor
-                else:
-                    return jsonify({'error': f'{backend} not connected'}), 400
-                
-                current_volume = controller.get_volume()
-                if current_volume is None:
-                    return jsonify({'error': 'Unable to get current volume'}), 500
-                
-                if action == 'up':
-                    new_volume = min(100, current_volume + 5)
-                elif action == 'down':
-                    new_volume = max(0, current_volume - 5)
-                else:
-                    return jsonify({'error': f'Unknown volume action: {action}'}), 400
-                
-                result = controller.set_volume(new_volume)
-                return jsonify({'success': result, 'volume': new_volume})
-                
-            except Exception as e:
-                logger.error(f"Error controlling volume: {e}")
-                return jsonify({'error': str(e)}), 500
-    
+
     def run(self):
         """Run the web server"""
         logger.info(f"Starting KitchenRadio web server on {self.host}:{self.port}")
