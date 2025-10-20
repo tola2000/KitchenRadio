@@ -6,6 +6,11 @@ requests>=2.25.0
 Flask>=2.3.0
 Flask-CORS>=4.0.0
 
+# Display system dependencies
+Pillow>=9.0.0
+luma.oled>=3.8.0
+luma.core>=2.4.0
+
 # Optional dependencies
 # colorama>=0.4.0  # For colored console output on Windows
 # click>=8.0.0     # For CLI interfaces

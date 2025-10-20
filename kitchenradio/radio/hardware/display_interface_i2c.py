@@ -26,7 +26,6 @@ SSD1322_WIDTH = 256
 SSD1322_HEIGHT = 64
 SSD1322_ADDRESS = 0x3C
 
-
 class I2CDisplayInterface:
     """
     Simplified I2C display interface for SSD1322 256x64 OLED display.
@@ -69,10 +68,6 @@ class I2CDisplayInterface:
         Returns:
             True if initialization successful
         """
-        if self.simulation_mode:
-            logger.info("SSD1322 display initialized in simulation mode")
-            return True
-        
         try:
             # Create I2C interface
             self.serial = i2c(port=self.i2c_port, address=self.i2c_address)
@@ -132,21 +127,12 @@ class I2CDisplayInterface:
             True if successful
         """
         try:
-            if self.simulation_mode:
-                # Create image and draw
-                image = Image.new('1', (self.width, self.height), 0)
-                draw = ImageDraw.Draw(image)
+
+            # Use luma's canvas context
+            with canvas(self.device) as draw:
                 draw_function(draw)
-                self.last_frame = image
-                logger.debug("Frame rendered (simulation)")
-                return True
-            
-            elif self.device:
-                # Use luma's canvas context
-                with canvas(self.device) as draw:
-                    draw_function(draw)
-                logger.debug("Frame rendered (hardware)")
-                return True
+            logger.debug("Frame rendered (hardware)")
+            return True
                 
         except Exception as e:
             logger.error(f"Error rendering frame: {e}")
@@ -166,70 +152,6 @@ class I2CDisplayInterface:
             'hardware_available': LUMA_AVAILABLE
         }
     
-    def test_display(self) -> bool:
-        """
-        Test SSD1322 display functionality with a simple pattern.
-        
-        Returns:
-            True if test successful
-        """
-        try:
-            def draw_test_pattern(draw):
-                # Draw border
-                draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
-                
-                # Draw diagonal lines
-                draw.line([(0, 0), (self.width-1, self.height-1)], fill=255)
-                draw.line([(0, self.height-1), (self.width-1, 0)], fill=255)
-                
-                # Draw center cross
-                mid_x, mid_y = self.width // 2, self.height // 2
-                draw.line([(mid_x, 0), (mid_x, self.height-1)], fill=255)
-                draw.line([(0, mid_y), (self.width-1, mid_y)], fill=255)
-                
-                # Draw text
-                draw.text((10, 10), "SSD1322", fill=255)
-                draw.text((10, 50), "TEST OK", fill=255)
-            
-            result = self.render_frame(draw_test_pattern)
-            
-            if result:
-                logger.info("SSD1322 test pattern rendered successfully")
-                # Show test pattern for a moment
-                time.sleep(0.5)
-                self.clear()
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"SSD1322 display test failed: {e}")
-            return False
-    
-    def save_last_frame(self, filename: str) -> bool:
-        """
-        Save the last rendered frame to a file (simulation mode only).
-        
-        Args:
-            filename: Filename to save the image
-            
-        Returns:
-            True if successful
-        """
-        if not self.simulation_mode or not self.last_frame:
-            logger.warning("No frame available to save or not in simulation mode")
-            return False
-        
-        try:
-            self.last_frame.save(filename)
-            logger.info(f"SSD1322 frame saved to {filename}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saving SSD1322 frame: {e}")
-            return False
-    
-    def get_last_frame(self) -> Optional[Image.Image]:
-        """Get the last rendered frame (simulation mode only)"""
-        return self.last_frame if self.simulation_mode else None
 
 
 # Example usage and testing
@@ -253,12 +175,6 @@ if __name__ == "__main__":
         print(f"   Resolution: {info['width']}x{info['height']}")
         print(f"   Simulation mode: {info['simulation_mode']}")
         
-        # Test display
-        if interface.test_display():
-            print("✅ SSD1322 test passed")
-        else:
-            print("❌ SSD1322 test failed")
-        
         # Test custom drawing
         def draw_custom(draw):
             draw.text((10, 20), "KitchenRadio", fill=255)
@@ -268,11 +184,6 @@ if __name__ == "__main__":
         if interface.render_frame(draw_custom):
             print("✅ SSD1322 custom drawing successful")
         
-        # Save frame if in simulation mode
-        if interface.simulation_mode:
-            filename = "ssd1322_test.png"
-            if interface.save_last_frame(filename):
-                print(f"✅ Frame saved to {filename}")
         
         # Cleanup
         interface.cleanup()

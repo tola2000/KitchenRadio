@@ -30,7 +30,7 @@ except ImportError as e:
     DisplayController = None
 
 try:
-    from .display_interface_emulator import DisplayEmulator
+    from .display_interface_emulator import EmulatorDisplayInterface as DisplayEmulator
 except ImportError as e:
     logger.warning(f"DisplayEmulator not available: {e}")
     DisplayEmulator = None
@@ -178,6 +178,18 @@ class KitchenRadioWeb:
                     'success': result
                 }
                 
+                # If it's a source button and the press was successful, update the display
+                if result and button_name in ['source_mpd', 'source_spotify'] and self.display_emulator:
+                    try:
+                        from kitchenradio.radio.hardware.display_formatter import DisplayFormatter
+                        formatter = DisplayFormatter()
+                        status_data = self.kitchen_radio.get_status()
+                        draw_func = formatter.format_status(status_data)
+                        self.display_emulator.render_frame(draw_func)
+                        logger.info(f"Display updated after {button_name} press")
+                    except Exception as display_error:
+                        logger.warning(f"Failed to update display after {button_name}: {display_error}")
+                
                 logger.info(f"API button press: {button_name} -> {result}")
                 
                 return jsonify({
@@ -282,47 +294,27 @@ class KitchenRadioWeb:
         # Display API endpoints
         @self.app.route('/api/display/image', methods=['GET'])
         def get_display_image():
-            """Get current display image as PNG"""
+            """Get current display image as BMP"""
             try:
                 if not self.display_emulator:
                     return jsonify({'error': 'Display emulator not available'}), 503
                     
-                # Get pixel data from emulator
-                pixel_data = self.display_emulator.get_image_data()
-                if pixel_data:
-                    # Create a simple PNG representation using PIL
-                    try:
-                        from PIL import Image
-                        # Convert 2D pixel array to PIL Image
-                        img = Image.new('L', (self.display_emulator.width, self.display_emulator.height))
-                        for y in range(self.display_emulator.height):
-                            for x in range(self.display_emulator.width):
-                                img.putpixel((x, y), pixel_data[y][x])
-                        
-                        # Scale up for better visibility (4x)
-                        img = img.resize((self.display_emulator.width * 4, self.display_emulator.height * 4), Image.NEAREST)
-                        
-                        # Save to bytes
-                        img_buffer = io.BytesIO()
-                        img.save(img_buffer, format='PNG')
-                        img_buffer.seek(0)
-                        
-                        return send_file(
-                            img_buffer,
-                            mimetype='image/png',
-                            as_attachment=False,
-                            download_name='display.png'
-                        )
-                    except ImportError:
-                        # Fallback: return raw pixel data as JSON
-                        return jsonify({
-                            'width': self.display_emulator.width,
-                            'height': self.display_emulator.height,
-                            'pixels': pixel_data,
-                            'note': 'PIL not available, returning raw pixel data'
-                        })
+                # Get BMP data from emulator
+                bmp_data = self.display_emulator.getDisplayImage()
+                if bmp_data:
+                    # Return BMP data directly
+                    img_buffer = io.BytesIO(bmp_data)
+                    img_buffer.seek(0)
+                    
+                    return send_file(
+                        img_buffer,
+                        mimetype='image/bmp',
+                        as_attachment=False,
+                        download_name='display.bmp'
+                    )
                 else:
-                    return jsonify({'error': 'No image data available'}), 404
+                    return jsonify({'error': 'No display image available'}), 404
+                    
             except Exception as e:
                 logger.error(f"Error getting display image: {e}")
                 return jsonify({'error': str(e)}), 500
@@ -555,7 +547,88 @@ class KitchenRadioWeb:
             except Exception as e:
                 logger.error(f"Error executing menu action: {e}")
                 return jsonify({'error': str(e)}), 500
-    
+        
+        @self.app.route('/api/display/update', methods=['POST'])
+        def update_display():
+            """Update display with current KitchenRadio status"""
+            try:
+                if not self.display_emulator:
+                    return jsonify({'error': 'Display emulator not available'}), 503
+                
+                # Get current status from KitchenRadio
+                status_data = self.kitchen_radio.get_status()
+                
+                # Import display formatter here to avoid circular imports
+                try:
+                    from kitchenradio.radio.hardware.display_formatter import DisplayFormatter
+                    formatter = DisplayFormatter()
+                    
+                    # Format status for display
+                    draw_func = formatter.format_status(status_data)
+                    
+                    # Render to emulator
+                    result = self.display_emulator.render_frame(draw_func)
+                    
+                    return jsonify({
+                        'success': result,
+                        'message': 'Display updated with current status' if result else 'Display update failed',
+                        'status_data': status_data,
+                        'timestamp': time.time()
+                    })
+                    
+                except ImportError as e:
+                    return jsonify({
+                        'error': f'Display formatter not available: {e}',
+                        'success': False
+                    }), 503
+                    
+            except Exception as e:
+                logger.error(f"Error updating display: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/display/show_text', methods=['POST'])
+        def show_text_on_display():
+            """Show custom text on display"""
+            try:
+                if not self.display_emulator:
+                    return jsonify({'error': 'Display emulator not available'}), 503
+                
+                # Get text from request
+                data = request.get_json() or {}
+                main_text = data.get('main_text', 'KitchenRadio')
+                sub_text = data.get('sub_text', '')
+                
+                # Import display formatter
+                try:
+                    from kitchenradio.radio.hardware.display_formatter import DisplayFormatter
+                    formatter = DisplayFormatter()
+                    
+                    # Format text for display
+                    draw_func = formatter.format_simple_text(main_text, sub_text)
+                    
+                    # Render to emulator
+                    result = self.display_emulator.render_frame(draw_func)
+                    
+                    return jsonify({
+                        'success': result,
+                        'message': f'Text displayed: "{main_text}"' if result else 'Text display failed',
+                        'main_text': main_text,
+                        'sub_text': sub_text,
+                        'timestamp': time.time()
+                    })
+                    
+                except ImportError as e:
+                    return jsonify({
+                        'error': f'Display formatter not available: {e}',
+                        'success': False
+                    }), 503
+                    
+            except Exception as e:
+                logger.error(f"Error showing text on display: {e}")
+                return jsonify({'error': str(e)}), 500
+
+        # ...existing code...
+        
     def _get_button_description(self, button_type: ButtonType) -> str:
         """Get human-readable description for a button"""
         descriptions = {

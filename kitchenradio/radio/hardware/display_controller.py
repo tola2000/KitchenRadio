@@ -74,7 +74,8 @@ class DisplayController:
             True if initialization successful
         """
         # Initialize I2C interface
-        if not self.i2c_interface.initialize():
+        display_interface = self.display_interface
+        if not display_interface.initialize():
             logger.error("Failed to initialize I2C display interface")
             return False
         
@@ -273,28 +274,8 @@ class DisplayController:
             }
         }
     
-    def test_display(self) -> bool:
-        """Test display functionality"""
-        return self.i2c_interface.test_display()
-    
-    def save_screenshot(self, filename: str) -> bool:
-        """Save current display content as image (simulation mode only)"""
-        return self.i2c_interface.save_last_frame(filename)
-    
-    def get_display_lines(self) -> List[str]:
-        """Get current display content as text lines (for compatibility)"""
-        # Simple compatibility method - returns basic status
-        if self.last_status:
-            current_source = self.last_status.get('current_source', 'None')
-            available = ', '.join(self.last_status.get('available_sources', []))
-            return [
-                f"Source: {current_source}",
-                f"Available: {available}",
-                "",
-                f"SSD1322 {self.i2c_interface.width}x{self.i2c_interface.height}"
-            ]
-        return ["SSD1322 Display", "No Status", "", "Ready"]
 
+    
 
 # Example usage and testing
 if __name__ == "__main__":
