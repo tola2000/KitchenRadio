@@ -408,10 +408,8 @@ async function showSourceMenu() {
 async function sendCommand(action) {
     if (!radioApp) return;
     
-    if (!radioApp.currentSource) {
-        radioApp.showError('Please select a source first');
-        return;
-    }
+    // Hardware buttons should always work regardless of source
+    // Remove source check - buttons work independently
     
     try {
         // Map action to button name
@@ -454,10 +452,8 @@ async function sendCommand(action) {
 async function adjustVolume(direction) {
     if (!radioApp) return;
     
-    if (!radioApp.currentSource) {
-        radioApp.showError('Please select a source first');
-        return;
-    }
+    // Hardware volume buttons should always work regardless of source
+    // Remove source check - volume control works independently
     
     try {
         // Map direction to button name

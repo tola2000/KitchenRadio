@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button Test - Kitchen Radio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 5px;
+        }
+        .test-button {
+            margin: 5px;
+            padding: 10px 15px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .test-button:hover {
+            background-color: #555;
+        }
+        .test-button:disabled {
+            background-color: #222;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #2a2a2a;
+            border-radius: 3px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>Kitchen Radio Button Test</h1>
+    <p>This page tests that all hardware buttons work regardless of audio source state.</p>
+    
+    <div class="test-section">
+        <h2>Transport Controls</h2>
+        <p>These buttons should always work, even without an active source:</p>
+        <button class="test-button transport-btn" onclick="testTransportButton('play')">▶ Play</button>
+        <button class="test-button transport-btn" onclick="testTransportButton('pause')">⏸ Pause</button>
+        <button class="test-button transport-btn" onclick="testTransportButton('stop')">⏹ Stop</button>
+        <button class="test-button transport-btn" onclick="testTransportButton('next')">⏭ Next</button>
+        <button class="test-button transport-btn" onclick="testTransportButton('previous')">⏮ Previous</button>
+        <div id="transport-status" class="status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Volume Controls</h2>
+        <p>Volume buttons should always work:</p>
+        <button class="test-button volume-btn" onclick="testVolumeButton('up')">🔊 Volume Up</button>
+        <button class="test-button volume-btn" onclick="testVolumeButton('down')">🔉 Volume Down</button>
+        <div id="volume-status" class="status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Source Controls</h2>
+        <p>Source selection buttons:</p>
+        <button class="test-button" onclick="testSourceButton('mpd')">📻 MPD</button>
+        <button class="test-button" onclick="testSourceButton('spotify')">🎵 Spotify</button>
+        <div id="source-status" class="status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="test-results" class="status">
+            <p>Click buttons above to test functionality...</p>
+        </div>
+    </div>
+
+    <script>
+        let testResults = [];
+        
+        async function testTransportButton(action) {
+            const statusEl = document.getElementById('transport-status');
+            statusEl.innerHTML = `Testing ${action}...`;
+            
+            try {
+                const response = await fetch(`/api/button/transport_${action === 'play' ? 'play_pause' : action === 'pause' ? 'play_pause' : action === 'previous' ? 'previous' : action}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    statusEl.innerHTML = `<span class="success">✅ ${action.toUpperCase()} worked! Result: ${JSON.stringify(result)}</span>`;
+                    testResults.push(`${action}: SUCCESS`);
+                } else {
+                    statusEl.innerHTML = `<span class="error">❌ ${action.toUpperCase()} failed: ${response.status}</span>`;
+                    testResults.push(`${action}: FAILED (${response.status})`);
+                }
+            } catch (error) {
+                statusEl.innerHTML = `<span class="error">❌ ${action.toUpperCase()} error: ${error.message}</span>`;
+                testResults.push(`${action}: ERROR (${error.message})`);
+            }
+            
+            updateTestResults();
+        }
+        
+        async function testVolumeButton(direction) {
+            const statusEl = document.getElementById('volume-status');
+            statusEl.innerHTML = `Testing volume ${direction}...`;
+            
+            try {
+                const response = await fetch(`/api/button/volume_${direction}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    statusEl.innerHTML = `<span class="success">✅ Volume ${direction} worked! Result: ${JSON.stringify(result)}</span>`;
+                    testResults.push(`volume_${direction}: SUCCESS`);
+                } else {
+                    statusEl.innerHTML = `<span class="error">❌ Volume ${direction} failed: ${response.status}</span>`;
+                    testResults.push(`volume_${direction}: FAILED (${response.status})`);
+                }
+            } catch (error) {
+                statusEl.innerHTML = `<span class="error">❌ Volume ${direction} error: ${error.message}</span>`;
+                testResults.push(`volume_${direction}: ERROR (${error.message})`);
+            }
+            
+            updateTestResults();
+        }
+        
+        async function testSourceButton(source) {
+            const statusEl = document.getElementById('source-status');
+            statusEl.innerHTML = `Testing source ${source}...`;
+            
+            try {
+                const response = await fetch(`/api/button/source_${source}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    statusEl.innerHTML = `<span class="success">✅ Source ${source} worked! Result: ${JSON.stringify(result)}</span>`;
+                    testResults.push(`source_${source}: SUCCESS`);
+                } else {
+                    statusEl.innerHTML = `<span class="error">❌ Source ${source} failed: ${response.status}</span>`;
+                    testResults.push(`source_${source}: FAILED (${response.status})`);
+                }
+            } catch (error) {
+                statusEl.innerHTML = `<span class="error">❌ Source ${source} error: ${error.message}</span>`;
+                testResults.push(`source_${source}: ERROR (${error.message})`);
+            }
+            
+            updateTestResults();
+        }
+        
+        function updateTestResults() {
+            const resultsEl = document.getElementById('test-results');
+            if (testResults.length === 0) {
+                resultsEl.innerHTML = '<p>Click buttons above to test functionality...</p>';
+                return;
+            }
+            
+            let html = '<h3>Test Summary:</h3><ul>';
+            testResults.forEach(result => {
+                const isSuccess = result.includes('SUCCESS');
+                const className = isSuccess ? 'success' : 'error';
+                html += `<li class="${className}">${result}</li>`;
+            });
+            html += '</ul>';
+            
+            const successCount = testResults.filter(r => r.includes('SUCCESS')).length;
+            const totalCount = testResults.length;
+            
+            html += `<p><strong>Results: ${successCount}/${totalCount} tests passed</strong></p>`;
+            
+            if (successCount === totalCount && totalCount > 0) {
+                html += '<p class="success">🎉 All buttons are working correctly!</p>';
+            }
+            
+            resultsEl.innerHTML = html;
+        }
+        
+        // Initialize
+        updateTestResults();
+    </script>
+</body>
+</html>
