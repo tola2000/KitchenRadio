@@ -74,31 +74,19 @@ class KitchenRadioWeb:
         # Create underlying button controller
         self.button_controller = ButtonController(self.kitchen_radio)
         
-        # Create display emulator and display controller
-        if DisplayEmulator:
-            self.display_emulator = DisplayEmulator()
-            logger.info("Display emulator initialized successfully")
-        else:
-            self.display_emulator = None
-            logger.warning("Display emulator not available - display endpoints will be disabled")
-        
-        # Initialize display controller using the emulator as the interface
-        if DisplayController and self.display_emulator:
-            try:
-                # Create display controller with emulator as the I2C interface
-                self.display_controller = DisplayController(i2c_interface=self.display_emulator)
-                self.display_controller.initialize()
-                logger.info("Display controller initialized with emulator interface")
-            except Exception as e:
-                logger.warning(f"Failed to initialize display controller with emulator: {e}")
-                self.display_controller = None
-        else:
+        self.display_emulator = DisplayEmulator()
+        logger.info("Display emulator initialized successfully")
+
+        try:
+            # Create display controller with emulator as the I2C interface
+            self.display_controller = DisplayController(i2c_interface=self.display_emulator)
+            self.display_controller.initialize()
+            logger.info("Display controller initialized with emulator interface")
+        except Exception as e:
+            logger.warning(f"Failed to initialize display controller with emulator: {e}")
             self.display_controller = None
-            if not DisplayController:
-                logger.info("Display controller not available - using emulator only")
-            elif not self.display_emulator:
-                logger.info("Display controller disabled - no emulator interface available")
-        
+
+
         # Flask app for REST API
         self.app = Flask(__name__, 
                         template_folder='../../frontend/templates',
