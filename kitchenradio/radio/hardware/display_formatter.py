@@ -435,3 +435,97 @@ class DisplayFormatter:
                 draw.rectangle([(0, 0), (self.width-1, self.height-1)], outline=255)
         
         return draw_status_message
+    
+    def format_fullscreen_volume(self, volume: int, max_volume: int = 100) -> Callable:
+        """
+        Format full screen volume display with large bar spanning entire display.
+        
+        Args:
+            volume: Current volume level
+            max_volume: Maximum volume level
+            
+        Returns:
+            Drawing function for full screen volume display
+        """
+        def draw_fullscreen_volume(draw):
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Full screen volume bar
+            bar_margin = 8
+            bar_width = self.width - (2 * bar_margin)
+            bar_height = self.height - 30  # Leave space for text at top
+            bar_x = bar_margin
+            bar_y = 25
+            
+            # Draw "VOLUME" text at top center
+            volume_text = "VOLUME"
+            text_width = len(volume_text) * 12  # Estimate width
+            text_x = (self.width - text_width) // 2
+            draw.text((text_x, 5), volume_text, font=self.fonts['large'], fill=255)
+            
+            # Draw outer border of volume bar
+            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=3)
+            
+            # Calculate fill area
+            if volume > 0:
+                fill_width = int((volume / max_volume) * (bar_width - 6))
+                if fill_width > 0:
+                    # Draw filled portion from left
+                    draw.rectangle([
+                        (bar_x + 3, bar_y + 3), 
+                        (bar_x + 3 + fill_width, bar_y + bar_height - 3)
+                    ], fill=255)
+            
+            # Draw volume percentage in the center of the bar
+            volume_pct = f"{volume}%"
+            pct_width = len(volume_pct) * 10  # Estimate width
+            pct_x = (self.width - pct_width) // 2
+            pct_y = bar_y + (bar_height // 2) - 8
+            
+            # Draw percentage text with contrasting background
+            text_bg_margin = 4
+            draw.rectangle([
+                (pct_x - text_bg_margin, pct_y - text_bg_margin),
+                (pct_x + pct_width + text_bg_margin, pct_y + 16 + text_bg_margin)
+            ], fill=0, outline=255)
+            
+            draw.text((pct_x, pct_y), volume_pct, font=self.fonts['medium'], fill=255)
+            
+            # Draw volume scale marks along the bottom
+            num_marks = 11  # 0%, 10%, 20%, ... 100%
+            mark_spacing = bar_width / (num_marks - 1)
+            
+            for i in range(num_marks):
+                mark_x = bar_x + int(i * mark_spacing)
+                mark_y = bar_y + bar_height + 2
+                
+                # Draw tick mark
+                draw.line([(mark_x, mark_y), (mark_x, mark_y + 4)], fill=255, width=1)
+                
+                # Draw percentage labels at 0%, 50%, 100%
+                if i in [0, 5, 10]:
+                    label = f"{i * 10}"
+                    label_width = len(label) * 6
+                    label_x = mark_x - (label_width // 2)
+                    draw.text((label_x, mark_y + 6), label, font=self.fonts['small'], fill=255)
+            
+            # Draw animated segments in unfilled area for visual appeal
+            if volume < max_volume:
+                unfilled_start = bar_x + 3 + int((volume / max_volume) * (bar_width - 6))
+                segment_width = 8
+                segment_height = 4
+                segment_spacing = 12
+                
+                y_positions = [bar_y + 8, bar_y + bar_height // 2, bar_y + bar_height - 12]
+                
+                for y in y_positions:
+                    x = unfilled_start + 10
+                    while x < bar_x + bar_width - 10:
+                        draw.rectangle([
+                            (x, y),
+                            (x + segment_width, y + segment_height)
+                        ], outline=255)
+                        x += segment_spacing
+        
+        return draw_fullscreen_volume
