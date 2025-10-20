@@ -339,8 +339,8 @@ class DisplayFormatter:
             # Title (main line) - larger font and truncate to fit in available space
             title_text = title if title else "No Track"
             title_max_width = content_width - 10
-            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['large'])
-            draw.text((content_x, 5), title_truncated, font=self.fonts['large'], fill=255)
+            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['xlarge'])
+            draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
             
             # Artist and Album on one line - truncate to fit
             if artist or album:
@@ -552,8 +552,8 @@ class DisplayFormatter:
             # Title (main line) - larger font and truncate to fit in available space
             title_text = title if title else "No Track"
             title_max_width = content_width - 10
-            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['large'])
-            draw.text((content_x, 5), title_truncated, font=self.fonts['large'], fill=255)
+            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['xlarge'])
+            draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
             
             # Artist and Album on one line - truncate to fit
             if artist or album:
@@ -569,10 +569,10 @@ class DisplayFormatter:
             
             # Progress bar at the bottom - starts after volume bar with aligned bottom
             progress_bar_height = 4
-            # Align progress bar bottom with volume bar bottom
+            # Align progress bar bottom with volume bar bottom, but one pixel lower
             volume_bar_bottom = bar_y + bar_height - 1
-            progress_bar_y = volume_bar_bottom - progress_bar_height
-            progress_bar_x = bar_x + bar_width + 3  # Start after volume bar with 3px gap
+            progress_bar_y = volume_bar_bottom - progress_bar_height + 1  # One pixel lower
+            progress_bar_x = bar_x + bar_width + 10  # Start after volume bar with 10px gap (matching right margin)
             progress_bar_width = self.width - progress_bar_x - 10  # Span from after volume bar to right edge
             
             # Draw progress bar background
