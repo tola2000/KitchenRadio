@@ -1,12 +1,12 @@
 {
-    "git.path": "C:\\Program Files\\Git\\bin\\git.exe",
+    // "git.path": "C:\\Program Files\\Git\\bin\\git.exe",
     "git.enabled": true,
     "git.autorefresh": true,
     "git.autofetch": true,
-    "terminal.integrated.env.windows": {
-        "PATH": "${env:PATH};C:\\Program Files\\Git\\bin"
-    },
-    "python.defaultInterpreterPath": "C:\\Program Files\\Python313\\python.exe",
+    // "terminal.integrated.env.windows": {
+    //     "PATH": "${env:PATH};C:\\Program Files\\Git\\bin"
+    // },
+    // "python.defaultInterpreterPath": "C:\\Program Files\\Python313\\python.exe",
     "python.terminal.activateEnvironment": false,
     "python.analysis.extraPaths": [
         "${workspaceFolder}"

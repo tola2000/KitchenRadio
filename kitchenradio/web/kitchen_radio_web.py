@@ -15,7 +15,7 @@ from pathlib import Path
 import io
 import base64
 
-from ..radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
+from kitchenradio.radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
 
 if TYPE_CHECKING:
     from ..radio.kitchen_radio import KitchenRadio
@@ -60,7 +60,7 @@ class KitchenRadioWeb:
         """
         # Create or use provided KitchenRadio instance
         if kitchen_radio is None:
-            from ..radio.kitchen_radio import KitchenRadio
+            from kitchenradio.radio.kitchen_radio import KitchenRadio
             self.kitchen_radio = KitchenRadio()
             self._owns_kitchen_radio = True
         else:
