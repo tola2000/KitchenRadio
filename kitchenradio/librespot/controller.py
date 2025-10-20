@@ -60,7 +60,7 @@ class LibrespotController:
         return self.client.playpause()
 
     
-    def next_track(self) -> bool:
+    def next(self) -> bool:
         """
         Skip to next track.
         
@@ -69,7 +69,7 @@ class LibrespotController:
         """
         return self.client.next_track()
     
-    def previous_track(self) -> bool:
+    def previous(self) -> bool:
         """
         Skip to previous track.
         

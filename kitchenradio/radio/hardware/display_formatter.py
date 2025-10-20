@@ -17,9 +17,9 @@ DISPLAY_HEIGHT = 64
 
 # Font sizes optimized for SSD1322
 FONT_SMALL = 10
-FONT_MEDIUM = 14
-FONT_LARGE = 18
-FONT_XLARGE = 24
+FONT_MEDIUM = 16
+FONT_LARGE = 24
+FONT_XLARGE = 30
 
 
 class DisplayFormatter:
@@ -488,23 +488,7 @@ class DisplayFormatter:
                     label_x = mark_x - (label_width // 2)
                     draw.text((label_x, mark_y + 6), label, font=self.fonts['small'], fill=255)
             
-            # Draw animated segments in unfilled area for visual appeal
-            if volume < max_volume:
-                unfilled_start = bar_x + 3 + int((volume / max_volume) * (bar_width - 6))
-                segment_width = 8
-                segment_height = 4
-                segment_spacing = 12
-                
-                y_positions = [bar_y + 8, bar_y + bar_height // 2, bar_y + bar_height - 12]
-                
-                for y in y_positions:
-                    x = unfilled_start + 10
-                    while x < bar_x + bar_width - 10:
-                        draw.rectangle([
-                            (x, y),
-                            (x + segment_width, y + segment_height)
-                        ], outline=255)
-                        x += segment_spacing
+ 
         
         return draw_fullscreen_volume
     
@@ -572,8 +556,8 @@ class DisplayFormatter:
             # Align progress bar bottom with volume bar bottom, but one pixel lower
             volume_bar_bottom = bar_y + bar_height - 1
             progress_bar_y = volume_bar_bottom - progress_bar_height + 1  # One pixel lower
-            progress_bar_x = bar_x + bar_width + 10  # Start after volume bar with 10px gap (matching right margin)
-            progress_bar_width = self.width - progress_bar_x - 10  # Span from after volume bar to right edge
+            progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with 10px gap (matching right margin)
+            progress_bar_width = self.width - progress_bar_x - 5  # Span from after volume bar to right edge
             
             # Draw progress bar background
             draw.rectangle([
