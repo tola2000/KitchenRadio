@@ -245,13 +245,13 @@ class ButtonController:
         """Switch to MPD source"""
         from ..kitchen_radio import BackendType
         logger.info("Switching to MPD source")
-        return self.kitchen_radio.switch_source(BackendType.MPD)
+        return self.kitchen_radio.set_source(BackendType.MPD)
     
     def _select_spotify(self) -> bool:
         """Switch to Spotify (librespot) source"""
         from ..kitchen_radio import BackendType
         logger.info("Switching to Spotify source")
-        return self.kitchen_radio.switch_source(BackendType.LIBRESPOT)
+        return self.kitchen_radio.set_source(BackendType.LIBRESPOT)
     
     def _play_pause(self) -> bool:
         """Toggle play/pause"""
