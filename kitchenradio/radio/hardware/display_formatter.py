@@ -477,21 +477,7 @@ class DisplayFormatter:
                         (bar_x + 3 + fill_width, bar_y + bar_height - 3)
                     ], fill=255)
             
-            # Draw volume percentage in the center of the bar
-            volume_pct = f"{volume}%"
-            pct_width = len(volume_pct) * 10  # Estimate width
-            pct_x = (self.width - pct_width) // 2
-            pct_y = bar_y + (bar_height // 2) - 8
-            
-            # Draw percentage text with contrasting background
-            text_bg_margin = 4
-            draw.rectangle([
-                (pct_x - text_bg_margin, pct_y - text_bg_margin),
-                (pct_x + pct_width + text_bg_margin, pct_y + 16 + text_bg_margin)
-            ], fill=0, outline=255)
-            
-            draw.text((pct_x, pct_y), volume_pct, font=self.fonts['medium'], fill=255)
-            
+
             # Draw volume scale marks along the bottom
             num_marks = 11  # 0%, 10%, 20%, ... 100%
             mark_spacing = bar_width / (num_marks - 1)
