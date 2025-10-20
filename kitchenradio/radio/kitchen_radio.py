@@ -568,6 +568,127 @@ class KitchenRadio:
             self.logger.error(f"Error in previous command on {source_name}: {e}")
             return False
 
+    # Volume control methods for active source
+    def set_volume(self, volume: int) -> bool:
+        """
+        Set volume level on the currently active source.
+        
+        Args:
+            volume: Volume level (0-100)
+            
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for volume command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        # Validate volume range
+        if not 0 <= volume <= 100:
+            self.logger.error(f"Invalid volume level: {volume}. Must be 0-100")
+            return False
+        
+        try:
+            result = controller.set_volume(volume)
+            if result:
+                self.logger.info(f"🔊 [{source_name}] Volume set to {volume}%")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error setting volume on {source_name}: {e}")
+            return False
+    
+    def get_volume(self) -> Optional[int]:
+        """
+        Get current volume level from the currently active source.
+        
+        Returns:
+            Volume level (0-100) or None if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for get volume command")
+            return None
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return None
+        
+        try:
+            volume = controller.get_volume()
+            return volume
+                
+        except Exception as e:
+            self.logger.error(f"Error getting volume from {source_name}: {e}")
+            return None
+    
+    def volume_up(self, step: int = 5) -> bool:
+        """
+        Increase volume by specified step on the currently active source.
+        
+        Args:
+            step: Volume increase step (default 5)
+            
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for volume up command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        try:
+            result = controller.volume_up(step)
+            if result:
+                self.logger.info(f"🔊 [{source_name}] Volume increased by {step}%")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error increasing volume on {source_name}: {e}")
+            return False
+    
+    def volume_down(self, step: int = 5) -> bool:
+        """
+        Decrease volume by specified step on the currently active source.
+        
+        Args:
+            step: Volume decrease step (default 5)
+            
+        Returns:
+            True if successful, False if no active source or command failed
+        """
+        controller, source_name, is_connected = self._get_active_controller()
+        
+        if not controller:
+            self.logger.warning("No active source set for volume down command")
+            return False
+        
+        if not is_connected:
+            self.logger.warning(f"Active source {source_name} is not connected")
+            return False
+        
+        try:
+            result = controller.volume_down(step)
+            if result:
+                self.logger.info(f"🔊 [{source_name}] Volume decreased by {step}%")
+            return result
+                
+        except Exception as e:
+            self.logger.error(f"Error decreasing volume on {source_name}: {e}")
+            return False
+
     def start(self) -> bool:
         """
         Start the KitchenRadio daemon.

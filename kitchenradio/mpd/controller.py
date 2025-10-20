@@ -169,6 +169,46 @@ class PlaybackController:
         """
         return self.client.get_volume()
     
+    def volume_up(self, step: int = 5) -> bool:
+        """
+        Increase volume by step.
+        
+        Args:
+            step: Volume increase step (default 5)
+            
+        Returns:
+            True if successful
+        """
+        try:
+            current_volume = self.get_volume()
+            if current_volume is not None:
+                new_volume = min(100, current_volume + step)
+                return self.set_volume(new_volume)
+            return False
+        except Exception as e:
+            logger.error(f"Error increasing volume: {e}")
+            return False
+    
+    def volume_down(self, step: int = 5) -> bool:
+        """
+        Decrease volume by step.
+        
+        Args:
+            step: Volume decrease step (default 5)
+            
+        Returns:
+            True if successful
+        """
+        try:
+            current_volume = self.get_volume()
+            if current_volume is not None:
+                new_volume = max(0, current_volume - step)
+                return self.set_volume(new_volume)
+            return False
+        except Exception as e:
+            logger.error(f"Error decreasing volume: {e}")
+            return False
+    
     # def get_state(self) -> Optional[str]:
     #     """
     #     Get current playback state.
