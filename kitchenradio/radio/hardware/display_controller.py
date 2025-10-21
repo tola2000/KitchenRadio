@@ -221,7 +221,9 @@ class DisplayController:
                 # Check for external update of the volume
                 if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
                     self._render_volume_overlay(current_volume)
-
+                    return
+                elif self.overlay_active:
+                    return
 
                 # Check if status has changed or force refresh
                 if not self.overlay_active and ( (current_volume != self.last_volume ) or current_status != self.last_status or overlay_dismissed or  force_refresh ):
@@ -664,8 +666,8 @@ class DisplayController:
             return True
         return False
 
-    def show_volume_overlay(self, volume: int, timeout: float = 3):
-        volume = volume or self._get_current_volume(self.last_status)
+    def show_volume_overlay(self, timeout: float = 3):
+        volume = self._get_current_volume(self.last_status)
         """Show volume overlay using the generic overlay system"""
         volume_data = {
             'volume': volume,

@@ -40,6 +40,8 @@ class ButtonType(Enum):
     # Volume buttons (bottom)
     VOLUME_DOWN = "volume_down"
     VOLUME_UP = "volume_up"
+
+    
     
     # Power button (bottom center)
     POWER = "power"
@@ -88,6 +90,8 @@ class ButtonController:
         # Timing configuration (kept for compatibility)
         self.debounce_time = debounce_time
         self.long_press_time = long_press_time
+
+
         
         # Button state tracking
         self.button_states: Dict[ButtonType, Dict[str, Any]] = {}
@@ -135,7 +139,8 @@ class ButtonController:
         self._menu_timeout_seconds = 3.0
         self._menu_last_activity_time = 0
         self._menu_timeout_thread = None
-        
+        self._current_menu_index = 0
+
     def initialize(self) -> bool:
         """
         Initialize button controller (display-based, no GPIO needed).
@@ -292,66 +297,51 @@ class ButtonController:
 
     
     def _menu_up(self) -> bool:
-        """Show menu and scroll up (previous menu item)"""
-        logger.info("Previous playlist - menu up")
+        """Menu up navigation"""
+        logger.info("Menu up navigation")
         try:
-            if self.display_controller and hasattr(self.display_controller, 'show_menu'):
-                # Get available playlists/sources for menu
-                menu_items = self._get_menu_items()
+            menu_items = self._get_menu_items()
+            if menu_items:
+                # Scroll up (previous item)
+                self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
+                logger.info(f"Menu scroll up to index {self._current_menu_index}")
                 
-                # Show or update menu
-                if not hasattr(self, '_menu_visible') or not self._menu_visible:
-                    # First time - show menu (start at last item)
-                    self._menu_visible = True
-                    self._current_menu_index = len(menu_items) - 1 if menu_items else 0
-                    logger.info("Showing playlist menu (last item)")
-                    
-                    # Update display with menu
-                    self.display_controller.show_menu_overlay(menu_items, self._current_menu_index)
-                    return True
-                else:
-                    # Menu already visible - scroll up
-                    self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
-                    logger.info(f"Menu scroll up to index {self._current_menu_index}")
-                
-                    # Update display with menu
-                    self.display_controller.show_menu("Menu", menu_items, self._current_menu_index)
-                    
-                    # Reset menu timeout on navigation
-                    self._reset_menu_timeout()
-                    return True
-            else:
-                logger.warning("Display controller not available for menu")
-                return False
+                # Update display with menu
+                if self.display_controller:
+                        # Pass an on_selected handler so selection triggers menu action
+                    self.display_controller.show_menu_overlay(
+                        menu_items,
+                        selected_index=self._current_menu_index,
+                        timeout=self._menu_timeout_seconds,
+                        on_selected=self._on_menu_item_selected
+                    )
+
+                return True
         except Exception as e:
-            logger.error(f"Error showing/navigating menu: {e}")
+            logger.error(f"Error in menu up navigation: {e}")
             return False
     
     def _menu_down(self) -> bool:
         """Menu up navigation"""
         logger.info("Menu up navigation")
         try:
-            # Only work if menu is currently visible
-            if hasattr(self, '_menu_visible') and self._menu_visible:
-                menu_items = self._get_menu_items()
-                if menu_items:
-                    # Scroll up (previous item)
-                    self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
-                    logger.info(f"Menu scroll up to index {self._current_menu_index}")
-                    
-                    # Update display with menu
-                    if self.display_controller:
-                         # Pass an on_selected handler so selection triggers menu action
-                        self.display_controller.show_menu_overlay(
-                            menu_items,
-                            selected_index=self._current_menu_index,
-                            timeout=self._menu_timeout_seconds,
-                            on_selected=self._on_menu_item_selected
-                        )
-                    return True
-            else:
-                # If no menu visible, show the menu
-                return self._show_menu()
+            menu_items = self._get_menu_items()
+            if menu_items:
+                # Scroll up (previous item)
+                self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
+                logger.info(f"Menu scroll up to index {self._current_menu_index}")
+                
+                # Update display with menu
+                if self.display_controller:
+                        # Pass an on_selected handler so selection triggers menu action
+                    self.display_controller.show_menu_overlay(
+                        menu_items,
+                        selected_index=self._current_menu_index,
+                        timeout=self._menu_timeout_seconds,
+                        on_selected=self._on_menu_item_selected
+                    )
+
+                return True
         except Exception as e:
             logger.error(f"Error in menu up navigation: {e}")
             return False
