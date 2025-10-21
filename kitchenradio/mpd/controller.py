@@ -119,7 +119,8 @@ class PlaybackController:
         Returns:
             True if successful
         """
-        return self.client.next()
+        return False
+       # return self.client.next()
     
     def previous_track(self) -> bool:
         """
@@ -128,7 +129,8 @@ class PlaybackController:
         Returns:
             True if successful
         """
-        return self.client.previous()
+        return False
+      #  return self.client.previous()
     
     def next(self) -> bool:
         """

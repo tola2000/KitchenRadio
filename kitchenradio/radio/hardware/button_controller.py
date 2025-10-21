@@ -272,7 +272,7 @@ class ButtonController:
     def _stop(self) -> bool:
         """Stop playback"""
         logger.info("Stop playback")
-        return self.kitchen_radio.stop()
+        return self.kitchen_radio.stop_play()
     
     def _next(self) -> bool:
         """Next track"""
@@ -533,13 +533,6 @@ class ButtonController:
             
             logger.info(f"Getting menu items - available sources: {available_sources}, current: {current_source}")
             
-            # Add source selection options
-            if 'mpd' in available_sources:
-                menu_items.append("MPD Music")
-            
-            if 'librespot' in available_sources:
-                menu_items.append("Spotify")
-            
             # Get menu options from kitchen radio for current source
             if current_source:
                 try:
@@ -557,12 +550,6 @@ class ButtonController:
                 except Exception as e:
                     logger.error(f"Error getting kitchen radio menu options: {e}")
             
-            # Add general options
-            menu_items.extend([
-                "Radio Stations",
-                "Settings", 
-                "Exit Menu"
-            ])
             
             # Ensure we always have at least one item
             if not menu_items:

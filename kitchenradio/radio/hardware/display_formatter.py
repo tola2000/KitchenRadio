@@ -331,80 +331,6 @@ class DisplayFormatter:
         
         return draw_default
     
-    # def format_track_info(self, track, artist: str = "", album: str = "", 
-    #                       playing: bool = False, volume: int = 50) -> Callable:
-    #     """
-    #     Format track information display.
-        
-    #     Args:
-    #         title: Track title
-    #         artist: Artist name
-    #         album: Album name
-    #         playing: Whether track is currently playing
-    #         volume: Current volume level
-            
-    #     Returns:
-    #         Drawing function for track info
-    #     """
-    #     def draw_track_info(draw: ImageDraw.Draw):
-    #         # Clear background
-    #         draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
-            
-    #         # Volume bar on the left side (vertical bar)
-    #         bar_width = 8
-    #         bar_height = self.height - 10  # Leave some margin top/bottom
-    #         bar_x = 5
-    #         bar_y = 5
-            
-    #         # Draw volume bar background (empty bar)
-    #         draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
-            
-    #         # Draw volume bar fill (filled portion based on volume)
-
-    #         if volume and  volume > 0:
-    #             fill_height = int((volume / 100.0) * bar_height)
-    #             fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
-    #             draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
-            
-    #         # Content area starts after the volume bar
-    #         content_x = bar_x + bar_width + 10
-    #         content_width = self.width - content_x - 5
-            
-    #         # Title (main line) - larger font and truncate to fit in available space
-    #         if track:
-    #             title_text = track.get('title', 'No Track')
-    #             title_max_width = content_width - 10
-    #             title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['xlarge'])
-    #             draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
-            
-    #             album_text =  track.get('album', 'Unknown')
-    #             artist_text =  track.get('artist', 'Unknown')
-    #             if not artist_text=='Unknown' and not album_text=='Unknown':
-    #                 artist_album_text = f"{artist_text} : {album_text}"
-    #             elif not album_text=='Unknown':
-    #                 artist_album_text = album_text
-    #             else:
-    #                 artist_album_text = artist_text
-                
-
-    #             artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
-    #             draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
-            
-    #         # Large play/pause/stop icon in bottom right corner
-    #         play_icon = "▶" if playing else "⏸"
-    #         icon_font = self.fonts['xlarge']  # Use extra large font for the icon
-            
-    #         # Calculate position for bottom right alignment
-    #         # Get approximate icon size (this is rough estimation)
-    #         icon_width = 20  # Approximate width of large icon
-    #         icon_height = 24  # Approximate height of large icon
-    #         icon_x = self.width - icon_width - 5  # 5px margin from right edge
-    #         icon_y = self.height - icon_height - 5  # 5px margin from bottom edge
-            
-    #         draw.text((icon_x, icon_y), play_icon, font=icon_font, fill=255)
-        
-    #     return draw_track_info
-    
     def format_status_message(self, message: str, icon: str = "", 
                              message_type: str = "info") -> Callable:
         """
@@ -487,24 +413,6 @@ class DisplayFormatter:
                     ], fill=255)
             
 
-            # Draw volume scale marks along the bottom
-            num_marks = 11  # 0%, 10%, 20%, ... 100%
-            mark_spacing = bar_width / (num_marks - 1)
-            
-            for i in range(num_marks):
-                mark_x = bar_x + int(i * mark_spacing)
-                mark_y = bar_y + bar_height + 2
-                
-                # Draw tick mark
-                draw.line([(mark_x, mark_y), (mark_x, mark_y + 4)], fill=255, width=1)
-                
-                # Draw percentage labels at 0%, 50%, 100%
-                if i in [0, 5, 10]:
-                    label = f"{i * 10}"
-                    label_width = len(label) * 6
-                    label_x = mark_x - (label_width // 2)
-                    draw.text((label_x, mark_y + 6), label, font=self.fonts['small'], fill=255)
-            
  
         
         return draw_fullscreen_volume
@@ -748,25 +656,4 @@ class DisplayFormatter:
                         (bar_x + 2, current_item_y), 
                         (bar_x + bar_width - 2, current_item_y + int(item_height))
                     ], fill=255)
-                
-                # Optional: Add small tick marks to show discrete positions
-                if total_items <= 8:  # Reduced threshold for cleaner look
-                    tick_spacing = (bar_height - 4) / (total_items - 1) if total_items > 1 else 0
-                    for i in range(total_items):
-                        tick_y = bar_y + 2 + int(i * tick_spacing)
-                        tick_x = bar_x + bar_width + 2
-                        if i == selected_index:
-                            # Highlight current position tick
-                            draw.rectangle([(tick_x, tick_y - 0), (tick_x + 4, tick_y + 1)], fill=255)
-                        else:
-                            # Regular position tick
-                            draw.rectangle([(tick_x, tick_y), (tick_x + 2, tick_y)], fill=128)
-            
-            # # Show item count at bottom right (overlay on display)
-            # count_text = f"{selected_index + 1}/{total_items}"
-            # count_width = len(count_text) * 5  # Approximate width
-            # count_x = self.width - count_width - 5
-            # count_y = self.height - 12  # Position at bottom edge
-            # draw.text((count_x, count_y), count_text, font=self.fonts['small'], fill=128)
-        
         return draw_menu

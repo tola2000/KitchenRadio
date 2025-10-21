@@ -452,7 +452,7 @@ class KitchenRadio:
             self.logger.error(f"Error in pause command on {source_name}: {e}")
             return False
     
-    def stop(self) -> bool:
+    def stop_play(self) -> bool:
         """
         Stop playback on the currently active source.
         
