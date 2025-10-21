@@ -616,7 +616,7 @@ class ButtonController:
                         if mpd_status.get('connected') and mpd_status.get('current_track'):
                             # Show current MPD track
                             track = mpd_status['current_track']
-                            self.display_controller.show_track(track, mpd_status.get('state', 'stopped'))
+                            self.display_controller.show_track_info(track, mpd_status.get('state', 'stopped'))
                         else:
                             self.display_controller.show_status_message("MPD Connected", "♪", "info")
                     
@@ -626,7 +626,7 @@ class ButtonController:
                             # Show current Spotify track with progress
                             track = librespot_status['current_track']
                             progress = librespot_status.get('progress', {})
-                            self.display_controller.show_track_with_progress(track, librespot_status.get('state', 'stopped'), progress)
+                            self.display_controller.show_track(track, librespot_status.get('state', 'stopped'))
                         else:
                             self.display_controller.show_status_message("Spotify Connected", "♫", "info")
                     

@@ -6,6 +6,7 @@ Simplified for KitchenRadio with SSD1322 display only.
 """
 
 import logging
+from re import S
 import threading
 import time
 from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
@@ -221,7 +222,7 @@ class DisplayController:
     
     def _update_mpd_display(self, mpd_status: Dict[str, Any]):
         """Update display for MPD source"""
-        current_song = mpd_status.get('current_song', {})
+        current_song = mpd_status.get('current_track', {})
         if current_song:
             title = current_song.get('title', 'Unknown')
             artist = current_song.get('artist', 'Unknown')
@@ -230,9 +231,8 @@ class DisplayController:
             volume = mpd_status.get('volume', 50)
             
             # Use unified track info formatter without progress bar for MPD
-            draw_func = self.formatter.format_track_info_with_progress(
-                title, artist, album, playing, volume, 
-                progress_ms=0, duration_ms=0, showProgress=False
+            draw_func = self.formatter.format_track_info(
+                current_song, playing, volume
             )
             self.i2c_interface.render_frame(draw_func)
         else:
@@ -255,8 +255,8 @@ class DisplayController:
             duration_ms = current_track.get('duration_ms', 0)
             
             # Use unified track info formatter with progress bar for Spotify
-            draw_func = self.formatter.format_track_info_with_progress(
-                title, artist, album, playing, volume, progress_ms, duration_ms, showProgress=True
+            draw_func = self.formatter.format_track_info(
+                current_track, playing, volume
             )
             self.i2c_interface.render_frame(draw_func)
         else:
@@ -277,10 +277,15 @@ class DisplayController:
     
     # Manual display control methods
     
-    def show_track_info(self, title: str, artist: str, album: str = "", playing: bool = False, volume: int = None):
-        """Manually show track information on the display"""
-        draw_func = self.formatter.format_track_info(title, artist, album, playing, volume)
-        self.i2c_interface.render_frame(draw_func)
+    def show_track_info(self, track, playing: bool = False, volume: int = None):
+        try:
+            status = self.kitchen_radio.get_status()
+            
+
+            self._update_display_content(status)
+                
+        except Exception as e:
+            logger.error(f"Error updating from KitchenRadio: {e}")
     
     def show_volume(self, volume: int, max_volume: int = 100, muted: bool = False):
         """Manually show volume level with progress bar"""

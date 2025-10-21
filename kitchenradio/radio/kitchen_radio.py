@@ -878,8 +878,8 @@ class KitchenRadio:
                     'connected': True,
                     'state': mpd_status.get('state', 'unknown'),
                     'volume': mpd_status.get('volume', 'unknown'),
-                    'current_song': {
-                        'title': current_song.get('title', current_song.get('name', 'Unknown')) if current_song else None,
+                    'current_track': {
+                        'title': current_song.get('title', current_song.get('title', 'Unknown')) if current_song else None,
                         'artist': current_song.get('artist', 'Unknown') if current_song else None,
                         'album': current_song.get('album', 'Unknown') if current_song else None,
                     } if current_song else None
@@ -1116,7 +1116,7 @@ class KitchenRadio:
             if result:
                 return {
                     'success': True,
-                    'message': f'Loaded and started playlist: {option_id}'
+                        'message': f'Loaded and started playlist: {option_id}'
                 }
             else:
                 return {
@@ -1265,7 +1265,7 @@ def main():
             if mpd_status.get('connected'):
                 print(f"  State: {mpd_status.get('state', 'unknown')}")
                 print(f"  Volume: {mpd_status.get('volume', 'unknown')}%")
-                current = mpd_status.get('current_song')
+                current = mpd_status.get('current_track')
                 if current and current.get('title'):
                     print(f"  Current: {current.get('artist', 'Unknown')} - {current.get('title', 'Unknown')}")
                 else:

@@ -331,76 +331,79 @@ class DisplayFormatter:
         
         return draw_default
     
-    def format_track_info(self, title: str, artist: str = "", album: str = "", 
-                          playing: bool = False, volume: int = 50) -> Callable:
-        """
-        Format track information display.
+    # def format_track_info(self, track, artist: str = "", album: str = "", 
+    #                       playing: bool = False, volume: int = 50) -> Callable:
+    #     """
+    #     Format track information display.
         
-        Args:
-            title: Track title
-            artist: Artist name
-            album: Album name
-            playing: Whether track is currently playing
-            volume: Current volume level
+    #     Args:
+    #         title: Track title
+    #         artist: Artist name
+    #         album: Album name
+    #         playing: Whether track is currently playing
+    #         volume: Current volume level
             
-        Returns:
-            Drawing function for track info
-        """
-        def draw_track_info(draw: ImageDraw.Draw):
-            # Clear background
-            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+    #     Returns:
+    #         Drawing function for track info
+    #     """
+    #     def draw_track_info(draw: ImageDraw.Draw):
+    #         # Clear background
+    #         draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Volume bar on the left side (vertical bar)
-            bar_width = 8
-            bar_height = self.height - 10  # Leave some margin top/bottom
-            bar_x = 5
-            bar_y = 5
+    #         # Volume bar on the left side (vertical bar)
+    #         bar_width = 8
+    #         bar_height = self.height - 10  # Leave some margin top/bottom
+    #         bar_x = 5
+    #         bar_y = 5
             
-            # Draw volume bar background (empty bar)
-            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
+    #         # Draw volume bar background (empty bar)
+    #         draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
             
-            # Draw volume bar fill (filled portion based on volume)
-            if volume > 0:
-                fill_height = int((volume / 100.0) * bar_height)
-                fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
-                draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
+    #         # Draw volume bar fill (filled portion based on volume)
+
+    #         if volume and  volume > 0:
+    #             fill_height = int((volume / 100.0) * bar_height)
+    #             fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
+    #             draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
             
-            # Content area starts after the volume bar
-            content_x = bar_x + bar_width + 10
-            content_width = self.width - content_x - 5
+    #         # Content area starts after the volume bar
+    #         content_x = bar_x + bar_width + 10
+    #         content_width = self.width - content_x - 5
             
-            # Title (main line) - larger font and truncate to fit in available space
-            title_text = title if title else "No Track"
-            title_max_width = content_width - 10
-            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['xlarge'])
-            draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
+    #         # Title (main line) - larger font and truncate to fit in available space
+    #         if track:
+    #             title_text = track.get('title', 'No Track')
+    #             title_max_width = content_width - 10
+    #             title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['xlarge'])
+    #             draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
             
-            # Artist and Album on one line - truncate to fit
-            if artist or album:
-                if artist and album:
-                    artist_album_text = f"{artist} : {album}"
-                elif artist:
-                    artist_album_text = artist
-                else:
-                    artist_album_text = album
+    #             album_text =  track.get('album', 'Unknown')
+    #             artist_text =  track.get('artist', 'Unknown')
+    #             if not artist_text=='Unknown' and not album_text=='Unknown':
+    #                 artist_album_text = f"{artist_text} : {album_text}"
+    #             elif not album_text=='Unknown':
+    #                 artist_album_text = album_text
+    #             else:
+    #                 artist_album_text = artist_text
                 
-                artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
-                draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
+
+    #             artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
+    #             draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
             
-            # Large play/pause/stop icon in bottom right corner
-            play_icon = "▶" if playing else "⏸"
-            icon_font = self.fonts['xlarge']  # Use extra large font for the icon
+    #         # Large play/pause/stop icon in bottom right corner
+    #         play_icon = "▶" if playing else "⏸"
+    #         icon_font = self.fonts['xlarge']  # Use extra large font for the icon
             
-            # Calculate position for bottom right alignment
-            # Get approximate icon size (this is rough estimation)
-            icon_width = 20  # Approximate width of large icon
-            icon_height = 24  # Approximate height of large icon
-            icon_x = self.width - icon_width - 5  # 5px margin from right edge
-            icon_y = self.height - icon_height - 5  # 5px margin from bottom edge
+    #         # Calculate position for bottom right alignment
+    #         # Get approximate icon size (this is rough estimation)
+    #         icon_width = 20  # Approximate width of large icon
+    #         icon_height = 24  # Approximate height of large icon
+    #         icon_x = self.width - icon_width - 5  # 5px margin from right edge
+    #         icon_y = self.height - icon_height - 5  # 5px margin from bottom edge
             
-            draw.text((icon_x, icon_y), play_icon, font=icon_font, fill=255)
+    #         draw.text((icon_x, icon_y), play_icon, font=icon_font, fill=255)
         
-        return draw_track_info
+    #     return draw_track_info
     
     def format_status_message(self, message: str, icon: str = "", 
                              message_type: str = "info") -> Callable:
@@ -473,8 +476,9 @@ class DisplayFormatter:
             draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=3)
             
             # Calculate fill area
-            if volume > 0:
-                fill_width = int((volume / max_volume) * (bar_width - 6))
+            volume_integer = int(volume)
+            if volume_integer and volume_integer > 0:
+                fill_width = int((volume_integer / max_volume) * (bar_width - 6))
                 if fill_width > 0:
                     # Draw filled portion from left
                     draw.rectangle([
@@ -505,10 +509,7 @@ class DisplayFormatter:
         
         return draw_fullscreen_volume
     
-    def format_track_info_with_progress(self, title: str, artist: str = "", album: str = "", 
-                                       playing: bool = False, volume: int = 50,
-                                       progress_ms: int = 0, duration_ms: int = 0, 
-                                       showProgress: bool = True) -> Callable:
+    def format_track_info(self, track, playing: bool = False, volume: int = 50) -> Callable:
         """
         Format track information display with optional progress bar at bottom.
         
@@ -539,8 +540,9 @@ class DisplayFormatter:
             draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
             
             # Draw volume bar fill (filled portion based on volume)
-            if volume > 0:
-                fill_height = int((volume / 100.0) * bar_height)
+            volume_number = int(volume)
+            if volume_number and  volume_number > 0:
+                fill_height = int((volume_number / 100.0) * bar_height)
                 fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
                 draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
             
@@ -548,20 +550,22 @@ class DisplayFormatter:
             content_x = bar_x + bar_width + 10
             content_width = self.width - content_x - 5
             
+
             # Title (main line) - larger font and truncate to fit in available space
-            title_text = title if title else "No Track"
-            title_max_width = content_width - 10
-            title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['large'])
-            draw.text((content_x, 5), title_truncated, font=self.fonts['large'], fill=255)
+            if track:
+                title_text = track.get('title', 'No Track')
+                title_max_width = content_width - 10
+                title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['xlarge'])
+                draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
             
-            # Artist and Album on one line - truncate to fit
-            if artist or album:
-                if artist and album:
-                    artist_album_text = f"{artist} : {album}"
-                elif artist:
-                    artist_album_text = artist
+                album_text =  track.get('album', 'Unknown')
+                artist_text =  track.get('artist', 'Unknown')
+                if not artist_text=='Unknown' and not album_text=='Unknown':
+                    artist_album_text = f"{artist_text} : {album_text}"
+                elif not album_text=='Unknown':
+                    artist_album_text = album_text
                 else:
-                    artist_album_text = album
+                    artist_album_text = artist_text
                 
                 artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
                 draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
@@ -686,10 +690,10 @@ class DisplayFormatter:
                         
                         if i == selected_index:
                             # Selected item (drawn on white background) - 5 pixels higher
-                            draw.text((35, y_pos + 3), item_truncated, font=self.fonts['small'], fill=0)
+                            draw.text((35, y_pos + 6 ), item_truncated, font=self.fonts['small'], fill=0)
                         else:
                             # Regular item - 5 pixels higher
-                            draw.text((35, y_pos + 3), item_truncated, font=self.fonts['small'], fill=255)
+                            draw.text((35, y_pos + 6), item_truncated, font=self.fonts['small'], fill=255)
             else:
                 # Need scrolling - show items around selected with selection fixed at center
                 visible_above = half_visible
@@ -718,16 +722,16 @@ class DisplayFormatter:
                         
                         if item_idx == selected_index:
                             # Selected item (drawn on white background) - 5 pixels higher
-                            draw.text((15, y_pos + 3), item_truncated, font=self.fonts['small'], fill=0)
+                            draw.text((15, y_pos + 6), item_truncated, font=self.fonts['small'], fill=0)
                         else:
                             # Regular item - 5 pixels higher
-                            draw.text((15, y_pos + 3), item_truncated, font=self.fonts['small'], fill=255)
+                            draw.text((15, y_pos + 6), item_truncated, font=self.fonts['small'], fill=255)
             
             # Draw scroll position indicator bar (volume bar style)
             if total_items > 1:
                 # Position bar on the right side (using defined dimensions)
                 bar_width = scroll_bar_width
-                bar_height = menu_height - 8  # Small margin for outline thickness
+                bar_height = menu_height - 16  # Small margin for outline thickness
                 bar_x = self.width - bar_width - scroll_bar_margin
                 bar_y = menu_start_y + 4  # Small top margin
                 
