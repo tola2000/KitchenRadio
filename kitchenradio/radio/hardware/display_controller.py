@@ -678,7 +678,7 @@ class DisplayController:
         self._render_display_content('volume', volume_data)
         self._activate_overlay('volume', timeout)
 
-    def show_menu_overlay(self, options: List[str], selected_index: int = 0, timeout: float = 3.0, on_selected: Optional[Callable[[int, str], None]] = None):
+    def show_menu_overlay(self, options: List[str], selected_index: int = 0, timeout: float = 3.0, on_selected: Optional[Callable[[int], None]] = None):
         """Show menu overlay using the generic overlay system"""
         menu_data = {
             'title': 'Menu',

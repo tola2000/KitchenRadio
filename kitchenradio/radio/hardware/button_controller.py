@@ -347,9 +347,9 @@ class ButtonController:
             return False
         
 
-    def _on_menu_item_selected(self, index: int, selected_item: Optional[str]) -> None:
+    def _on_menu_item_selected(self, index: int) -> None:
         """Handle selection of a menu item"""
-        logger.info(f"Handling menu selection: '{selected_item}'")
+        logger.info(f"Handling menu selection: '{index}'")
         
         try:
             result = self.kitchen_radio.execute_menu_action('select menu', selected_item)
