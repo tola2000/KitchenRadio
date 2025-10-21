@@ -86,7 +86,10 @@ class DisplayController:
         self.overlay_end_time = 0
         self.overlay_timeout = 3.0  # 3 seconds default
         self.last_volume = None
-        
+
+        self.selected_index = 0
+        self.on_menu_selected: None
+
         # Threading for updates
         self.update_thread = None
         self.running = False
@@ -148,21 +151,21 @@ class DisplayController:
         """Request an immediate display update"""
         self.manual_update_requested = True
     
-    def show_volume_screen(self):
-        """Show volume screen for 3 seconds (triggered by volume button press)"""
-        try:
-            if self.kitchen_radio:
-                status = self.kitchen_radio.get_status()
-                current_volume = self._get_current_volume(status)
-                if current_volume is not None:
-                    self._show_volume_screen(current_volume)
-                    logger.info(f"Volume screen displayed manually: {current_volume}%")
-                else:
-                    logger.warning("Could not get current volume for volume screen")
-            else:
-                logger.warning("No KitchenRadio instance available for volume screen")
-        except Exception as e:
-            logger.error(f"Error showing volume screen: {e}")
+    # def show_volume_screen(self):
+    #     """Show volume screen for 3 seconds (triggered by volume button press)"""
+    #     try:
+    #         if self.kitchen_radio:
+    #             status = self.kitchen_radio.get_status()
+    #             current_volume = self._get_current_volume(status)
+    #             if current_volume is not None:
+    #                 self._show_volume_screen(current_volume)
+    #                 logger.info(f"Volume screen displayed manually: {current_volume}%")
+    #             else:
+    #                 logger.warning("Could not get current volume for volume screen")
+    #         else:
+    #             logger.warning("No KitchenRadio instance available for volume screen")
+    #     except Exception as e:
+    #         logger.error(f"Error showing volume screen: {e}")
     
     def _update_loop(self):
         """Main update loop for display refresh"""
@@ -173,16 +176,7 @@ class DisplayController:
         while self.running:
             try:
                 start_time = time.time()
-                
-                # Check if overlay should be dismissed
-                overlay_dismissed = False
-                if self.overlay_active and time.time() >= self.overlay_end_time:
-                    self.overlay_active = False
-                    self.overlay_type = None
-                    # Force update to return to normal display
-                    self.last_status = None
-                    overlay_dismissed = True
-           
+
                 # Update display if KitchenRadio is available
                 if self.kitchen_radio:
                     self._update_display()
@@ -222,20 +216,15 @@ class DisplayController:
                 
                 scroll_update = self._is_scroll_update_needed()
                 
-
-
-                # If any overlay is active, keep showing it
-                if self.overlay_active:
-                    return
-                
+                overlay_dismissed = self._dismiss_overlay()
+           
                 # Check for external update of the volume
-                if current_volume != self.last_volume:
-                    self._show_volume_screen(current_volume)
-
+                if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
+                    self._render_volume_overlay(current_volume)
 
 
                 # Check if status has changed or force refresh
-                if current_status != self.last_status or  force_refresh:
+                if not self.overlay_active and ( (current_volume != self.last_volume ) or current_status != self.last_status or overlay_dismissed or  force_refresh ):
                     self.last_status = current_status
                     self.last_volume = current_volume
 
@@ -271,30 +260,28 @@ class DisplayController:
     def _render_display_content(self, display_type: str, display_data: Dict[str, Any]):
         """Generic method to render display content based on type"""
         try:
-            truncation_info = None
+
             
             if display_type == 'track_info':
-                draw_func, truncation_info = self.formatter.format_track_info(display_data)
+                draw_func = self.formatter.format_track_info(display_data)
             elif display_type == 'status_message':
-                draw_func, truncation_info = self.formatter.format_status_message(display_data)
+                draw_func = self.formatter.format_status_message(display_data)
             elif display_type == 'menu':
-                draw_func, truncation_info = self.formatter.format_menu_display(display_data)
+                draw_func = self.formatter.format_menu_display(display_data)
             elif display_type == 'volume':
-                draw_func, truncation_info = self.formatter.format_volume_display(display_data)
-            elif display_type == 'fullscreen_volume':
-                draw_func, truncation_info = self.formatter.format_fullscreen_volume(display_data)
+                draw_func = self.formatter.format_volume_display(display_data)
             elif display_type == 'simple_text':
-                draw_func, truncation_info = self.formatter.format_simple_text(display_data)
+                draw_func = self.formatter.format_simple_text(display_data)
             elif display_type == 'error_message':
-                draw_func, truncation_info = self.formatter.format_error_message(display_data)
+                draw_func = self.formatter.format_error_message(display_data)
             elif display_type == 'status':
-                draw_func, truncation_info = self.formatter.format_status(display_data)
+                draw_func = self.formatter.format_status(display_data)
             else:
                 logger.warning(f"Unknown display type: {display_type}")
                 return
             
             # Render the display
-            self.i2c_interface.render_frame(draw_func)
+            truncation_info = self.i2c_interface.render_frame(draw_func)
             
             # Update truncation info and scroll offsets if provided
             if isinstance(truncation_info, dict):
@@ -475,52 +462,52 @@ class DisplayController:
         except Exception as e:
             logger.error(f"Error showing track info: {e}")
     
-    def show_volume(self, volume: int, max_volume: int = 100, muted: bool = False, timeout: float = None):
-        """
-        Show volume level. If timeout is provided, uses overlay system.
-        Otherwise shows permanent volume display until manually dismissed.
-        """
-        if timeout is not None:
-            # Use overlay system for temporary volume display
-            self.show_volume_overlay(volume, timeout)
-        else:
-            # Show permanent volume display (backward compatibility)
-            volume_data = {
-                'volume': volume,
-                'max_volume': max_volume,
-                'title': 'MUTED' if muted else 'VOLUME'
-            }
+    # def show_volume(self, volume: int, max_volume: int = 100, muted: bool = False, timeout: float = None):
+    #     """
+    #     Show volume level. If timeout is provided, uses overlay system.
+    #     Otherwise shows permanent volume display until manually dismissed.
+    #     """
+    #     if timeout is not None:
+    #         # Use overlay system for temporary volume display
+    #         self.show_volume_overlay(volume, timeout)
+    #     else:
+    #         # Show permanent volume display (backward compatibility)
+    #         volume_data = {
+    #             'volume': volume,
+    #             'max_volume': max_volume,
+    #             'title': 'MUTED' if muted else 'VOLUME'
+    #         }
             
-            # Track current display state
-            self.current_display_type = 'volume'
-            self.current_display_data = volume_data
+    #         # Track current display state
+    #         self.current_display_type = 'volume'
+    #         self.current_display_data = volume_data
             
-            # Render the display content
-            self._render_display_content('volume', volume_data)
+    #         # Render the display content
+    #         self._render_display_content('volume', volume_data)
     
-    def show_menu(self, title: str, options: List[str], selected_index: int = 0, timeout: float = None):
-        """
-        Show menu with options. If timeout is provided, uses overlay system.
-        Otherwise shows permanent menu until manually dismissed.
-        """
-        if timeout is not None:
-            # Use overlay system for temporary menu
-            self.show_menu_overlay(title, options, selected_index, timeout)
-        else:
-            # Show permanent menu (backward compatibility)
-            menu_data = {
-                'title': title,
-                'menu_items': options,
-                'selected_index': selected_index,
-                'scroll_offsets': self.current_scroll_offsets
-            }
+    # def show_menu(self, title: str, options: List[str], selected_index: int = 0, timeout: float = None):
+    #     """
+    #     Show menu with options. If timeout is provided, uses overlay system.
+    #     Otherwise shows permanent menu until manually dismissed.
+    #     """
+    #     if timeout is not None:
+    #         # Use overlay system for temporary menu
+    #         self.show_menu_overlay(title, options, selected_index, timeout)
+    #     else:
+    #         # Show permanent menu (backward compatibility)
+    #         menu_data = {
+    #             'title': title,
+    #             'menu_items': options,
+    #             'selected_index': selected_index,
+    #             'scroll_offsets': self.current_scroll_offsets
+    #         }
             
-            # Track current display state
-            self.current_display_type = 'menu'
-            self.current_display_data = menu_data
+    #         # Track current display state
+    #         self.current_display_type = 'menu'
+    #         self.current_display_data = menu_data
             
-            # Render the display content
-            self._render_display_content('menu', menu_data)
+    #         # Render the display content
+    #         self._render_display_content('menu', menu_data)
     
     def show_source_selection(self, sources: List[str], current_source: str, available_sources: List[str]):
         """Manually show source selection"""
@@ -594,45 +581,88 @@ class DisplayController:
             logger.error(f"Error getting current volume: {e}")
             return None
     
-    def _show_volume_screen(self, volume: int):
-        """Show temporary volume screen using the overlay framework"""
-        self.show_volume_overlay(volume)
-
-    def show_overlay(self, overlay_type: str, data: Dict[str, Any], timeout: float = None):
-        """Show a temporary overlay (volume, menu, etc.)"""
-        try:
-            # Activate overlay
-            self.overlay_active = True
-            self.overlay_type = overlay_type
-            self.overlay_end_time = time.time() + (timeout or self.overlay_timeout)
-            
+    def _render_volume_overlay(self, volume: int):
+        try: 
+            volume_data = {
+                'volume': volume,
+                'max_volume': 100,
+                'title': 'VOLUME',
+                'show_percentage': True
+            }
             # Render the overlay content
-            self._render_display_content(overlay_type, data)
+            self._render_display_content('volume', volume_data)
             
-            logger.debug(f"Showing {overlay_type} overlay for {timeout or self.overlay_timeout} seconds")
+            logger.debug(f"Render volume overlay for volume: {volume}%")
             
         except Exception as e:
-            logger.error(f"Error showing {overlay_type} overlay: {e}")
+            logger.error(f"Error showing volume overlay: {e}")
 
-    def dismiss_overlay(self):
-        """Dismiss the current overlay and return to normal display"""
-        if self.overlay_active:
+
+
+    # def _show_overlay(self, overlay_type: str, data: Dict[str, Any], timeout: float = None):
+    #     """Show a temporary overlay (volume, menu, etc.)"""
+    #     try:
+    #         # Activate overlay
+    #         self.overlay_active = True
+    #         self.overlay_type = overlay_type
+    #         self.overlay_end_time = time.time() + (timeout or self.overlay_timeout)
+            
+    #         # Render the overlay content
+    #         self._render_display_content(overlay_type, data)
+            
+    #         logger.debug(f"Showing {overlay_type} overlay for {timeout or self.overlay_timeout} seconds")
+            
+    #     except Exception as e:
+    #         logger.error(f"Error showing {overlay_type} overlay: {e}")
+
+    # def _show_overlay(self, overlay_type: str, data: Dict[str, Any], timeout: float = None):
+    #     """Show a temporary overlay (volume, menu, etc.)"""
+    #     try:
+    #         # Render the overlay content
+    #         self._render_display_content(overlay_type, data)
+            
+    #         logger.debug(f"Showing {overlay_type} overlay for {timeout or self.overlay_timeout} seconds")
+            
+    #     except Exception as e:
+    #         logger.error(f"Error showing {overlay_type} overlay: {e}")
+
+    # def dismiss_overlay(self):
+    #     """Dismiss the current overlay and return to normal display"""
+    #     if self.overlay_active:
+    #         self.overlay_active = False
+    #         self.overlay_type = None
+    #         # Force update to return to normal display
+    #         self.last_status = None
+    #         if self.kitchen_radio:
+    #             self._update_display(force_refresh=True)
+    #         logger.debug("Overlay dismissed")
+
+    # def extend_overlay_timeout(self, additional_time: float = None):
+    #     """Extend the current overlay timeout"""
+    #     if self.overlay_active:
+    #         extension = additional_time or self.overlay_timeout
+    #         self.overlay_end_time = time.time() + extension
+    #         logger.debug(f"Extended overlay timeout by {extension} seconds")
+
+    def _activate_overlay(self, overlay_type: str, timeout: float = None):
+        """Activate volume overlay state"""
+        self.overlay_active = True
+        self.overlay_type = overlay_type
+        self.overlay_end_time = time.time() + (timeout or self.overlay_timeout)
+
+    def _dismiss_overlay(self):
+        # Check if overlay should be dismissed
+        if self.overlay_active and time.time() >= self.overlay_end_time:
+            if self.overlay_type == 'menu' and self.on_menu_selected:
+                self.on_menu_selected(self.selected_index)
             self.overlay_active = False
             self.overlay_type = None
             # Force update to return to normal display
             self.last_status = None
-            if self.kitchen_radio:
-                self._update_display(force_refresh=True)
-            logger.debug("Overlay dismissed")
+            return True
+        return False
 
-    def extend_overlay_timeout(self, additional_time: float = None):
-        """Extend the current overlay timeout"""
-        if self.overlay_active:
-            extension = additional_time or self.overlay_timeout
-            self.overlay_end_time = time.time() + extension
-            logger.debug(f"Extended overlay timeout by {extension} seconds")
-
-    def show_volume_overlay(self, volume: int, timeout: float = None):
+    def show_volume_overlay(self, volume: int, timeout: float = 3):
         volume = volume or self._get_current_volume(self.last_status)
         """Show volume overlay using the generic overlay system"""
         volume_data = {
@@ -641,17 +671,21 @@ class DisplayController:
             'title': 'VOLUME',
             'show_percentage': True
         }
-        self.show_overlay('volume', volume_data, timeout)
+        self._render_display_content('volume', volume_data)
+        self._activate_overlay('volume', timeout)
 
-    def show_menu_overlay(self, title: str, options: List[str], selected_index: int = 0, timeout: float = None):
+    def show_menu_overlay(self, options: List[str], selected_index: int = 0, timeout: float = 3.0, on_selected: Optional[Callable[[int, str], None]] = None):
         """Show menu overlay using the generic overlay system"""
         menu_data = {
-            'title': title,
+            'title': 'Menu',
             'menu_items': options,
             'selected_index': selected_index,
             'scroll_offsets': self.current_scroll_offsets
         }
-        self.show_overlay('menu', menu_data, timeout)
+        self.on_menu_selected = on_selected
+        self.selected_index = selected_index
+        self._render_display_content('menu', menu_data)
+        self._activate_overlay('menu', timeout)
  
 # Example usage and testing
 if __name__ == "__main__":

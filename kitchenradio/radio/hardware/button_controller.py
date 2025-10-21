@@ -122,10 +122,7 @@ class ButtonController:
             # Menu buttons (basic implementation)
             ButtonType.MENU_UP: self._menu_up,
             ButtonType.MENU_DOWN: self._menu_down,
-            ButtonType.MENU_OK: self._menu_ok,
-            ButtonType.MENU_EXIT: self._menu_exit,
-            ButtonType.MENU_TOGGLE: self._menu_toggle,
-            ButtonType.MENU_SET: self._menu_set,
+
             
             # Power button
             ButtonType.POWER: self._power,
@@ -229,27 +226,8 @@ class ButtonController:
         except Exception as e:
             logger.error(f"Error executing action for button {button_type.value}: {e}")
             return False
-    
-    def _start_long_press_detection(self, button_type: ButtonType):
-        """Start long press detection for volume buttons"""
-        # Cancel any existing thread
-        self._cancel_long_press_detection(button_type)
-        
-        def long_press_checker():
-            while self.running and self.button_states[button_type]['pressed']:
-                time.sleep(0.3)  # Repeat every 300ms during long press
-                if self.running and self.button_states[button_type]['pressed']:
-                    self._execute_button_action(button_type)
-        
-        thread = threading.Thread(target=long_press_checker, daemon=True)
-        self.press_threads[button_type] = thread
-        thread.start()
-    
-    def _cancel_long_press_detection(self, button_type: ButtonType):
-        """Cancel long press detection for a button"""
-        if button_type in self.press_threads:
-            del self.press_threads[button_type]
-    
+
+
     # KitchenRadio Action Methods - Direct calls to KitchenRadio
     
     def _select_mpd(self) -> bool:
@@ -290,11 +268,10 @@ class ButtonController:
         result = self.kitchen_radio.volume_up(step=5)
         
         # Show volume screen if display controller is available
-        if self.display_controller and hasattr(self.display_controller, 'show_volume_screen'):
-            try:
-                self.display_controller.show_volume_screen()
-            except Exception as e:
-                logger.warning(f"Failed to show volume screen: {e}")
+        try:
+            self.display_controller.show_volume_overlay()
+        except Exception as e:
+            logger.warning(f"Failed to show volume screen: {e}")
         
         return result
     
@@ -304,11 +281,11 @@ class ButtonController:
         result = self.kitchen_radio.volume_down(step=5)
         
         # Show volume screen if display controller is available
-        if self.display_controller and hasattr(self.display_controller, 'show_volume_screen'):
-            try:
-                self.display_controller.show_volume_screen()
-            except Exception as e:
-                logger.warning(f"Failed to show volume screen: {e}")
+        
+        try:
+            self.display_controller.show_volume_overlay()
+        except Exception as e:
+            logger.warning(f"Failed to show volume screen: {e}")
         
         return result
     
@@ -330,10 +307,7 @@ class ButtonController:
                     logger.info("Showing playlist menu (last item)")
                     
                     # Update display with menu
-                    self.display_controller.show_menu("Menu", menu_items, self._current_menu_index)
-                    
-                    # Start menu timeout
-                    self._start_menu_timeout()
+                    self.display_controller.show_menu_overlay(menu_items, self._current_menu_index)
                     return True
                 else:
                     # Menu already visible - scroll up
@@ -367,7 +341,13 @@ class ButtonController:
                     
                     # Update display with menu
                     if self.display_controller:
-                        self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                         # Pass an on_selected handler so selection triggers menu action
+                        self.display_controller.show_menu_overlay(
+                            menu_items,
+                            selected_index=self._current_menu_index,
+                            timeout=self._menu_timeout_seconds,
+                            on_selected=self._on_menu_item_selected
+                        )
                     return True
             else:
                 # If no menu visible, show the menu
@@ -375,81 +355,22 @@ class ButtonController:
         except Exception as e:
             logger.error(f"Error in menu up navigation: {e}")
             return False
-    
-    def _menu_down(self) -> bool:
-        """Menu down navigation"""
-        logger.info("Menu down navigation")
+        
+
+    def _on_menu_item_selected(self, index: int, selected_item: Optional[str]) -> None:
+        """Handle selection of a menu item"""
+        logger.info(f"Handling menu selection: '{selected_item}'")
+        
         try:
-            # Only work if menu is currently visible
-            if hasattr(self, '_menu_visible') and self._menu_visible:
-                menu_items = self._get_menu_items()
-                if menu_items:
-                    # Scroll down (next item)
-                    self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
-                    logger.info(f"Menu scroll down to index {self._current_menu_index}")
-                    
-                    # Update display with menu
-                    if self.display_controller:
-                        self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
-                        
-                        # Reset menu timeout on navigation
-                        self._reset_menu_timeout()
-                    return True
-            else:
-                # If no menu visible, show the menu
-                return self._show_menu()
+            result = self.kitchen_radio.execute_menu_action('select menu', selected_item)
+            logger.info(f"MPD playlist execution result: {result}")
+            return result.get('success', False)
+                
         except Exception as e:
-            logger.error(f"Error in menu down navigation: {e}")
+            logger.error(f"Error handling menu selection '{selected_item}': {e}")
+            if self.display_controller:
+                self.display_controller.show_status_message(f"Error: {selected_item}", "❌", "error")
             return False
-    
-    def _menu_ok(self) -> bool:
-        """Menu OK/select - choose the currently selected item"""
-        logger.info("Menu OK - selecting current item")
-        try:
-            if hasattr(self, '_menu_visible') and self._menu_visible:
-                menu_items = self._get_menu_items()
-                if menu_items and 0 <= self._current_menu_index < len(menu_items):
-                    selected_item = menu_items[self._current_menu_index]
-                    logger.info(f"Selected menu item: '{selected_item}'")
-                    
-                    # Handle selection based on item type
-                    result = self._handle_menu_selection(selected_item)
-                    
-                    # Exit menu after selection (unless it's a navigation item)
-                    if selected_item not in ["Settings", "Exit Menu"]:
-                        self._exit_menu()
-                    
-                    return result
-            else:
-                # If no menu visible, show the menu
-                return self._show_menu()
-        except Exception as e:
-            logger.error(f"Error in menu OK: {e}")
-            return False
-    
-    def _menu_exit(self) -> bool:
-        """Menu exit/back - hide the menu and return to normal display"""
-        logger.info("Menu exit")
-        return self._exit_menu()
-    
-    def _menu_toggle(self) -> bool:
-        """Toggle menu display"""
-        logger.info("Menu toggle")
-        try:
-            if hasattr(self, '_menu_visible') and self._menu_visible:
-                # Menu is visible, hide it
-                return self._exit_menu()
-            else:
-                # Menu is not visible, show it
-                return self._show_menu()
-        except Exception as e:
-            logger.error(f"Error in menu toggle: {e}")
-            return False
-    
-    def _menu_set(self) -> bool:
-        """Menu set/confirm - placeholder"""
-        logger.info("Menu set - not implemented yet")
-        return True
     
     def _power(self) -> bool:
         """Power button - stop all playback"""
@@ -479,47 +400,7 @@ class ButtonController:
         """
         return {bt: state['pressed'] for bt, state in self.button_states.items()}
     
-    def _show_menu(self) -> bool:
-        """Show the menu with default selection"""
-        logger.info("Showing menu")
-        try:
-            if self.display_controller and hasattr(self.display_controller, 'show_menu'):
-                # Get available playlists/sources for menu
-                menu_items = self._get_menu_items()
-                
-                # Initialize menu state
-                self._menu_visible = True
-                self._current_menu_index = 0
-                logger.info("Menu displayed")
-                
-                # Update display with menu
-                self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
-                
-                # Start or reset the menu timeout
-                self._start_menu_timeout()
-                
-                return True
-            else:
-                logger.warning("Display controller not available for menu")
-                return False
-        except Exception as e:
-            logger.error(f"Error showing menu: {e}")
-            return False
-    
-    def _handle_menu_selection(self, selected_item: str) -> bool:
-        """Handle selection of a menu item"""
-        logger.info(f"Handling menu selection: '{selected_item}'")
-        
-        try:
-            result = self.kitchen_radio.execute_menu_action('select menu', selected_item)
-            logger.info(f"MPD playlist execution result: {result}")
-            return result.get('success', False)
-                
-        except Exception as e:
-            logger.error(f"Error handling menu selection '{selected_item}': {e}")
-            if self.display_controller:
-                self.display_controller.show_status_message(f"Error: {selected_item}", "❌", "error")
-            return False
+ 
 
     def _get_menu_items(self) -> list:
         """Get available menu items for playlist/source selection"""
@@ -561,114 +442,114 @@ class ButtonController:
         
         return menu_items
     
-    def _exit_menu(self) -> bool:
-        """Exit/hide the menu display and execute the currently selected item"""
-        logger.info("Exiting menu")
-        try:
-            # Execute the currently selected menu item before hiding
-            if (hasattr(self, '_menu_visible') and self._menu_visible and 
-                hasattr(self, '_current_menu_index')):
+    # def _exit_menu(self) -> bool:
+    #     """Exit/hide the menu display and execute the currently selected item"""
+    #     logger.info("Exiting menu")
+    #     try:
+    #         # Execute the currently selected menu item before hiding
+    #         if (hasattr(self, '_menu_visible') and self._menu_visible and 
+    #             hasattr(self, '_current_menu_index')):
                 
-                logger.info(f"Menu is visible: {self._menu_visible}, current index: {getattr(self, '_current_menu_index', 'None')}")
+    #             logger.info(f"Menu is visible: {self._menu_visible}, current index: {getattr(self, '_current_menu_index', 'None')}")
                 
-                menu_items = self._get_menu_items()
-                logger.info(f"Menu items: {menu_items}")
+    #             menu_items = self._get_menu_items()
+    #             logger.info(f"Menu items: {menu_items}")
                 
-                if menu_items and 0 <= self._current_menu_index < len(menu_items):
-                    selected_item = menu_items[self._current_menu_index]
-                    logger.info(f"Auto-executing selected menu item: '{selected_item}' at index {self._current_menu_index}")
+    #             if menu_items and 0 <= self._current_menu_index < len(menu_items):
+    #                 selected_item = menu_items[self._current_menu_index]
+    #                 logger.info(f"Auto-executing selected menu item: '{selected_item}' at index {self._current_menu_index}")
                     
-                    # Handle the menu selection
-                    result = self._handle_menu_selection(selected_item)
-                    logger.info(f"Menu selection result: {result}")
-                else:
-                    logger.warning(f"Invalid menu state: items={len(menu_items) if menu_items else 0}, index={getattr(self, '_current_menu_index', 'None')}")
+    #                 # Handle the menu selection
+    #                 result = self._handle_menu_selection(selected_item)
+    #                 logger.info(f"Menu selection result: {result}")
+    #             else:
+    #                 logger.warning(f"Invalid menu state: items={len(menu_items) if menu_items else 0}, index={getattr(self, '_current_menu_index', 'None')}")
             
-            # Clear menu state
-            if hasattr(self, '_menu_visible'):
-                self._menu_visible = False
-                self._current_menu_index = 0
+    #         # Clear menu state
+    #         if hasattr(self, '_menu_visible'):
+    #             self._menu_visible = False
+    #             self._current_menu_index = 0
             
-            # Return to normal display
-            if self.display_controller:
-                # Trigger a return to the main display
-                # This will cause the display controller to show the current status
-                try:
-                    # Get current status and show it
-                    status = self.kitchen_radio.get_status()
-                    current_source = status.get('current_source')
+    #         # Return to normal display
+    #         if self.display_controller:
+    #             # Trigger a return to the main display
+    #             # This will cause the display controller to show the current status
+    #             try:
+    #                 # Get current status and show it
+    #                 status = self.kitchen_radio.get_status()
+    #                 current_source = status.get('current_source')
                     
-                    if current_source == 'mpd':
-                        mpd_status = status.get('mpd', {})
-                        if mpd_status.get('connected') and mpd_status.get('current_track'):
-                            # Show current MPD track
-                            track = mpd_status['current_track']
-                            self.display_controller.show_track_info(track, mpd_status.get('state', 'stopped'))
-                        else:
-                            self.display_controller.show_status_message("MPD Connected", "♪", "info")
+    #                 if current_source == 'mpd':
+    #                     mpd_status = status.get('mpd', {})
+    #                     if mpd_status.get('connected') and mpd_status.get('current_track'):
+    #                         # Show current MPD track
+    #                         track = mpd_status['current_track']
+    #                         self.display_controller.show_track_info(track, mpd_status.get('state', 'stopped'))
+    #                     else:
+    #                         self.display_controller.show_status_message("MPD Connected", "♪", "info")
                     
-                    elif current_source == 'librespot':
-                        librespot_status = status.get('librespot', {})
-                        if librespot_status.get('connected') and librespot_status.get('current_track'):
-                            # Show current Spotify track with progress
-                            track = librespot_status['current_track']
-                            progress = librespot_status.get('progress', {})
-                            self.display_controller.show_track(track, librespot_status.get('state', 'stopped'))
-                        else:
-                            self.display_controller.show_status_message("Spotify Connected", "♫", "info")
+    #                 elif current_source == 'librespot':
+    #                     librespot_status = status.get('librespot', {})
+    #                     if librespot_status.get('connected') and librespot_status.get('current_track'):
+    #                         # Show current Spotify track with progress
+    #                         track = librespot_status['current_track']
+    #                         progress = librespot_status.get('progress', {})
+    #                         self.display_controller.show_track(track, librespot_status.get('state', 'stopped'))
+    #                     else:
+    #                         self.display_controller.show_status_message("Spotify Connected", "♫", "info")
                     
-                    else:
-                        # No active source or disconnected
-                        self.display_controller.show_status_message("Ready", "📻", "info")
+    #                 else:
+    #                     # No active source or disconnected
+    #                     self.display_controller.show_status_message("Ready", "📻", "info")
                         
-                except Exception as e:
-                    logger.warning(f"Error refreshing display after menu exit: {e}")
-                    # Fallback to simple status message
-                    self.display_controller.show_status_message("Kitchen Radio", "📻", "info")
+    #             except Exception as e:
+    #                 logger.warning(f"Error refreshing display after menu exit: {e}")
+    #                 # Fallback to simple status message
+    #                 self.display_controller.show_status_message("Kitchen Radio", "📻", "info")
                 
-                return True
-            return False
-        except Exception as e:
-            logger.error(f"Error exiting menu: {e}")
-            return False
+    #             return True
+    #         return False
+    #     except Exception as e:
+    #         logger.error(f"Error exiting menu: {e}")
+    #         return False
     
-    def _start_menu_timeout(self):
-        """Start or restart the menu timeout timer"""
-        import threading
-        import time
+    # def _start_menu_timeout(self):
+    #     """Start or restart the menu timeout timer"""
+    #     import threading
+    #     import time
         
-        # Cancel existing timeout thread if running
-        if self._menu_timeout_thread and self._menu_timeout_thread.is_alive():
-            self._menu_timeout_thread = None  # Let it finish naturally
+    #     # Cancel existing timeout thread if running
+    #     if self._menu_timeout_thread and self._menu_timeout_thread.is_alive():
+    #         self._menu_timeout_thread = None  # Let it finish naturally
         
-        # Update last activity time
-        self._menu_last_activity_time = time.time()
+    #     # Update last activity time
+    #     self._menu_last_activity_time = time.time()
         
-        # Start new timeout thread
-        def timeout_worker():
-            logger.info(f"Menu timeout worker started, will wait {self._menu_timeout_seconds} seconds")
-            time.sleep(self._menu_timeout_seconds)
+    #     # Start new timeout thread
+    #     def timeout_worker():
+    #         logger.info(f"Menu timeout worker started, will wait {self._menu_timeout_seconds} seconds")
+    #         time.sleep(self._menu_timeout_seconds)
             
-            current_time = time.time()
-            time_since_activity = current_time - self._menu_last_activity_time
+    #         current_time = time.time()
+    #         time_since_activity = current_time - self._menu_last_activity_time
             
-            logger.info(f"Menu timeout check: visible={getattr(self, '_menu_visible', False)}, time_since_activity={time_since_activity:.2f}s")
+    #         logger.info(f"Menu timeout check: visible={getattr(self, '_menu_visible', False)}, time_since_activity={time_since_activity:.2f}s")
             
-            # Check if menu is still active and no new activity occurred
-            if (hasattr(self, '_menu_visible') and self._menu_visible and 
-                time_since_activity >= self._menu_timeout_seconds):
-                logger.info("Menu auto-hiding after timeout - calling _exit_menu()")
-                self._exit_menu()
-            else:
-                logger.info("Menu timeout cancelled - activity detected or menu no longer visible")
+    #         # Check if menu is still active and no new activity occurred
+    #         if (hasattr(self, '_menu_visible') and self._menu_visible and 
+    #             time_since_activity >= self._menu_timeout_seconds):
+    #             logger.info("Menu auto-hiding after timeout - calling _exit_menu()")
+    #             self._exit_menu()
+    #         else:
+    #             logger.info("Menu timeout cancelled - activity detected or menu no longer visible")
         
-        self._menu_timeout_thread = threading.Thread(target=timeout_worker, daemon=True)
-        self._menu_timeout_thread.start()
+    #     self._menu_timeout_thread = threading.Thread(target=timeout_worker, daemon=True)
+    #     self._menu_timeout_thread.start()
     
-    def _reset_menu_timeout(self):
-        """Reset the menu timeout (called on menu activity)"""
-        if hasattr(self, '_menu_visible') and self._menu_visible:
-            self._start_menu_timeout()
+    # def _reset_menu_timeout(self):
+    #     """Reset the menu timeout (called on menu activity)"""
+    #     if hasattr(self, '_menu_visible') and self._menu_visible:
+    #         self._start_menu_timeout()
 
 
 # Example usage and testing

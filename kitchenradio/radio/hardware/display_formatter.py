@@ -411,73 +411,6 @@ class DisplayFormatter:
         
         return draw_status
     
-    def format_volume_display(self, volume_data: Dict[str, Any]) -> Callable:
-        """
-        Format volume display with progress bar using JSON structure input.
-        
-        Args:
-            volume_data: Dictionary containing:
-                {
-                    "volume": int,
-                    "max_volume": int (optional, default 100),
-                    "title": str (optional, default "VOLUME"),
-                    "show_percentage": bool (optional, default False)
-                }
-            
-        Returns:
-            Drawing function that can be used with display interface
-        """
-        def draw_volume(draw):
-            # Extract data from JSON structure
-            volume = volume_data.get('volume', 0)
-            max_volume = volume_data.get('max_volume', 100)
-            title = volume_data.get('title', 'VOLUME')
-            show_percentage = volume_data.get('show_percentage', False)
-            
-            # Clear background
-            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
-            
-            # Large volume bar on the left side (covers full height)
-            bar_width = 16
-            bar_height = self.height - 10  # Full height with small margin
-            bar_x = 10
-            bar_y = 5
-            
-            # Draw volume bar background
-            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=2)
-            
-            # Draw volume bar fill
-            if volume > 0:
-                fill_height = int((volume / max_volume) * (bar_height - 4))
-                fill_y = bar_y + bar_height - 2 - fill_height  # Fill from bottom up
-                draw.rectangle([(bar_x + 2, fill_y), (bar_x + bar_width - 2, bar_y + bar_height - 2)], fill=255)
-            
-            # Content area starts after the volume bar
-            content_x = bar_x + bar_width + 15
-            
-            # Volume title text
-            draw.text((content_x, 15), title, font=self.fonts['large'], fill=255)
-            
-            # Show percentage if requested
-            if show_percentage:
-                percentage_text = f"{int((volume/max_volume)*100)}%"
-                draw.text((content_x, 35), percentage_text, font=self.fonts['medium'], fill=255)
-            
-            # Volume level indicators (small marks on the right)
-            marks_x = self.width - 30
-            marks_y = bar_y
-            mark_spacing = bar_height // 10
-            
-            for i in range(11):  # 0%, 10%, 20%, ... 100%
-                y = marks_y + (i * mark_spacing)
-                if i * 10 <= volume:
-                    # Filled mark
-                    draw.rectangle([(marks_x, y), (marks_x + 8, y + 2)], fill=255)
-                else:
-                    # Empty mark
-                    draw.rectangle([(marks_x, y), (marks_x + 8, y + 2)], outline=255)
-        
-        return draw_volume
     
     def format_error_message(self, error_data: Dict[str, Any]) -> Callable:
         """
@@ -612,7 +545,7 @@ class DisplayFormatter:
         
         return draw_status_message, truncation_info
     
-    def format_fullscreen_volume(self, volume_data: Dict[str, Any]) -> Callable:
+    def format_volume_display(self, volume_data: Dict[str, Any]) -> Callable:
         """
         Format full screen volume display with large bar spanning entire display using JSON structure input.
         
@@ -629,9 +562,9 @@ class DisplayFormatter:
         Returns:
             Drawing function for full screen volume display
         """
-        def draw_fullscreen_volume(draw):
+        def draw_volume(draw):
             # Extract data from JSON structure
-            volume = volume_data.get('volume', 0)
+            volume = int(volume_data.get('volume', 0))
             max_volume = volume_data.get('max_volume', 100)
             title = volume_data.get('title', 'VOLUME')
             show_percentage = volume_data.get('show_percentage', True)
@@ -682,7 +615,7 @@ class DisplayFormatter:
 
  
         
-        return draw_fullscreen_volume
+        return draw_volume
     
     def format_track_info(self, track_data: Dict[str, Any]) -> tuple:
         """

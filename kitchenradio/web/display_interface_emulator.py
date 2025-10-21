@@ -108,7 +108,7 @@ class DisplayInterfaceEmulator:
             draw = ImageDraw.Draw(self.current_image)
             
             # Call the drawing function
-            draw_function(draw)
+            test = draw_function(draw)
             
             # Update BMP data
             self._update_bmp_data()
