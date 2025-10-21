@@ -256,9 +256,20 @@ class DisplayController:
         """Determine if a scroll update is needed based on truncation info"""
         for key, info in self.last_truncation_info.items():
             if info.get('truncated', False):
-                return True
-        return False
+                scroll_step = 2  # pixels per update
+                for key, offset in self.current_scroll_offsets.items():
+                    info = self.last_truncation_info.get(key)
+                    if info and info.get('truncated', False):
+                        max_scroll = info['original_width'] - info['max_width']
+                        new_offset = offset + scroll_step
+                        if new_offset > max_scroll:
+                            new_offset = 0  # loop back
+                        self.current_scroll_offsets[key] = new_offset
+                    return False
     
+
+
+
     def _render_display_content(self, display_type: str, display_data: Dict[str, Any]):
         """Generic method to render display content based on type"""
         try:
