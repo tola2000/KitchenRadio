@@ -37,6 +37,13 @@ class DisplayFormatter:
         self.fonts = self._load_fonts()
         self.current_content = None
         
+        # Scrolling state tracking
+        self.scroll_offset = 0
+        self.scroll_speed = 2  # pixels per update
+        self.scroll_pause_time = 30  # frames to pause at start/end
+        self.scroll_pause_counter = 0
+        self.scrolling_enabled = True
+        
         # For compatibility with existing display_controller.py
         self.pages = {}
         self.current_page = None
@@ -128,6 +135,86 @@ class DisplayFormatter:
             if bbox[2] - bbox[0] <= max_width:
                 return truncated
         return "..."
+    
+    def _truncate_text_with_info(self, text: str, max_width: int, font: ImageFont.ImageFont) -> tuple:
+        """
+        Truncate text to fit within max_width pixels and return truncation info.
+        
+        Returns:
+            Tuple of (truncated_text, was_truncated)
+        """
+        if not text:
+            return "", False
+        
+        # Check if text fits as-is
+        bbox = font.getbbox(text)
+        if bbox[2] - bbox[0] <= max_width:
+            return text, False
+        
+        # Truncate with ellipsis
+        for i in range(len(text), 0, -1):
+            truncated = text[:i] + "..."
+            bbox = font.getbbox(truncated)
+            if bbox[2] - bbox[0] <= max_width:
+                return truncated, True
+        return "...", True
+    
+    def _get_scrolling_text(self, text: str, max_width: int, font: ImageFont.ImageFont, scroll_offset: int = 0) -> str:
+        """
+        Get scrolling text when it doesn't fit in max_width.
+        
+        Args:
+            text: Original text
+            max_width: Maximum width in pixels
+            font: Font to use
+            scroll_offset: Current scroll position in pixels
+            
+        Returns:
+            Visible portion of scrolling text
+        """
+        if not text:
+            return ""
+        
+        # Get full text width
+        bbox = font.getbbox(text)
+        full_width = bbox[2] - bbox[0]
+        
+        # If text fits, no scrolling needed
+        if full_width <= max_width:
+            return text
+        
+        # Add padding for smooth scrolling loop
+        padding = "    "  # 4 spaces padding
+        scrolling_text = text + padding + text
+        
+        # Calculate how many pixels to scroll
+        scroll_pos = scroll_offset % (full_width + len(padding) * 8)  # Approximate space width
+        
+        # Find the starting character position
+        current_width = 0
+        start_char = 0
+        
+        for i, char in enumerate(scrolling_text):
+            char_bbox = font.getbbox(char)
+            char_width = char_bbox[2] - char_bbox[0]
+            if current_width >= scroll_pos:
+                start_char = i
+                break
+            current_width += char_width
+        
+        # Get visible portion that fits in max_width
+        visible_text = ""
+        current_width = 0
+        
+        for char in scrolling_text[start_char:]:
+            test_text = visible_text + char
+            test_bbox = font.getbbox(test_text)
+            test_width = test_bbox[2] - test_bbox[0]
+            if test_width > max_width:
+                break
+            visible_text = test_text
+        
+        return visible_text
     
     def format_simple_text(self, main_text: str, sub_text: str = "") -> Callable:
         """
@@ -417,23 +504,32 @@ class DisplayFormatter:
         
         return draw_fullscreen_volume
     
-    def format_track_info(self, track, playing: bool = False, volume: int = 50) -> Callable:
+    def format_track_info(self, track, playing: bool = False, volume: int = 50) -> tuple:
         """
         Format track information display with optional progress bar at bottom.
         
         Args:
-            title: Track title
-            artist: Artist name
-            album: Album name
+            track: Track information dictionary
             playing: Whether track is currently playing
             volume: Current volume level
-            progress_ms: Current progress in milliseconds
-            duration_ms: Total track duration in milliseconds
-            showProgress: Whether to show the progress bar (default True)
             
         Returns:
-            Drawing function for track info with optional progress bar
+            Tuple of (drawing_function, metadata_dict)
+            metadata_dict contains:
+                - title_truncated: bool - whether title was truncated
+                - artist_album_truncated: bool - whether artist/album was truncated
+                - original_title: str - original title text
+                - displayed_title: str - truncated title text
         """
+        # Track truncation information
+        truncation_info = {
+            'title_truncated': False,
+            'artist_album_truncated': False,
+            'original_title': '',
+            'displayed_title': '',
+            'original_artist_album': '',
+            'displayed_artist_album': ''
+        }
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
@@ -462,12 +558,17 @@ class DisplayFormatter:
             # Title (main line) - larger font and truncate to fit in available space
             if track:
                 title_text = track.get('title', 'No Track')
+                truncation_info['original_title'] = title_text
+                
                 title_max_width = content_width - 10
-                title_truncated = self._truncate_text(title_text, title_max_width, self.fonts['xlarge'])
+                title_truncated, was_title_truncated = self._truncate_text_with_info(title_text, title_max_width, self.fonts['xlarge'])
+                truncation_info['displayed_title'] = title_truncated
+                truncation_info['title_truncated'] = was_title_truncated
+                
                 draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
             
-                album_text =  track.get('album', 'Unknown')
-                artist_text =  track.get('artist', 'Unknown')
+                album_text = track.get('album', 'Unknown')
+                artist_text = track.get('artist', 'Unknown')
                 if not artist_text=='Unknown' and not album_text=='Unknown':
                     artist_album_text = f"{artist_text} : {album_text}"
                 elif not album_text=='Unknown':
@@ -475,51 +576,20 @@ class DisplayFormatter:
                 else:
                     artist_album_text = artist_text
                 
-                artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
+                truncation_info['original_artist_album'] = artist_album_text
+                artist_album_truncated, was_artist_album_truncated = self._truncate_text_with_info(artist_album_text, content_width, self.fonts['small'])
+                truncation_info['displayed_artist_album'] = artist_album_truncated  
+                truncation_info['artist_album_truncated'] = was_artist_album_truncated
+                
                 draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
-            
-            # # Progress bar at the bottom - only if showProgress is True
-            # if showProgress:
-            #     progress_bar_height = 4
-            #     # Align progress bar bottom with volume bar bottom, but one pixel lower
-            #     volume_bar_bottom = bar_y + bar_height - 1
-            #     progress_bar_y = volume_bar_bottom - progress_bar_height + 1  # One pixel lower
-            #     progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with gap
-            #     progress_bar_width = self.width - progress_bar_x - 25  # Leave space for icon
-                
-            #     # Debug logging
-            #     logger.debug(f"Progress bar: showProgress={showProgress}, progress_ms={progress_ms}, duration_ms={duration_ms}")
-            #     logger.debug(f"Progress bar position: x={progress_bar_x}, y={progress_bar_y}, width={progress_bar_width}, height={progress_bar_height}")
-                
-            #     # Draw progress bar background
-            #     draw.rectangle([
-            #         (progress_bar_x, progress_bar_y), 
-            #         (progress_bar_x + progress_bar_width, progress_bar_y + progress_bar_height)
-            #     ], outline=255)
-                
-            #     # Draw progress bar fill
-            #     if duration_ms > 0 and progress_ms >= 0:
-            #         progress_ratio = min(progress_ms / duration_ms, 1.0)
-            #         fill_width = int(progress_ratio * (progress_bar_width - 2))
-            #         logger.debug(f"Progress fill: ratio={progress_ratio:.2f}, fill_width={fill_width}")
-            #         if fill_width > 0:
-            #             draw.rectangle([
-            #                 (progress_bar_x + 1, progress_bar_y + 1),
-            #                 (progress_bar_x + 1 + fill_width, progress_bar_y + progress_bar_height - 1)
-            #             ], fill=255)
-            #     else:
-            #         logger.debug(f"No progress fill: duration_ms={duration_ms}, progress_ms={progress_ms}")
-            # else:
-            #     logger.debug(f"Progress bar disabled: showProgress={showProgress}")
-            
-            # Playing icon in bottom right corner
+ 
             icon_size = 12
             icon_x = self.width - icon_size - 5
             icon_y = self.height - icon_size - 2
             play_icon = "▶" if playing else "⏸"
             draw.text((icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)
         
-        return draw_track_info_with_progress
+        return draw_track_info_with_progress, truncation_info
     
     def format_menu_display(self, title: str, menu_items: list, selected_index: int = 0) -> Callable:
         """

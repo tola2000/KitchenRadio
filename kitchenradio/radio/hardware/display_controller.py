@@ -66,6 +66,12 @@ class DisplayController:
         # Display state
         self.last_status = None
         self.refresh_rate = refresh_rate
+        self.last_truncation_info = None
+        
+        # Scrolling state
+        self.scrolling_active = False
+        self.scroll_timer = None
+        self.scroll_update_interval = 0.5  # Update every 500ms
         
         # Volume screen state
         self.volume_screen_active = False
@@ -153,6 +159,8 @@ class DisplayController:
     def _update_loop(self):
         """Main update loop for display refresh"""
         frame_time = 1.0 / self.refresh_rate
+        scroll_frame_count = 0
+        scroll_frames_per_update = int(self.refresh_rate * 0.5)  # Update scroll every 0.5 seconds
         
         while self.running:
             try:
@@ -167,6 +175,15 @@ class DisplayController:
                 # Update display if KitchenRadio is available
                 if self.kitchen_radio:
                     self._update_from_kitchen_radio()
+                
+                # Handle scrolling updates when text is truncated
+                if self.last_truncation_info and self.last_truncation_info.get('title_truncated', False):
+                    scroll_frame_count += 1
+                    if scroll_frame_count >= scroll_frames_per_update:
+                        scroll_frame_count = 0
+                        # Update scroll position and refresh display
+                        self.formatter.update_scroll_position(2)  # Move 2 pixels per update
+                        self._refresh_current_display()
                 
                 # Handle manual update requests
                 if self.manual_update_requested:
@@ -194,6 +211,25 @@ class DisplayController:
                 
         except Exception as e:
             logger.error(f"Error updating from KitchenRadio: {e}")
+    
+    def _refresh_current_display(self):
+        """Refresh the current display with updated scroll position"""
+        if not self.last_status:
+            return
+        
+        try:
+            # Re-render current display content with new scroll position
+            current_source = self.last_status.get('current_source')
+            
+            if current_source == 'mpd' and self.last_status.get('mpd', {}).get('connected'):
+                self._update_mpd_display(self.last_status['mpd'])
+            elif current_source == 'librespot' and self.last_status.get('librespot', {}).get('connected'):
+                self._update_librespot_display(self.last_status['librespot'])
+            else:
+                self._update_no_source_display(self.last_status)
+                
+        except Exception as e:
+            logger.error(f"Error refreshing display with scroll: {e}")
     
     def _update_display_content(self, status: Dict[str, Any]):
         """Update display content based on status"""
@@ -231,10 +267,19 @@ class DisplayController:
             volume = mpd_status.get('volume', 50)
             
             # Use unified track info formatter without progress bar for MPD
-            draw_func = self.formatter.format_track_info(
+            draw_func, truncation_info = self.formatter.format_track_info(
                 current_song, playing, volume
             )
             self.i2c_interface.render_frame(draw_func)
+            
+            # Log truncation information
+            if truncation_info['title_truncated']:
+                logger.info(f"Title truncated: '{truncation_info['original_title']}' -> '{truncation_info['displayed_title']}'")
+            if truncation_info['artist_album_truncated']:
+                logger.info(f"Artist/Album truncated: '{truncation_info['original_artist_album']}' -> '{truncation_info['displayed_artist_album']}'")
+            
+            # Store truncation info for potential use by other components
+            self.last_truncation_info = truncation_info
         else:
             # No track playing
             draw_func = self.formatter.format_status_message("MPD Connected", "♪", "info")
@@ -255,10 +300,19 @@ class DisplayController:
             duration_ms = current_track.get('duration_ms', 0)
             
             # Use unified track info formatter with progress bar for Spotify
-            draw_func = self.formatter.format_track_info(
+            draw_func, truncation_info = self.formatter.format_track_info(
                 current_track, playing, volume
             )
             self.i2c_interface.render_frame(draw_func)
+            
+            # Log truncation information
+            if truncation_info['title_truncated']:
+                logger.info(f"Title truncated: '{truncation_info['original_title']}' -> '{truncation_info['displayed_title']}'")
+            if truncation_info['artist_album_truncated']:
+                logger.info(f"Artist/Album truncated: '{truncation_info['original_artist_album']}' -> '{truncation_info['displayed_artist_album']}'")
+            
+            # Store truncation info for potential use by other components
+            self.last_truncation_info = truncation_info
         else:
             # No track playing
             draw_func = self.formatter.format_status_message("Spotify Connected", "♫", "info")
@@ -330,6 +384,28 @@ class DisplayController:
                 'running': self.running,
                 'has_kitchen_radio': self.kitchen_radio is not None
             }
+        }
+    
+    def get_truncation_info(self) -> Dict[str, Any]:
+        """
+        Get information about text truncation from the last track display.
+        
+        Returns:
+            Dictionary with truncation information:
+            - title_truncated: bool - whether title was truncated
+            - artist_album_truncated: bool - whether artist/album was truncated
+            - original_title: str - original title text
+            - displayed_title: str - truncated title text
+            - original_artist_album: str - original artist/album text
+            - displayed_artist_album: str - truncated artist/album text
+        """
+        return self.last_truncation_info or {
+            'title_truncated': False,
+            'artist_album_truncated': False,
+            'original_title': '',
+            'displayed_title': '',
+            'original_artist_album': '',
+            'displayed_artist_album': ''
         }
     
     def _get_current_volume(self, status: Dict[str, Any]) -> Optional[int]:
