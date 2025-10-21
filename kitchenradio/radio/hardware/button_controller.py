@@ -529,39 +529,38 @@ class ButtonController:
             # Get current status to see what's available
             status = self.kitchen_radio.get_status()
             available_sources = status.get('available_sources', [])
+            current_source = status.get('current_source')
             
-            # Add available sources
+            logger.info(f"Getting menu items - available sources: {available_sources}, current: {current_source}")
+            
+            # Add source selection options
             if 'mpd' in available_sources:
                 menu_items.append("MPD Music")
-                
-                # If MPD is connected, try to get playlists
-                mpd_status = status.get('mpd', {})
-                if mpd_status.get('connected'):
-                    # Add some example playlists (these would come from MPD in real implementation)
-                    menu_items.extend([
-                        "Rock Playlist",
-                        "Jazz Collection", 
-                        "Chill Music",
-                        "Favorites"
-                    ])
             
             if 'librespot' in available_sources:
                 menu_items.append("Spotify")
-                
-                # If Spotify is connected, add some example playlists
-                librespot_status = status.get('librespot', {})
-                if librespot_status.get('connected'):
-                    menu_items.extend([
-                        "Discover Weekly",
-                        "Liked Songs",
-                        "Recent Tracks",
-                        "Top Hits"
-                    ])
             
-            # Add some general options
+            # Get menu options from kitchen radio for current source
+            if current_source:
+                try:
+                    menu_options = self.kitchen_radio.get_menu_options()
+                    logger.info(f"Kitchen radio menu options: {menu_options}")
+                    
+                    if menu_options.get('has_menu', False):
+                        options = menu_options.get('options', [])
+                        for option in options:
+                            # Extract label from the option
+                            label = option.get('label', option.get('id', 'Unknown'))
+                            menu_items.append(label)
+                            logger.info(f"Added menu item from kitchen radio: {label}")
+                    
+                except Exception as e:
+                    logger.error(f"Error getting kitchen radio menu options: {e}")
+            
+            # Add general options
             menu_items.extend([
                 "Radio Stations",
-                "Settings",
+                "Settings", 
                 "Exit Menu"
             ])
             
