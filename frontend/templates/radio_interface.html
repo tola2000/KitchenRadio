@@ -130,6 +130,20 @@
                 </button>
             </div>
 
+            <!-- Playlist Navigation Controls -->
+            <div class="playlist-controls">
+                <button id="btn-previous-playlist" onclick="sendCommand('previous_playlist')" class="playlist-btn">
+                    <i class="fas fa-list"></i>
+                    <i class="fas fa-chevron-left playlist-arrow"></i>
+                    <span>PREV LIST</span>
+                </button>
+                <button id="btn-next-playlist" onclick="sendCommand('next_playlist')" class="playlist-btn">
+                    <i class="fas fa-list"></i>
+                    <i class="fas fa-chevron-right playlist-arrow"></i>
+                    <span>NEXT LIST</span>
+                </button>
+            </div>
+
             <!-- Volume Controls -->
             <div class="volume-controls">
                 <button id="btn-volume-down" onclick="adjustVolume('down')" class="volume-btn">

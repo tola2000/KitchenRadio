@@ -14,9 +14,9 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from kitchenradio.audio.librespot_client import LibrespotClient
+    from kitchenradio.librespot import KitchenRadioLibrespotClient
 except ImportError as e:
-    print(f"ERROR: Could not import LibrespotClient: {e}")
+    print(f"ERROR: Could not import KitchenRadioLibrespotClient: {e}")
     print("Make sure you're running this from the KitchenRadio project directory.")
     exit(1)
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 class LibrespotProgressTest:
     def __init__(self):
-        self.client = LibrespotClient()
+        self.client = KitchenRadioLibrespotClient()
         self.last_position = None
         
     async def test_progress_updates(self):
@@ -118,7 +118,7 @@ class LibrespotProgressTest:
 async def main():
     """Main test function"""
     print("=== KitchenRadio Librespot Progress Test ===")
-    print("This test uses the same LibrespotClient that KitchenRadio uses.")
+    print("This test uses the same KitchenRadioLibrespotClient that KitchenRadio uses.")
     print("It will show real-time progress updates when you play Spotify music.")
     print("Press Ctrl+C to exit.\n")
     

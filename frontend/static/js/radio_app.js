@@ -419,7 +419,9 @@ async function sendCommand(action) {
             'play_pause': 'transport_play_pause',
             'stop': 'transport_stop',
             'next': 'transport_next',
-            'previous': 'transport_previous'
+            'previous': 'transport_previous',
+            'next_playlist': 'next_playlist',
+            'previous_playlist': 'previous_playlist'
         };
         
         const buttonName = buttonMap[action];
