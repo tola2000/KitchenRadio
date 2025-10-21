@@ -41,10 +41,6 @@ class ButtonType(Enum):
     VOLUME_DOWN = "volume_down"
     VOLUME_UP = "volume_up"
     
-    # Playlist navigation buttons
-    NEXT_PLAYLIST = "next_playlist"
-    PREVIOUS_PLAYLIST = "previous_playlist"
-    
     # Power button (bottom center)
     POWER = "power"
 
@@ -122,9 +118,6 @@ class ButtonController:
             ButtonType.VOLUME_UP: self._volume_up,
             ButtonType.VOLUME_DOWN: self._volume_down,
             
-            # Playlist navigation buttons
-            ButtonType.NEXT_PLAYLIST: self._next_playlist,
-            ButtonType.PREVIOUS_PLAYLIST: self._previous_playlist,
             
             # Menu buttons (basic implementation)
             ButtonType.MENU_UP: self._menu_up,
@@ -140,6 +133,11 @@ class ButtonController:
         
         self.running = False
         self.initialized = False
+        
+        # Menu timeout tracking
+        self._menu_timeout_seconds = 3.0
+        self._menu_last_activity_time = 0
+        self._menu_timeout_thread = None
         
     def initialize(self) -> bool:
         """
@@ -314,34 +312,9 @@ class ButtonController:
         
         return result
     
-    def _next_playlist(self) -> bool:
-        """Show menu and scroll down (next menu item)"""
-        logger.info("Next playlist - menu down")
-        try:
-            if self.display_controller and hasattr(self.display_controller, 'show_menu'):
-                # Get available playlists/sources for menu
-                menu_items = self._get_menu_items()
-                
-                # Show or update menu
-                if not hasattr(self, '_menu_visible') or not self._menu_visible:
-                    # First time - show menu
-                    return self._show_menu()
-                else:
-                    # Menu already visible - scroll down
-                    self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
-                    logger.info(f"Menu scroll down to index {self._current_menu_index}")
-                
-                    # Update display with menu
-                    self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
-                    return True
-            else:
-                logger.warning("Display controller not available for menu")
-                return False
-        except Exception as e:
-            logger.error(f"Error showing/navigating menu: {e}")
-            return False
+
     
-    def _previous_playlist(self) -> bool:
+    def _menu_up(self) -> bool:
         """Show menu and scroll up (previous menu item)"""
         logger.info("Previous playlist - menu up")
         try:
@@ -357,7 +330,10 @@ class ButtonController:
                     logger.info("Showing playlist menu (last item)")
                     
                     # Update display with menu
-                    self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                    self.display_controller.show_menu("Menu", menu_items, self._current_menu_index)
+                    
+                    # Start menu timeout
+                    self._start_menu_timeout()
                     return True
                 else:
                     # Menu already visible - scroll up
@@ -365,7 +341,10 @@ class ButtonController:
                     logger.info(f"Menu scroll up to index {self._current_menu_index}")
                 
                     # Update display with menu
-                    self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                    self.display_controller.show_menu("Menu", menu_items, self._current_menu_index)
+                    
+                    # Reset menu timeout on navigation
+                    self._reset_menu_timeout()
                     return True
             else:
                 logger.warning("Display controller not available for menu")
@@ -374,7 +353,7 @@ class ButtonController:
             logger.error(f"Error showing/navigating menu: {e}")
             return False
     
-    def _menu_up(self) -> bool:
+    def _menu_down(self) -> bool:
         """Menu up navigation"""
         logger.info("Menu up navigation")
         try:
@@ -412,6 +391,9 @@ class ButtonController:
                     # Update display with menu
                     if self.display_controller:
                         self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                        
+                        # Reset menu timeout on navigation
+                        self._reset_menu_timeout()
                     return True
             else:
                 # If no menu visible, show the menu
@@ -512,6 +494,10 @@ class ButtonController:
                 
                 # Update display with menu
                 self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                
+                # Start or reset the menu timeout
+                self._start_menu_timeout()
+                
                 return True
             else:
                 logger.warning("Display controller not available for menu")
@@ -625,9 +611,22 @@ class ButtonController:
         return menu_items
     
     def _exit_menu(self) -> bool:
-        """Exit/hide the menu display"""
+        """Exit/hide the menu display and execute the currently selected item"""
         logger.info("Exiting menu")
         try:
+            # Execute the currently selected menu item before hiding
+            if (hasattr(self, '_menu_visible') and self._menu_visible and 
+                hasattr(self, '_current_menu_index')):
+                
+                menu_items = self._get_menu_items()
+                if menu_items and 0 <= self._current_menu_index < len(menu_items):
+                    selected_item = menu_items[self._current_menu_index]
+                    logger.info(f"Auto-executing selected menu item: '{selected_item}'")
+                    
+                    # Handle the menu selection
+                    self._handle_menu_selection(selected_item)
+            
+            # Clear menu state
             if hasattr(self, '_menu_visible'):
                 self._menu_visible = False
                 self._current_menu_index = 0
@@ -674,6 +673,35 @@ class ButtonController:
         except Exception as e:
             logger.error(f"Error exiting menu: {e}")
             return False
+    
+    def _start_menu_timeout(self):
+        """Start or restart the menu timeout timer"""
+        import threading
+        import time
+        
+        # Cancel existing timeout thread if running
+        if self._menu_timeout_thread and self._menu_timeout_thread.is_alive():
+            self._menu_timeout_thread = None  # Let it finish naturally
+        
+        # Update last activity time
+        self._menu_last_activity_time = time.time()
+        
+        # Start new timeout thread
+        def timeout_worker():
+            time.sleep(self._menu_timeout_seconds)
+            # Check if menu is still active and no new activity occurred
+            if (hasattr(self, '_menu_visible') and self._menu_visible and 
+                time.time() - self._menu_last_activity_time >= self._menu_timeout_seconds):
+                logger.info("Menu auto-hiding after timeout")
+                self._exit_menu()
+        
+        self._menu_timeout_thread = threading.Thread(target=timeout_worker, daemon=True)
+        self._menu_timeout_thread.start()
+    
+    def _reset_menu_timeout(self):
+        """Reset the menu timeout (called on menu activity)"""
+        if hasattr(self, '_menu_visible') and self._menu_visible:
+            self._start_menu_timeout()
 
 
 # Example usage and testing

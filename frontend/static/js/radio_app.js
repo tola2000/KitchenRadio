@@ -420,8 +420,8 @@ async function sendCommand(action) {
             'stop': 'transport_stop',
             'next': 'transport_next',
             'previous': 'transport_previous',
-            'next_playlist': 'next_playlist',
-            'previous_playlist': 'previous_playlist'
+            'menu_down': 'menu_down',
+            'menu_up': 'menu_up'
         };
         
         const buttonName = buttonMap[action];

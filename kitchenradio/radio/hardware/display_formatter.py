@@ -566,39 +566,39 @@ class DisplayFormatter:
                 artist_album_truncated = self._truncate_text(artist_album_text, content_width, self.fonts['small'])
                 draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
             
-            # Progress bar at the bottom - only if showProgress is True
-            if showProgress:
-                progress_bar_height = 4
-                # Align progress bar bottom with volume bar bottom, but one pixel lower
-                volume_bar_bottom = bar_y + bar_height - 1
-                progress_bar_y = volume_bar_bottom - progress_bar_height + 1  # One pixel lower
-                progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with gap
-                progress_bar_width = self.width - progress_bar_x - 25  # Leave space for icon
+            # # Progress bar at the bottom - only if showProgress is True
+            # if showProgress:
+            #     progress_bar_height = 4
+            #     # Align progress bar bottom with volume bar bottom, but one pixel lower
+            #     volume_bar_bottom = bar_y + bar_height - 1
+            #     progress_bar_y = volume_bar_bottom - progress_bar_height + 1  # One pixel lower
+            #     progress_bar_x = bar_x + bar_width + 5  # Start after volume bar with gap
+            #     progress_bar_width = self.width - progress_bar_x - 25  # Leave space for icon
                 
-                # Debug logging
-                logger.debug(f"Progress bar: showProgress={showProgress}, progress_ms={progress_ms}, duration_ms={duration_ms}")
-                logger.debug(f"Progress bar position: x={progress_bar_x}, y={progress_bar_y}, width={progress_bar_width}, height={progress_bar_height}")
+            #     # Debug logging
+            #     logger.debug(f"Progress bar: showProgress={showProgress}, progress_ms={progress_ms}, duration_ms={duration_ms}")
+            #     logger.debug(f"Progress bar position: x={progress_bar_x}, y={progress_bar_y}, width={progress_bar_width}, height={progress_bar_height}")
                 
-                # Draw progress bar background
-                draw.rectangle([
-                    (progress_bar_x, progress_bar_y), 
-                    (progress_bar_x + progress_bar_width, progress_bar_y + progress_bar_height)
-                ], outline=255)
+            #     # Draw progress bar background
+            #     draw.rectangle([
+            #         (progress_bar_x, progress_bar_y), 
+            #         (progress_bar_x + progress_bar_width, progress_bar_y + progress_bar_height)
+            #     ], outline=255)
                 
-                # Draw progress bar fill
-                if duration_ms > 0 and progress_ms >= 0:
-                    progress_ratio = min(progress_ms / duration_ms, 1.0)
-                    fill_width = int(progress_ratio * (progress_bar_width - 2))
-                    logger.debug(f"Progress fill: ratio={progress_ratio:.2f}, fill_width={fill_width}")
-                    if fill_width > 0:
-                        draw.rectangle([
-                            (progress_bar_x + 1, progress_bar_y + 1),
-                            (progress_bar_x + 1 + fill_width, progress_bar_y + progress_bar_height - 1)
-                        ], fill=255)
-                else:
-                    logger.debug(f"No progress fill: duration_ms={duration_ms}, progress_ms={progress_ms}")
-            else:
-                logger.debug(f"Progress bar disabled: showProgress={showProgress}")
+            #     # Draw progress bar fill
+            #     if duration_ms > 0 and progress_ms >= 0:
+            #         progress_ratio = min(progress_ms / duration_ms, 1.0)
+            #         fill_width = int(progress_ratio * (progress_bar_width - 2))
+            #         logger.debug(f"Progress fill: ratio={progress_ratio:.2f}, fill_width={fill_width}")
+            #         if fill_width > 0:
+            #             draw.rectangle([
+            #                 (progress_bar_x + 1, progress_bar_y + 1),
+            #                 (progress_bar_x + 1 + fill_width, progress_bar_y + progress_bar_height - 1)
+            #             ], fill=255)
+            #     else:
+            #         logger.debug(f"No progress fill: duration_ms={duration_ms}, progress_ms={progress_ms}")
+            # else:
+            #     logger.debug(f"Progress bar disabled: showProgress={showProgress}")
             
             # Playing icon in bottom right corner
             icon_size = 12
@@ -625,104 +625,144 @@ class DisplayFormatter:
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Menu title at top
-            title_truncated = self._truncate_text(title, self.width - 20, self.fonts['medium'])
-            draw.text((10, 5), title_truncated, font=self.fonts['medium'], fill=255)
-            
-            # Draw separator line under title
-            draw.line([(5, 22), (self.width - 5, 22)], fill=255, width=1)
-            
-            # Menu area dimensions
-            menu_start_y = 26
-            menu_height = self.height - menu_start_y - 5
-            line_height = 12
+            # Menu area dimensions (use full display height)
+            menu_start_y = 0  # Start at top of display
+            menu_end_y = self.height  # End at bottom of display
+            menu_height = menu_end_y - menu_start_y
+            line_height = 20  # Further increased line height for more spacing between items
             max_visible_items = menu_height // line_height
+            
+            # Reserve space for scroll bar on the right
+            scroll_bar_width = 12
+            scroll_bar_margin = 8
+            content_right_edge = self.width - scroll_bar_width - scroll_bar_margin - 10  # Extra margin
             
             if not menu_items:
                 # No items to display
-                draw.text((10, menu_start_y + 10), "No items", font=self.fonts['small'], fill=128)
+                draw.text((15, menu_start_y + 10), "No items", font=self.fonts['small'], fill=128)
                 return
             
-            # Calculate which items to show (center the selection)
+            # Calculate menu layout with fixed center selection
             total_items = len(menu_items)
             half_visible = max_visible_items // 2
             
-            # Calculate start and end indices for visible items
+            # Fixed selection bar position (center of menu area)
+            center_y = menu_start_y + (menu_height // 2) - (line_height // 2)
+            
+            # Draw fixed selection background in center (don't extend over scroll bar area)
+            draw.rectangle([
+                (12, center_y - 2), 
+                (content_right_edge, center_y + line_height + 1)
+            ], fill=255)
+            
+            
+            # Calculate which items to show around the selection
             if total_items <= max_visible_items:
-                # All items fit on screen
+                # All items fit on screen - center them around selection
                 start_idx = 0
-                end_idx = total_items
-                display_selected_idx = selected_index
-            else:
-                # Need scrolling - center the selected item
-                start_idx = max(0, selected_index - half_visible)
-                end_idx = min(total_items, start_idx + max_visible_items)
+                items_above_center = selected_index
+                items_below_center = total_items - selected_index - 1
                 
-                # Adjust if we're near the end
-                if end_idx == total_items:
+                # Calculate offset to center the entire list
+                total_list_height = total_items * line_height
+                available_above = center_y - menu_start_y
+                available_below = menu_end_y - (center_y + line_height)
+                
+                # Offset to center the list when all items fit
+                if total_list_height <= menu_height:
+                    base_y_offset = (menu_height - total_list_height) // 2
+                else:
+                    base_y_offset = 0
+                    
+                # Draw all items with selected item at center
+                for i, item in enumerate(menu_items):
+                    offset_from_selected = i - selected_index
+                    y_pos = center_y + (offset_from_selected * line_height) + base_y_offset
+                    
+                    # Only draw if within display bounds
+                    if menu_start_y <= y_pos <= menu_end_y - line_height:
+                        max_item_width = content_right_edge - 40  # Account for arrow and margins
+                        item_truncated = self._truncate_text(item, max_item_width, self.fonts['small'])
+                        
+                        if i == selected_index:
+                            # Selected item (drawn on white background) - 5 pixels higher
+                            draw.text((35, y_pos + 3), item_truncated, font=self.fonts['small'], fill=0)
+                        else:
+                            # Regular item - 5 pixels higher
+                            draw.text((35, y_pos + 3), item_truncated, font=self.fonts['small'], fill=255)
+            else:
+                # Need scrolling - show items around selected with selection fixed at center
+                visible_above = half_visible
+                visible_below = max_visible_items - visible_above - 1  # -1 for the selected item itself
+                
+                # Calculate which items to show
+                start_idx = max(0, selected_index - visible_above)
+                end_idx = min(total_items, selected_index + visible_below + 1)
+                
+                # Adjust if we're near the boundaries
+                if start_idx == 0:
+                    end_idx = min(total_items, max_visible_items)
+                elif end_idx == total_items:
                     start_idx = max(0, total_items - max_visible_items)
                 
-                display_selected_idx = selected_index - start_idx
+                # Draw visible items with selected item always at center
+                for i, item_idx in enumerate(range(start_idx, end_idx)):
+                    item = menu_items[item_idx]
+                    offset_from_selected = item_idx - selected_index
+                    y_pos = center_y + (offset_from_selected * line_height)
+                    
+                    # Only draw if within display bounds
+                    if menu_start_y <= y_pos <= menu_end_y - line_height:
+                        max_item_width = content_right_edge - 20  # Account for arrow and margins
+                        item_truncated = self._truncate_text(item, max_item_width, self.fonts['small'])
+                        
+                        if item_idx == selected_index:
+                            # Selected item (drawn on white background) - 5 pixels higher
+                            draw.text((15, y_pos + 3), item_truncated, font=self.fonts['small'], fill=0)
+                        else:
+                            # Regular item - 5 pixels higher
+                            draw.text((15, y_pos + 3), item_truncated, font=self.fonts['small'], fill=255)
             
-            # Draw visible menu items
-            for i, item_idx in enumerate(range(start_idx, end_idx)):
-                item = menu_items[item_idx]
-                y_pos = menu_start_y + (i * line_height)
+            # Draw scroll position indicator bar (volume bar style)
+            if total_items > 1:
+                # Position bar on the right side (using defined dimensions)
+                bar_width = scroll_bar_width
+                bar_height = menu_height - 8  # Small margin for outline thickness
+                bar_x = self.width - bar_width - scroll_bar_margin
+                bar_y = menu_start_y + 4  # Small top margin
                 
-                # Truncate item text to fit screen
-                max_item_width = self.width - 40  # Leave space for selection indicator
-                item_truncated = self._truncate_text(item, max_item_width, self.fonts['small'])
+                # Draw scroll bar background (outline)
+                draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=2)
                 
-                if i == display_selected_idx:
-                    # This is the selected item - highlight it
-                    # Draw selection background
-                    selection_bg_y = y_pos - 1
+                # Calculate position for current item only (no cumulative fill)
+                item_height = (bar_height - 4) / total_items if total_items > 0 else 0
+                current_item_y = bar_y + 2 + int(selected_index * item_height)
+                
+                # Draw filled area only for the current selected item
+                if item_height > 0:
                     draw.rectangle([
-                        (8, selection_bg_y), 
-                        (self.width - 8, selection_bg_y + line_height - 1)
+                        (bar_x + 2, current_item_y), 
+                        (bar_x + bar_width - 2, current_item_y + int(item_height))
                     ], fill=255)
-                    
-                    # Draw selection arrow
-                    draw.text((12, y_pos), "►", font=self.fonts['small'], fill=0)
-                    
-                    # Draw item text in black (on white background)
-                    draw.text((25, y_pos), item_truncated, font=self.fonts['small'], fill=0)
-                else:
-                    # Regular item
-                    draw.text((25, y_pos), item_truncated, font=self.fonts['small'], fill=255)
+                
+                # Optional: Add small tick marks to show discrete positions
+                if total_items <= 8:  # Reduced threshold for cleaner look
+                    tick_spacing = (bar_height - 4) / (total_items - 1) if total_items > 1 else 0
+                    for i in range(total_items):
+                        tick_y = bar_y + 2 + int(i * tick_spacing)
+                        tick_x = bar_x + bar_width + 2
+                        if i == selected_index:
+                            # Highlight current position tick
+                            draw.rectangle([(tick_x, tick_y - 0), (tick_x + 4, tick_y + 1)], fill=255)
+                        else:
+                            # Regular position tick
+                            draw.rectangle([(tick_x, tick_y), (tick_x + 2, tick_y)], fill=128)
             
-            # Draw scroll indicators if needed
-            if total_items > max_visible_items:
-                indicator_x = self.width - 15
-                
-                # Up arrow if there are items above
-                if start_idx > 0:
-                    draw.text((indicator_x, menu_start_y), "▲", font=self.fonts['small'], fill=255)
-                
-                # Down arrow if there are items below
-                if end_idx < total_items:
-                    bottom_y = menu_start_y + (max_visible_items - 1) * line_height
-                    draw.text((indicator_x, bottom_y), "▼", font=self.fonts['small'], fill=255)
-                
-                # Draw scroll position indicator
-                if total_items > 0:
-                    scroll_height = menu_height - 20
-                    scroll_y = menu_start_y + 10
-                    scroll_pos = int((selected_index / (total_items - 1)) * scroll_height)
-                    
-                    # Draw scroll track
-                    draw.line([(indicator_x + 8, scroll_y), (indicator_x + 8, scroll_y + scroll_height)], fill=128, width=1)
-                    
-                    # Draw scroll thumb
-                    thumb_y = scroll_y + scroll_pos
-                    draw.rectangle([
-                        (indicator_x + 6, thumb_y - 2),
-                        (indicator_x + 10, thumb_y + 2)
-                    ], fill=255)
-            
-            # Show item count at bottom right
-            count_text = f"{selected_index + 1}/{total_items}"
-            count_width = len(count_text) * 6  # Approximate width
-            draw.text((self.width - count_width - 5, self.height - 12), count_text, font=self.fonts['small'], fill=128)
+            # # Show item count at bottom right (overlay on display)
+            # count_text = f"{selected_index + 1}/{total_items}"
+            # count_width = len(count_text) * 5  # Approximate width
+            # count_x = self.width - count_width - 5
+            # count_y = self.height - 12  # Position at bottom edge
+            # draw.text((count_x, count_y), count_text, font=self.fonts['small'], fill=128)
         
         return draw_menu
