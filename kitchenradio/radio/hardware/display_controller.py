@@ -232,6 +232,8 @@ class DisplayController:
                 if current_volume != self.last_volume:
                     self._show_volume_screen(current_volume)
 
+
+
                 # Check if status has changed or force refresh
                 if current_status != self.last_status or  force_refresh:
                     self.last_status = current_status
@@ -631,6 +633,7 @@ class DisplayController:
             logger.debug(f"Extended overlay timeout by {extension} seconds")
 
     def show_volume_overlay(self, volume: int, timeout: float = None):
+        volume = volume or self._get_current_volume(self.last_status)
         """Show volume overlay using the generic overlay system"""
         volume_data = {
             'volume': volume,
@@ -638,7 +641,7 @@ class DisplayController:
             'title': 'VOLUME',
             'show_percentage': True
         }
-        self.show_overlay('fullscreen_volume', volume_data, timeout)
+        self.show_overlay('volume', volume_data, timeout)
 
     def show_menu_overlay(self, title: str, options: List[str], selected_index: int = 0, timeout: float = None):
         """Show menu overlay using the generic overlay system"""
