@@ -1111,23 +1111,19 @@ class KitchenRadio:
             }
         
         try:
-            if action == 'load_playlist' and option_id:
-                result = self.mpd_controller.play_playlist(option_id)
-                if result:
-                    return {
-                        'success': True,
-                        'message': f'Loaded and started playlist: {option_id}'
-                    }
-                else:
-                    return {
-                        'success': False,
-                        'error': f'Failed to load playlist: {option_id}'
-                    }
+
+            result = self.mpd_controller.play_playlist(option_id)
+            if result:
+                return {
+                    'success': True,
+                    'message': f'Loaded and started playlist: {option_id}'
+                }
             else:
                 return {
                     'success': False,
-                    'error': f'Unknown MPD action: {action}'
+                    'error': f'Failed to load playlist: {option_id}'
                 }
+
                 
         except Exception as e:
             self.logger.error(f"Error executing MPD menu action: {e}")

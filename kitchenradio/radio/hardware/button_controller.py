@@ -511,49 +511,14 @@ class ButtonController:
         logger.info(f"Handling menu selection: '{selected_item}'")
         
         try:
-            # Handle different types of menu items
-            if selected_item == "MPD Music":
-                # Switch to MPD source
-                return self.kitchen_radio.switch_source('mpd')
-            
-            elif selected_item == "Spotify":
-                # Switch to Spotify source
-                return self.kitchen_radio.switch_source('librespot')
-            
-            elif selected_item in ["Rock Playlist", "Jazz Collection", "Chill Music", "Favorites"]:
-                # Load an MPD playlist
-                logger.info(f"Loading MPD playlist: {selected_item}")
-                # In a real implementation, this would load the specific playlist
-                return self.kitchen_radio.switch_source('mpd')
-            
-            elif selected_item in ["Discover Weekly", "Liked Songs", "Recent Tracks", "Top Hits"]:
-                # Load a Spotify playlist
-                logger.info(f"Loading Spotify playlist: {selected_item}")
-                # In a real implementation, this would load the specific playlist
-                return self.kitchen_radio.switch_source('librespot')
-            
-            elif selected_item == "Radio Stations":
-                logger.info("Radio stations not implemented yet")
-                if self.display_controller:
-                    self.display_controller.show_status_message("Radio stations coming soon", "📻", "info")
-                return True
-            
-            elif selected_item == "Settings":
-                logger.info("Settings menu not implemented yet")
-                if self.display_controller:
-                    self.display_controller.show_status_message("Settings menu coming soon", "⚙", "info")
-                return True
-            
-            elif selected_item == "Exit Menu":
-                # Just exit the menu
-                return True
-            
-            else:
-                logger.warning(f"Unknown menu item: '{selected_item}'")
-                return False
+            result = self.kitchen_radio.execute_menu_action('select menu', selected_item)
+            logger.info(f"MPD playlist execution result: {result}")
+            return result.get('success', False)
                 
         except Exception as e:
             logger.error(f"Error handling menu selection '{selected_item}': {e}")
+            if self.display_controller:
+                self.display_controller.show_status_message(f"Error: {selected_item}", "❌", "error")
             return False
 
     def _get_menu_items(self) -> list:
@@ -618,13 +583,20 @@ class ButtonController:
             if (hasattr(self, '_menu_visible') and self._menu_visible and 
                 hasattr(self, '_current_menu_index')):
                 
+                logger.info(f"Menu is visible: {self._menu_visible}, current index: {getattr(self, '_current_menu_index', 'None')}")
+                
                 menu_items = self._get_menu_items()
+                logger.info(f"Menu items: {menu_items}")
+                
                 if menu_items and 0 <= self._current_menu_index < len(menu_items):
                     selected_item = menu_items[self._current_menu_index]
-                    logger.info(f"Auto-executing selected menu item: '{selected_item}'")
+                    logger.info(f"Auto-executing selected menu item: '{selected_item}' at index {self._current_menu_index}")
                     
                     # Handle the menu selection
-                    self._handle_menu_selection(selected_item)
+                    result = self._handle_menu_selection(selected_item)
+                    logger.info(f"Menu selection result: {result}")
+                else:
+                    logger.warning(f"Invalid menu state: items={len(menu_items) if menu_items else 0}, index={getattr(self, '_current_menu_index', 'None')}")
             
             # Clear menu state
             if hasattr(self, '_menu_visible'):
@@ -688,12 +660,21 @@ class ButtonController:
         
         # Start new timeout thread
         def timeout_worker():
+            logger.info(f"Menu timeout worker started, will wait {self._menu_timeout_seconds} seconds")
             time.sleep(self._menu_timeout_seconds)
+            
+            current_time = time.time()
+            time_since_activity = current_time - self._menu_last_activity_time
+            
+            logger.info(f"Menu timeout check: visible={getattr(self, '_menu_visible', False)}, time_since_activity={time_since_activity:.2f}s")
+            
             # Check if menu is still active and no new activity occurred
             if (hasattr(self, '_menu_visible') and self._menu_visible and 
-                time.time() - self._menu_last_activity_time >= self._menu_timeout_seconds):
-                logger.info("Menu auto-hiding after timeout")
+                time_since_activity >= self._menu_timeout_seconds):
+                logger.info("Menu auto-hiding after timeout - calling _exit_menu()")
                 self._exit_menu()
+            else:
+                logger.info("Menu timeout cancelled - activity detected or menu no longer visible")
         
         self._menu_timeout_thread = threading.Thread(target=timeout_worker, daemon=True)
         self._menu_timeout_thread.start()
