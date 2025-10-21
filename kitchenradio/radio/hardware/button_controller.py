@@ -348,18 +348,21 @@ class ButtonController:
         
 
     def _on_menu_item_selected(self, index: int) -> None:
-        """Handle selection of a menu item"""
-        logger.info(f"Handling menu selection: '{index}'")
-        
+        """Handle selection of a menu item by index"""
         try:
+            menu_items = self._get_menu_items()
+            if 0 <= index < len(menu_items):
+                selected_item = menu_items[index]
+            else:
+                selected_item = None
+            logger.info(f"Handling menu selection: index={index}, item='{selected_item}'")
             result = self.kitchen_radio.execute_menu_action('select menu', selected_item)
             logger.info(f"MPD playlist execution result: {result}")
             return result.get('success', False)
-                
         except Exception as e:
-            logger.error(f"Error handling menu selection '{selected_item}': {e}")
+            logger.error(f"Error handling menu selection at index {index}: {e}")
             if self.display_controller:
-                self.display_controller.show_status_message(f"Error: {selected_item}", "❌", "error")
+                self.display_controller.show_status_message(f"Error: {e}", "❌", "error")
             return False
     
     def _power(self) -> bool:
