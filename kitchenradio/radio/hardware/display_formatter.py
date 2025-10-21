@@ -118,195 +118,291 @@ class DisplayFormatter:
         
         return fonts
     
-    def _truncate_text(self, text: str, max_width: int, font: ImageFont.ImageFont) -> str:
-        """Truncate text to fit within max_width pixels"""
-        if not text:
-            return ""
-        
-        # Check if text fits as-is
-        bbox = font.getbbox(text)
-        if bbox[2] - bbox[0] <= max_width:
-            return text
-        
-        # Truncate with ellipsis
-        for i in range(len(text), 0, -1):
-            truncated = text[:i] + "..."
-            bbox = font.getbbox(truncated)
-            if bbox[2] - bbox[0] <= max_width:
-                return truncated
-        return "..."
-    
-    def _truncate_text_with_info(self, text: str, max_width: int, font: ImageFont.ImageFont) -> tuple:
+    def _format_text(self, text: str, max_width: int, font: ImageFont.ImageFont, 
+                     scroll_offset: int = 0, font_size: str = 'small', return_info: bool = False):
         """
-        Truncate text to fit within max_width pixels and return truncation info.
-        
-        Returns:
-            Tuple of (truncated_text, was_truncated)
-        """
-        if not text:
-            return "", False
-        
-        # Check if text fits as-is
-        bbox = font.getbbox(text)
-        if bbox[2] - bbox[0] <= max_width:
-            return text, False
-        
-        # Truncate with ellipsis
-        for i in range(len(text), 0, -1):
-            truncated = text[:i] + "..."
-            bbox = font.getbbox(truncated)
-            if bbox[2] - bbox[0] <= max_width:
-                return truncated, True
-        return "...", True
-    
-    def _get_scrolling_text(self, text: str, max_width: int, font: ImageFont.ImageFont, scroll_offset: int = 0) -> str:
-        """
-        Get scrolling text when it doesn't fit in max_width.
+        Unified text formatting function that handles both truncation and scrolling.
         
         Args:
-            text: Original text
+            text: Original text to format
             max_width: Maximum width in pixels
-            font: Font to use
-            scroll_offset: Current scroll position in pixels
+            font: Font to use for measurement
+            scroll_offset: Scroll position in pixels (0 = no scrolling, use truncation)
+            font_size: Font size identifier for truncation info
+            return_info: If True, return truncation info structure
             
         Returns:
-            Visible portion of scrolling text
+            If return_info=False: Formatted text string
+            If return_info=True: Dict with truncation info structure:
+                {
+                    'displayed': str,
+                    'truncated': bool,
+                    'original_width': int,
+                    'max_width': int,
+                    'scroll_offset': int,
+                    'font_size': str
+                }
         """
         if not text:
+            if return_info:
+                return {
+                    'displayed': "",
+                    'truncated': False,
+                    'original_width': 0,
+                    'max_width': max_width,
+                    'scroll_offset': scroll_offset,
+                    'font_size': font_size
+                }
             return ""
         
         # Get full text width
         bbox = font.getbbox(text)
         full_width = bbox[2] - bbox[0]
         
-        # If text fits, no scrolling needed
+        # If text fits within max_width, return as-is
         if full_width <= max_width:
+            if return_info:
+                return {
+                    'displayed': text,
+                    'truncated': False,
+                    'original_width': full_width,
+                    'max_width': max_width,
+                    'scroll_offset': scroll_offset,
+                    'font_size': font_size
+                }
             return text
         
-        # Add padding for smooth scrolling loop
-        padding = "    "  # 4 spaces padding
-        scrolling_text = text + padding + text
+        # Handle scrolling mode (scroll_offset > 0)
+        if scroll_offset > 0:
+            # Add padding for smooth scrolling loop
+            padding = "    "  # 4 spaces padding
+            scrolling_text = text + padding + text
+            
+            # Calculate scroll position with wraparound
+            scroll_pos = scroll_offset % (full_width + len(padding) * 8)  # Approximate space width
+            
+            # Find the starting character position
+            current_width = 0
+            start_char = 0
+            
+            for i, char in enumerate(scrolling_text):
+                char_bbox = font.getbbox(char)
+                char_width = char_bbox[2] - char_bbox[0]
+                if current_width >= scroll_pos:
+                    start_char = i
+                    break
+                current_width += char_width
+            
+            # Get visible portion that fits in max_width
+            visible_text = ""
+            current_width = 0
+            
+            for char in scrolling_text[start_char:]:
+                test_text = visible_text + char
+                test_bbox = font.getbbox(test_text)
+                test_width = test_bbox[2] - test_bbox[0]
+                if test_width > max_width:
+                    break
+                visible_text = test_text
+            
+            if return_info:
+                return {
+                    'displayed': visible_text,
+                    'truncated': True,  # Scrolling implies text was too long
+                    'original_width': full_width,
+                    'max_width': max_width,
+                    'scroll_offset': scroll_offset,
+                    'font_size': font_size
+                }
+            return visible_text
         
-        # Calculate how many pixels to scroll
-        scroll_pos = scroll_offset % (full_width + len(padding) * 8)  # Approximate space width
-        
-        # Find the starting character position
-        current_width = 0
-        start_char = 0
-        
-        for i, char in enumerate(scrolling_text):
-            char_bbox = font.getbbox(char)
-            char_width = char_bbox[2] - char_bbox[0]
-            if current_width >= scroll_pos:
-                start_char = i
-                break
-            current_width += char_width
-        
-        # Get visible portion that fits in max_width
-        visible_text = ""
-        current_width = 0
-        
-        for char in scrolling_text[start_char:]:
-            test_text = visible_text + char
-            test_bbox = font.getbbox(test_text)
-            test_width = test_bbox[2] - test_bbox[0]
-            if test_width > max_width:
-                break
-            visible_text = test_text
-        
-        return visible_text
+        # Handle truncation mode (scroll_offset = 0)
+        else:
+            # Truncate with ellipsis
+            for i in range(len(text), 0, -1):
+                truncated = text[:i] + "..."
+                bbox = font.getbbox(truncated)
+                if bbox[2] - bbox[0] <= max_width:
+                    if return_info:
+                        return {
+                            'displayed': truncated,
+                            'truncated': True,
+                            'original_width': full_width,
+                            'max_width': max_width,
+                            'scroll_offset': scroll_offset,
+                            'font_size': font_size
+                        }
+                    return truncated
+            
+            # Fallback if even "..." doesn't fit
+            if return_info:
+                return {
+                    'displayed': "...",
+                    'truncated': True,
+                    'original_width': full_width,
+                    'max_width': max_width,
+                    'scroll_offset': scroll_offset,
+                    'font_size': font_size
+                }
+            return "..."
     
-    def format_simple_text(self, main_text: str, sub_text: str = "") -> Callable:
+    def format_simple_text(self, text_data: Dict[str, Any]) -> Callable:
         """
-        Format simple text display.
+        Format simple text display using JSON structure input.
         
         Args:
-            main_text: Main text to display
-            sub_text: Optional subtitle text
+            text_data: Dictionary containing:
+                {
+                    "main_text": str,
+                    "sub_text": str (optional),
+                    "scroll_offsets": {
+                        "main_text": int,
+                        "sub_text": int
+                    } (optional)
+                }
             
         Returns:
             Drawing function that can be used with display interface
         """
+        # Extract data from JSON structure
+        main_text = text_data.get('main_text', '')
+        sub_text = text_data.get('sub_text', '')
+        scroll_offsets = text_data.get('scroll_offsets', {})
+        
+        font_main = self.fonts['medium']
+        font_sub = self.fonts['small']
+        max_width = self.width - 20
+        
+        # Process all text at start of method
+        main_offset = scroll_offsets.get('main_text', 0)
+        main_displayed = self._format_text(main_text, max_width, font_main, main_offset, 'medium')
+        
+        sub_displayed = None
+        if sub_text:
+            sub_offset = scroll_offsets.get('sub_text', 0)
+            sub_displayed = self._format_text(sub_text, max_width, font_sub, sub_offset, 'small')
+        
         def draw_simple_text(draw):
-            font_main = self.fonts['medium']
-            font_sub = self.fonts['small']
+            # Draw pre-processed text
+            draw.text((10, 15), main_displayed, font=font_main, fill=255)
             
-            # Main text
-            main_truncated = self._truncate_text(main_text, self.width - 20, font_main)
-            draw.text((10, 15), main_truncated, font=font_main, fill=255)
-            
-            # Sub text if provided
-            if sub_text:
-                sub_truncated = self._truncate_text(sub_text, self.width - 20, font_sub)
-                draw.text((10, 35), sub_truncated, font=font_sub, fill=255)
+            if sub_displayed:
+                draw.text((10, 35), sub_displayed, font=font_sub, fill=255)
         
         return draw_simple_text
     
     def format_status(self, status_data: Dict[str, Any]) -> Callable:
         """
-        Format status display with current source and playback info.
+        Format status display with current source and playback info using JSON structure input.
         
         Args:
-            status_data: Dictionary containing status information
+            status_data: Dictionary containing:
+                {
+                    "current_source": str,
+                    "mpd": dict (optional),
+                    "librespot": dict (optional),
+                    "scroll_offsets": {
+                        "mpd_title": int,
+                        "mpd_artist": int,
+                        "spotify_track": int,
+                        "spotify_artist": int
+                    } (optional)
+                }
             
         Returns:
             Drawing function that can be used with display interface
         """
+        # Extract data from JSON structure
+        current_source = status_data.get('current_source', 'None')
+        offsets = status_data.get('scroll_offsets', {})
+        font_small = self.fonts['small']
+        font_medium = self.fonts['medium']
+        max_width = self.width - 10
+        
+        # Pre-process all text elements
+        source_text = f"Source: {current_source.upper()}"
+        
+        # Initialize processed text variables
+        mpd_title_displayed = None
+        mpd_artist_displayed = None
+        spotify_track_displayed = None
+        spotify_artist_displayed = None
+        mpd_connected = False
+        spotify_connected = False
+        mpd_state_volume = None
+        spotify_state_volume = None
+        
+        # Process MPD text if available
+        if current_source == 'mpd' and 'mpd' in status_data:
+            mpd_info = status_data['mpd']
+            mpd_connected = mpd_info.get('connected', False)
+            if mpd_connected:
+                state = mpd_info.get('state', 'unknown')
+                volume = mpd_info.get('volume', 'unknown')
+                mpd_state_volume = f"State: {state} | Vol: {volume}%"
+                
+                current_song = mpd_info.get('current_song')
+                if current_song and current_song.get('title'):
+                    title_text = current_song.get('title', '')
+                    artist_text = current_song.get('artist', '')
+                    
+                    title_offset = offsets.get('mpd_title', 0)
+                    mpd_title_displayed = self._format_text(title_text, max_width, font_small, title_offset, 'small')
+                    
+                    artist_offset = offsets.get('mpd_artist', 0)
+                    mpd_artist_displayed = self._format_text(artist_text, max_width, font_small, artist_offset, 'small')
+        
+        # Process Spotify text if available
+        elif current_source == 'librespot' and 'librespot' in status_data:
+            spotify_info = status_data['librespot']
+            spotify_connected = spotify_info.get('connected', False)
+            if spotify_connected:
+                state = spotify_info.get('state', 'unknown')
+                volume = spotify_info.get('volume', 'unknown')
+                spotify_state_volume = f"State: {state} | Vol: {volume}%"
+                
+                current_track = spotify_info.get('current_track')
+                if current_track and current_track.get('name'):
+                    track_text = current_track.get('name', '')
+                    artist_text = current_track.get('artist', '')
+                    
+                    track_offset = offsets.get('spotify_track', 0)
+                    spotify_track_displayed = self._format_text(track_text, max_width, font_small, track_offset, 'small')
+                    
+                    artist_offset = offsets.get('spotify_artist', 0)
+                    spotify_artist_displayed = self._format_text(artist_text, max_width, font_small, artist_offset, 'small')
+        
         def draw_status(draw):
             y_pos = 5
-            font_small = self.fonts['small']
-            font_medium = self.fonts['medium']
             
-            # Current source header
-            current_source = status_data.get('current_source', 'None')
-            source_text = f"Source: {current_source.upper()}"
+            # Draw source header
             draw.text((5, y_pos), source_text, font=font_medium, fill=255)
             y_pos += 20
             
-            # Source-specific information
-            if current_source == 'mpd' and 'mpd' in status_data:
-                mpd_info = status_data['mpd']
-                if mpd_info.get('connected'):
-                    state = mpd_info.get('state', 'unknown')
-                    volume = mpd_info.get('volume', 'unknown')
-                    
-                    # State and volume
-                    draw.text((5, y_pos), f"State: {state} | Vol: {volume}%", font=font_small, fill=255)
+            # Draw source-specific information using pre-processed text
+            if current_source == 'mpd':
+                if mpd_connected:
+                    draw.text((5, y_pos), mpd_state_volume, font=font_small, fill=255)
                     y_pos += 12
                     
-                    # Current song if available
-                    current_song = mpd_info.get('current_song')
-                    if current_song and current_song.get('title'):
-                        title = self._truncate_text(current_song.get('title', ''), self.width - 10, font_small)
-                        artist = self._truncate_text(current_song.get('artist', ''), self.width - 10, font_small)
-                        
-                        draw.text((5, y_pos), title, font=font_small, fill=255)
+                    if mpd_title_displayed:
+                        draw.text((5, y_pos), mpd_title_displayed, font=font_small, fill=255)
                         y_pos += 12
-                        if artist:
-                            draw.text((5, y_pos), f"by {artist}", font=font_small, fill=200)
+                        if mpd_artist_displayed:
+                            draw.text((5, y_pos), f"by {mpd_artist_displayed}", font=font_small, fill=200)
                 else:
                     draw.text((5, y_pos), "MPD: Not connected", font=font_small, fill=128)
             
-            elif current_source == 'librespot' and 'librespot' in status_data:
-                spotify_info = status_data['librespot']
-                if spotify_info.get('connected'):
-                    state = spotify_info.get('state', 'unknown')
-                    volume = spotify_info.get('volume', 'unknown')
-                    
-                    # State and volume
-                    draw.text((5, y_pos), f"State: {state} | Vol: {volume}%", font=font_small, fill=255)
+            elif current_source == 'librespot':
+                if spotify_connected:
+                    draw.text((5, y_pos), spotify_state_volume, font=font_small, fill=255)
                     y_pos += 12
                     
-                    # Current track if available
-                    current_track = spotify_info.get('current_track')
-                    if current_track and current_track.get('name'):
-                        track = self._truncate_text(current_track.get('name', ''), self.width - 10, font_small)
-                        artist = self._truncate_text(current_track.get('artist', ''), self.width - 10, font_small)
-                        
-                        draw.text((5, y_pos), track, font=font_small, fill=255)
+                    if spotify_track_displayed:
+                        draw.text((5, y_pos), spotify_track_displayed, font=font_small, fill=255)
                         y_pos += 12
-                        if artist:
-                            draw.text((5, y_pos), f"by {artist}", font=font_small, fill=200)
+                        if spotify_artist_displayed:
+                            draw.text((5, y_pos), f"by {spotify_artist_displayed}", font=font_small, fill=200)
                 else:
                     draw.text((5, y_pos), "Spotify: Not connected", font=font_small, fill=128)
             
@@ -315,18 +411,29 @@ class DisplayFormatter:
         
         return draw_status
     
-    def format_volume_display(self, volume: int, max_volume: int = 100) -> Callable:
+    def format_volume_display(self, volume_data: Dict[str, Any]) -> Callable:
         """
-        Format volume display with progress bar.
+        Format volume display with progress bar using JSON structure input.
         
         Args:
-            volume: Current volume level
-            max_volume: Maximum volume level
+            volume_data: Dictionary containing:
+                {
+                    "volume": int,
+                    "max_volume": int (optional, default 100),
+                    "title": str (optional, default "VOLUME"),
+                    "show_percentage": bool (optional, default False)
+                }
             
         Returns:
             Drawing function that can be used with display interface
         """
         def draw_volume(draw):
+            # Extract data from JSON structure
+            volume = volume_data.get('volume', 0)
+            max_volume = volume_data.get('max_volume', 100)
+            title = volume_data.get('title', 'VOLUME')
+            show_percentage = volume_data.get('show_percentage', False)
+            
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
@@ -348,9 +455,13 @@ class DisplayFormatter:
             # Content area starts after the volume bar
             content_x = bar_x + bar_width + 15
             
-            # Large volume text
-            volume_text = f"VOLUME"
-            draw.text((content_x, 15), volume_text, font=self.fonts['large'], fill=255)
+            # Volume title text
+            draw.text((content_x, 15), title, font=self.fonts['large'], fill=255)
+            
+            # Show percentage if requested
+            if show_percentage:
+                percentage_text = f"{int((volume/max_volume)*100)}%"
+                draw.text((content_x, 35), percentage_text, font=self.fonts['medium'], fill=255)
             
             # Volume level indicators (small marks on the right)
             marks_x = self.width - 30
@@ -368,31 +479,48 @@ class DisplayFormatter:
         
         return draw_volume
     
-    def format_error_message(self, message: str, error_code: str = "") -> Callable:
+    def format_error_message(self, error_data: Dict[str, Any]) -> Callable:
         """
-        Format error message display.
+        Format error message display using JSON structure input.
         
         Args:
-            message: Error message to display
-            error_code: Optional error code
+            error_data: Dictionary containing:
+                {
+                    "message": str,
+                    "error_code": str (optional),
+                    "scroll_offsets": {
+                        "error_message": int
+                    } (optional)
+                }
             
         Returns:
             Drawing function that can be used with display interface
         """
+        # Extract and process data at start
+        message = error_data.get('message', '')
+        error_code = error_data.get('error_code', '')
+        scroll_offsets = error_data.get('scroll_offsets', {})
+        
+        font_medium = self.fonts['medium']
+        font_small = self.fonts['small']
+        max_width = self.width - 20
+        
+        # Pre-process message text
+        message_offset = scroll_offsets.get('error_message', 0)
+        message_displayed = self._format_text(message, max_width, font_small, message_offset, 'small')
+        
+        # Pre-process error code text
+        code_text = f"Code: {error_code}" if error_code else None
+        
         def draw_error(draw):
-            font_medium = self.fonts['medium']
-            font_small = self.fonts['small']
-            
             # Error header
             draw.text((10, 5), "⚠ ERROR", font=font_medium, fill=255)
             
             # Error message
-            message_truncated = self._truncate_text(message, self.width - 20, font_small)
-            draw.text((10, 25), message_truncated, font=font_small, fill=255)
+            draw.text((10, 25), message_displayed, font=font_small, fill=255)
             
             # Error code if provided
-            if error_code:
-                code_text = f"Code: {error_code}"
+            if code_text:
                 draw.text((10, 45), code_text, font=font_small, fill=200)
         
         return draw_error
@@ -418,19 +546,44 @@ class DisplayFormatter:
         
         return draw_default
     
-    def format_status_message(self, message: str, icon: str = "", 
-                             message_type: str = "info") -> Callable:
+    def format_status_message(self, message_data: Dict[str, Any]) -> tuple:
         """
-        Format status message display.
+        Format status message display using JSON structure input.
         
         Args:
-            message: Status message text
-            icon: Optional icon character
-            message_type: Type of message (info, warning, error)
+            message_data: Dictionary containing:
+                {
+                    "message": str,
+                    "icon": str (optional),
+                    "message_type": str (optional, default: "info"),
+                    "scroll_offsets": {
+                        "message": int
+                    } (optional)
+                }
             
         Returns:
-            Drawing function for status message
+            Tuple of (drawing_function, truncation_info_dict)
         """
+        # Extract and process data at start
+        message = message_data.get('message', '')
+        icon = message_data.get('icon', '')
+        message_type = message_data.get('message_type', 'info')
+        scroll_offsets = message_data.get('scroll_offsets', {})
+        
+        # Calculate layout
+        text_x = 40 if icon else 10
+        max_width = self.width - text_x - 10
+        
+        # Track truncation information
+        truncation_info = {}
+        
+        # Pre-process message text
+        message_offset = scroll_offsets.get('message', 0)
+        message_info = self._format_text(message, max_width, self.fonts['medium'], message_offset, 'medium', return_info=True)
+        message_displayed = message_info['displayed']
+        # Use fixed key for truncation info
+        truncation_info['message'] = message_info
+        
         def draw_status_message(draw: ImageDraw.Draw):
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
@@ -438,37 +591,52 @@ class DisplayFormatter:
             # Icon
             if icon:
                 draw.text((10, 15), icon, font=self.fonts['large'], fill=255)
-                text_x = 40
-            else:
-                text_x = 10
             
-            # Message text (split into lines if needed)
-            max_chars = (self.width - text_x - 10) // 8  # Rough estimate
-            if len(message) > max_chars:
-                lines = [message[i:i+max_chars] for i in range(0, len(message), max_chars)]
+            # Message text
+            if message_offset > 0:
+                # Single line with scrolling
+                draw.text((text_x, 20), message_displayed, font=self.fonts['medium'], fill=255)
             else:
-                lines = [message]
-            
-            # Draw text lines
-            y = 15
-            for line in lines[:3]:  # Max 3 lines
-                draw.text((text_x, y), line, font=self.fonts['medium'], fill=255)
-                y += 16
+                # Split into lines if needed
+                max_chars = max_width // 8  # Rough estimate
+                if len(message_displayed) > max_chars:
+                    lines = [message_displayed[i:i+max_chars] for i in range(0, len(message_displayed), max_chars)]
+                else:
+                    lines = [message_displayed]
+                
+                # Draw text lines
+                y = 15
+                for line in lines[:3]:  # Max 3 lines
+                    draw.text((text_x, y), line, font=self.fonts['medium'], fill=255)
+                    y += 16
         
-        return draw_status_message
+        return draw_status_message, truncation_info
     
-    def format_fullscreen_volume(self, volume: int, max_volume: int = 100) -> Callable:
+    def format_fullscreen_volume(self, volume_data: Dict[str, Any]) -> Callable:
         """
-        Format full screen volume display with large bar spanning entire display.
+        Format full screen volume display with large bar spanning entire display using JSON structure input.
         
         Args:
-            volume: Current volume level
-            max_volume: Maximum volume level
+            volume_data: Dictionary containing:
+                {
+                    "volume": int,
+                    "max_volume": int (optional, default 100),
+                    "title": str (optional, default "VOLUME"),
+                    "show_percentage": bool (optional, default True),
+                    "show_numeric": bool (optional, default False)
+                }
             
         Returns:
             Drawing function for full screen volume display
         """
         def draw_fullscreen_volume(draw):
+            # Extract data from JSON structure
+            volume = volume_data.get('volume', 0)
+            max_volume = volume_data.get('max_volume', 100)
+            title = volume_data.get('title', 'VOLUME')
+            show_percentage = volume_data.get('show_percentage', True)
+            show_numeric = volume_data.get('show_numeric', False)
+            
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
@@ -479,11 +647,10 @@ class DisplayFormatter:
             bar_x = bar_margin
             bar_y = 25
             
-            # Draw "VOLUME" text at top center
-            volume_text = "VOLUME"
-            text_width = len(volume_text) * 12  # Estimate width
+            # Draw title text at top center
+            text_width = len(title) * 12  # Estimate width
             text_x = (self.width - text_width) // 2
-            draw.text((text_x, 5), volume_text, font=self.fonts['large'], fill=255)
+            draw.text((text_x, 5), title, font=self.fonts['large'], fill=255)
             
             # Draw outer border of volume bar
             draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=3)
@@ -499,137 +666,193 @@ class DisplayFormatter:
                         (bar_x + 3 + fill_width, bar_y + bar_height - 3)
                     ], fill=255)
             
+            # Add percentage or numeric display if requested
+            if show_percentage or show_numeric:
+                info_y = bar_y + bar_height + 5
+                if show_percentage:
+                    percentage = int((volume / max_volume) * 100)
+                    percentage_text = f"{percentage}%"
+                    info_x = (self.width - len(percentage_text) * 8) // 2
+                    draw.text((info_x, info_y), percentage_text, font=self.fonts['medium'], fill=255)
+                elif show_numeric:
+                    numeric_text = f"{volume}/{max_volume}"
+                    info_x = (self.width - len(numeric_text) * 8) // 2
+                    draw.text((info_x, info_y), numeric_text, font=self.fonts['medium'], fill=255)
+            
 
  
         
         return draw_fullscreen_volume
     
-    def format_track_info(self, track, playing: bool = False, volume: int = 50) -> tuple:
+    def format_track_info(self, track_data: Dict[str, Any]) -> tuple:
         """
-        Format track information display with optional progress bar at bottom.
+        Format track information display using JSON structure input.
         
         Args:
-            track: Track information dictionary
-            playing: Whether track is currently playing
-            volume: Current volume level
+            track_data: Dictionary containing:
+                {
+                    "title": str,
+                    "artist": str,
+                    "album": str,
+                    "length": int (optional),
+                    "time_position": int (optional),
+                    "playing": bool (optional, default: False),
+                    "volume": int (optional, default: 50),
+                    "scroll_offsets": {
+                        "title": int,
+                        "artist_album": int
+                    } (optional)
+                }
             
         Returns:
-            Tuple of (drawing_function, metadata_dict)
-            metadata_dict contains:
-                - title_truncated: bool - whether title was truncated
-                - artist_album_truncated: bool - whether artist/album was truncated
-                - original_title: str - original title text
-                - displayed_title: str - truncated title text
+            Tuple of (drawing_function, truncation_info_dict)
+            truncation_info_dict structure:
+            {
+                "original_string": {
+                    "displayed": "formatted_string",
+                    "truncated": bool,
+                    "original_width": int,
+                    "max_width": int,
+                    "scroll_offset": int,
+                    "font_size": str
+                }
+            }
         """
-        # Track truncation information
-        truncation_info = {
-            'title_truncated': False,
-            'artist_album_truncated': False,
-            'original_title': '',
-            'displayed_title': '',
-            'original_artist_album': '',
-            'displayed_artist_album': ''
-        }
+        # Extract data from JSON structure - now expecting flat structure
+        title = track_data.get('title', 'No Track')
+        artist = track_data.get('artist', 'Unknown')
+        album = track_data.get('album', 'Unknown')
+        playing = track_data.get('playing', False)
+        volume = track_data.get('volume', 50)
+        scroll_offsets = track_data.get('scroll_offsets', {})
+        
+        # Calculate dimensions
+        bar_width = 8
+        bar_height = self.height - 10
+        bar_x = 5
+        bar_y = 5
+        content_x = bar_x + bar_width + 10
+        content_width = self.width - content_x - 5
+        title_max_width = content_width - 10
+        
+        # Track truncation information - dynamic structure with original strings as keys
+        truncation_info = {}
+        
+        # Pre-process all text elements
+        # Process title
+        title_offset = scroll_offsets.get('title', 0)
+        title_info = self._format_text(
+            title, title_max_width, self.fonts['xlarge'], title_offset, 'xlarge', return_info=True)
+        
+        title_displayed = title_info['displayed']
+        truncation_info['title'] = title_info
+        
+        # Process artist/album
+        if not artist == 'Unknown' and not album == 'Unknown':
+            artist_album_text = f"{artist} : {album}"
+        elif not album == 'Unknown':
+            artist_album_text = album
+        else:
+            artist_album_text = artist
+        
+        artist_album_offset = scroll_offsets.get('artist_album', 0)
+        artist_album_info = self._format_text(
+            artist_album_text, content_width, self.fonts['small'], artist_album_offset, 'small', return_info=True)
+        
+        artist_album_displayed = artist_album_info['displayed']
+        truncation_info['artist_album'] = artist_album_info
+        
+        # Pre-calculate volume bar dimensions
+        volume_number = int(volume)
+        fill_height = 0
+        fill_y = 0
+        if volume_number and volume_number > 0:
+            fill_height = int((volume_number / 100.0) * bar_height)
+            fill_y = bar_y + bar_height - fill_height
+        
+        # Pre-calculate play icon
+        play_icon = "▶" if playing else "⏸"
+        icon_size = 12
+        icon_x = self.width - icon_size - 5
+        icon_y = self.height - icon_size - 2
+        
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
-            
-            # Volume bar on the left side (vertical bar - full height)
-            bar_width = 8
-            bar_height = self.height - 10  # Full height with small margin
-            bar_x = 5
-            bar_y = 5
             
             # Draw volume bar background (empty bar)
             draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
             
             # Draw volume bar fill (filled portion based on volume)
-            volume_number = int(volume)
-            if volume_number and  volume_number > 0:
-                fill_height = int((volume_number / 100.0) * bar_height)
-                fill_y = bar_y + bar_height - fill_height  # Fill from bottom up
+            if fill_height > 0:
                 draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
             
-            # Content area starts after the volume bar
-            content_x = bar_x + bar_width + 10
-            content_width = self.width - content_x - 5
+            # Draw pre-processed text
+            draw.text((content_x, 5), title_displayed, font=self.fonts['xlarge'], fill=255)
+            if artist_album_displayed:
+                draw.text((content_x, 28), artist_album_displayed, font=self.fonts['small'], fill=255)
             
-
-            # Title (main line) - larger font and truncate to fit in available space
-            if track:
-                title_text = track.get('title', 'No Track')
-                truncation_info['original_title'] = title_text
-                
-                title_max_width = content_width - 10
-                title_truncated, was_title_truncated = self._truncate_text_with_info(title_text, title_max_width, self.fonts['xlarge'])
-                truncation_info['displayed_title'] = title_truncated
-                truncation_info['title_truncated'] = was_title_truncated
-                
-                draw.text((content_x, 5), title_truncated, font=self.fonts['xlarge'], fill=255)
-            
-                album_text = track.get('album', 'Unknown')
-                artist_text = track.get('artist', 'Unknown')
-                if not artist_text=='Unknown' and not album_text=='Unknown':
-                    artist_album_text = f"{artist_text} : {album_text}"
-                elif not album_text=='Unknown':
-                    artist_album_text = album_text
-                else:
-                    artist_album_text = artist_text
-                
-                truncation_info['original_artist_album'] = artist_album_text
-                artist_album_truncated, was_artist_album_truncated = self._truncate_text_with_info(artist_album_text, content_width, self.fonts['small'])
-                truncation_info['displayed_artist_album'] = artist_album_truncated  
-                truncation_info['artist_album_truncated'] = was_artist_album_truncated
-                
-                draw.text((content_x, 28), artist_album_truncated, font=self.fonts['small'], fill=255)
- 
-            icon_size = 12
-            icon_x = self.width - icon_size - 5
-            icon_y = self.height - icon_size - 2
-            play_icon = "▶" if playing else "⏸"
+            # Draw play icon
             draw.text((icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)
         
         return draw_track_info_with_progress, truncation_info
     
-    def format_menu_display(self, title: str, menu_items: list, selected_index: int = 0) -> Callable:
+    def format_menu_display(self, menu_data: Dict[str, Any]) -> Callable:
         """
-        Format scrollable menu display with current selection centered.
+        Format scrollable menu display with current selection centered using JSON structure input.
         
         Args:
-            title: Menu title
-            menu_items: List of menu items
-            selected_index: Index of currently selected item
+            menu_data: Dictionary containing:
+                {
+                    "title": str,
+                    "menu_items": list,
+                    "selected_index": int (optional, default 0),
+                    "scroll_offsets": {
+                        "selected_item": int
+                    } (optional)
+                }
             
         Returns:
             Drawing function for scrollable menu display
         """
+        # Extract data from JSON structure and pre-calculate constants
+        title = menu_data.get('title', '')
+        menu_items = menu_data.get('menu_items', [])
+        selected_index = menu_data.get('selected_index', 0)
+        offsets = menu_data.get('scroll_offsets', {})
+        
+        # Pre-calculate layout constants
+        menu_start_y = 0
+        menu_end_y = self.height
+        menu_height = menu_end_y - menu_start_y
+        line_height = 20
+        max_visible_items = menu_height // line_height
+        scroll_bar_width = 12
+        scroll_bar_margin = 8
+        content_right_edge = self.width - scroll_bar_width - scroll_bar_margin - 10
+        
+        # Pre-calculate menu layout
+        total_items = len(menu_items)
+        half_visible = max_visible_items // 2
+        center_y = menu_start_y + (menu_height // 2) - (line_height // 2)
+        
+        # Pre-calculate scrollbar dimensions if needed
+        bar_width = scroll_bar_width
+        bar_height = menu_height - 16
+        bar_x = self.width - bar_width - scroll_bar_margin
+        bar_y = menu_start_y + 4
+        item_height = (bar_height - 4) / total_items if total_items > 0 else 0
+        current_item_y = bar_y + 2 + int(selected_index * item_height) if total_items > 0 else 0
+        
         def draw_menu(draw: ImageDraw.Draw):
+                
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
-            
-            # Menu area dimensions (use full display height)
-            menu_start_y = 0  # Start at top of display
-            menu_end_y = self.height  # End at bottom of display
-            menu_height = menu_end_y - menu_start_y
-            line_height = 20  # Further increased line height for more spacing between items
-            max_visible_items = menu_height // line_height
-            
-            # Reserve space for scroll bar on the right
-            scroll_bar_width = 12
-            scroll_bar_margin = 8
-            content_right_edge = self.width - scroll_bar_width - scroll_bar_margin - 10  # Extra margin
             
             if not menu_items:
                 # No items to display
                 draw.text((15, menu_start_y + 10), "No items", font=self.fonts['small'], fill=128)
                 return
-            
-            # Calculate menu layout with fixed center selection
-            total_items = len(menu_items)
-            half_visible = max_visible_items // 2
-            
-            # Fixed selection bar position (center of menu area)
-            center_y = menu_start_y + (menu_height // 2) - (line_height // 2)
             
             # Draw fixed selection background in center (don't extend over scroll bar area)
             draw.rectangle([
@@ -664,14 +887,18 @@ class DisplayFormatter:
                     # Only draw if within display bounds
                     if menu_start_y <= y_pos <= menu_end_y - line_height:
                         max_item_width = content_right_edge - 40  # Account for arrow and margins
-                        item_truncated = self._truncate_text(item, max_item_width, self.fonts['small'])
+                        
+                        # Use scrolling for selected item if offset provided
+                        selected_item_offset = offsets.get('selected_item', 0)
+                        scroll_offset = selected_item_offset if i == selected_index else 0
+                        item_displayed = self._format_text(item, max_item_width, self.fonts['small'], scroll_offset, 'small')
                         
                         if i == selected_index:
                             # Selected item (drawn on white background) - 5 pixels higher
-                            draw.text((35, y_pos + 6 ), item_truncated, font=self.fonts['small'], fill=0)
+                            draw.text((35, y_pos + 6 ), item_displayed, font=self.fonts['small'], fill=0)
                         else:
                             # Regular item - 5 pixels higher
-                            draw.text((35, y_pos + 6), item_truncated, font=self.fonts['small'], fill=255)
+                            draw.text((35, y_pos + 6), item_displayed, font=self.fonts['small'], fill=255)
             else:
                 # Need scrolling - show items around selected with selection fixed at center
                 visible_above = half_visible
@@ -696,29 +923,23 @@ class DisplayFormatter:
                     # Only draw if within display bounds
                     if menu_start_y <= y_pos <= menu_end_y - line_height:
                         max_item_width = content_right_edge - 20  # Account for arrow and margins
-                        item_truncated = self._truncate_text(item, max_item_width, self.fonts['small'])
+                        
+                        # Use scrolling for selected item if offset provided
+                        selected_item_offset = offsets.get('selected_item', 0)
+                        scroll_offset = selected_item_offset if item_idx == selected_index else 0
+                        item_displayed = self._format_text(item, max_item_width, self.fonts['small'], scroll_offset, 'small')
                         
                         if item_idx == selected_index:
                             # Selected item (drawn on white background) - 5 pixels higher
-                            draw.text((15, y_pos + 6), item_truncated, font=self.fonts['small'], fill=0)
+                            draw.text((15, y_pos + 6), item_displayed, font=self.fonts['small'], fill=0)
                         else:
                             # Regular item - 5 pixels higher
-                            draw.text((15, y_pos + 6), item_truncated, font=self.fonts['small'], fill=255)
+                            draw.text((15, y_pos + 6), item_displayed, font=self.fonts['small'], fill=255)
             
             # Draw scroll position indicator bar (volume bar style)
             if total_items > 1:
-                # Position bar on the right side (using defined dimensions)
-                bar_width = scroll_bar_width
-                bar_height = menu_height - 16  # Small margin for outline thickness
-                bar_x = self.width - bar_width - scroll_bar_margin
-                bar_y = menu_start_y + 4  # Small top margin
-                
                 # Draw scroll bar background (outline)
                 draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=2)
-                
-                # Calculate position for current item only (no cumulative fill)
-                item_height = (bar_height - 4) / total_items if total_items > 0 else 0
-                current_item_y = bar_y + 2 + int(selected_index * item_height)
                 
                 # Draw filled area only for the current selected item
                 if item_height > 0:

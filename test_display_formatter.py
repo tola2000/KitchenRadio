@@ -4,7 +4,17 @@ Comprehensive test suite for display_formatter.py
 
 Tests all display formatting functionality including:
 - Text truncation with existing methods
-- Scrolling text rendering
+- Scrolli    long_track_data = {
+        'title': 'This is a Very Long Song Title That Should Be Truncated',
+        'artist': 'Artist with a Very Long Name',
+        'album': 'Album with an Incredibly Long Title',
+        'length': 300000,
+        'time_position': 150000,
+        'playing': True,
+        'volume': 50
+    }
+    
+    long_result = formatter.format_track_info(long_track_data)endering
 - Menu display with selection bar
 - Volume display
 - Track info display
@@ -40,7 +50,7 @@ class MockDisplay:
         return self.buffer
 
 def test_text_truncation():
-    """Test text truncation with existing methods"""
+    """Test text truncation with unified _format_text method"""
     print("Testing text truncation...")
     
     formatter = DisplayFormatter()
@@ -48,26 +58,26 @@ def test_text_truncation():
     
     # Test short text (should not be truncated)
     short_text = "Short"
-    truncated = formatter._truncate_text(short_text, 200, font)
-    print(f"Short text '{short_text}' truncated to: '{truncated}'")
+    truncated = formatter._format_text(short_text, 200, font)
+    print(f"Short text '{short_text}' formatted to: '{truncated}'")
     assert truncated == short_text, "Short text should not be truncated"
     
     # Test long text (should be truncated)
     long_text = "This is a very long song title that should definitely be truncated on the small display"
-    truncated = formatter._truncate_text(long_text, 100, font)
+    truncated = formatter._format_text(long_text, 100, font)
     print(f"Long text truncated to: '{truncated}'")
     assert len(truncated) < len(long_text), "Long text should be truncated"
     assert truncated.endswith("..."), "Truncated text should end with ellipsis"
     
     # Test truncation with info
-    is_truncated, full_width = formatter._truncate_text_with_info(long_text, 100, font)
-    print(f"Truncation info - truncated: {is_truncated}, width: {full_width}")
-    assert is_truncated, "Long text should be marked as truncated"
+    formatted_text, original_width, max_width = formatter._format_text(long_text, 100, font, return_info=True)
+    print(f"Truncation info - original width: {original_width}, max width: {max_width}")
+    assert original_width > max_width, "Long text should be marked as truncated"
     
     print("✓ Text truncation working correctly\n")
 
 def test_scrolling_text():
-    """Test scrolling text rendering"""
+    """Test scrolling text rendering with unified _format_text method"""
     print("Testing scrolling text rendering...")
     
     formatter = DisplayFormatter()
@@ -78,13 +88,13 @@ def test_scrolling_text():
     
     # Test different scroll positions
     for scroll_offset in [0, 10, 20, 30, 50]:
-        visible_text = formatter._get_scrolling_text(long_text, max_width, font, scroll_offset)
+        visible_text = formatter._format_text(long_text, max_width, font, scroll_offset)
         print(f"Scroll offset {scroll_offset}: '{visible_text}'")
         assert len(visible_text) > 0, "Scrolling text should not be empty"
     
     # Test text that fits (no scrolling needed)
     short_text = "Short"
-    visible_text = formatter._get_scrolling_text(short_text, max_width, font, 0)
+    visible_text = formatter._format_text(short_text, max_width, font, 0)
     print(f"Short text (no scroll): '{visible_text}'")
     assert visible_text == short_text, "Short text should not scroll"
     
@@ -92,7 +102,7 @@ def test_scrolling_text():
     bbox = font.getbbox(long_text)
     text_width = bbox[2] - bbox[0]
     wrap_offset = text_width + 50  # Beyond the text width
-    visible_text = formatter._get_scrolling_text(long_text, max_width, font, wrap_offset)
+    visible_text = formatter._format_text(long_text, max_width, font, wrap_offset)
     print(f"Wraparound offset {wrap_offset}: '{visible_text}'")
     assert len(visible_text) > 0, "Wraparound text should not be empty"
     
@@ -140,13 +150,15 @@ def test_volume_display():
     
     # Test different volume levels
     for volume in [0, 25, 50, 75, 100]:
-        volume_function = formatter.format_volume_display(volume)
+        volume_data = {"volume": volume}
+        volume_function = formatter.format_volume_display(volume_data)
         print(f"Created volume display at {volume}%")
         assert callable(volume_function), "Volume function should be callable"
     
     # Test fullscreen volume
     for volume in [0, 50, 100]:
-        fullscreen_function = formatter.format_fullscreen_volume(volume)
+        volume_data = {"volume": volume}
+        fullscreen_function = formatter.format_fullscreen_volume(volume_data)
         print(f"Created fullscreen volume display at {volume}%")
         assert callable(fullscreen_function), "Fullscreen volume function should be callable"
     
@@ -159,15 +171,17 @@ def test_track_info_with_progress():
     formatter = DisplayFormatter()
     
     # Test track info with progress
-    track = {
+    track_data = {
         'title': 'Amazing Song Title',
         'artist': 'Great Artist',
         'album': 'Fantastic Album',
         'length': 240000,  # 4 minutes in milliseconds
-        'time_position': 120000  # 2 minutes in
+        'time_position': 120000,  # 2 minutes in
+        'playing': True,
+        'volume': 75
     }
     
-    result = formatter.format_track_info(track, playing=True, volume=75)
+    result = formatter.format_track_info(track_data)
     print(f"Created track info display")
     print(f"Result type: {type(result)}")
     
@@ -260,7 +274,7 @@ def test_simple_text_display():
     print("✓ Simple text display working correctly\n")
 
 def test_scrolling_animation():
-    """Test scrolling animation simulation"""
+    """Test scrolling animation simulation with unified _format_text method"""
     print("Testing scrolling animation simulation...")
     
     formatter = DisplayFormatter()
@@ -283,7 +297,7 @@ def test_scrolling_animation():
         
         for i, scroll_offset in enumerate(scroll_positions):
             # Get scrolling text for this position
-            visible_text = formatter._get_scrolling_text(long_title, max_width, font, scroll_offset)
+            visible_text = formatter._format_text(long_title, max_width, font, scroll_offset)
             
             print(f"Frame {i+1}: scroll_offset = {scroll_offset}, visible: '{visible_text}'")
             
@@ -321,7 +335,16 @@ def test_comprehensive_display():
     
     # Test track info with progress
     track = status_data['track']
-    track_result = formatter.format_track_info(track, playing=True, volume=status_data['volume'])
+    track_data = {
+        'title': track['title'],
+        'artist': track['artist'],
+        'album': track['album'],
+        'length': track['length'],
+        'time_position': track['time_position'],
+        'playing': True,
+        'volume': status_data['volume']
+    }
+    track_result = formatter.format_track_info(track_data)
     print(f"Created track info display with progress")
     
     if isinstance(track_result, tuple) and len(track_result) == 2:
@@ -350,7 +373,12 @@ def test_visual_rendering():
     draw = ImageDraw.Draw(test_image)
     
     # Test menu rendering
-    menu_function = formatter.format_menu_display("Test Menu", ["Item 1", "Item 2", "Item 3"], 1)
+    menu_data = {
+        "title": "Test Menu",
+        "menu_items": ["Item 1", "Item 2", "Item 3"],
+        "selected_index": 1
+    }
+    menu_function = formatter.format_menu_display(menu_data)
     menu_function(draw)
     
     # Check that something was drawn (image is not all black)
@@ -363,15 +391,17 @@ def test_visual_rendering():
     test_image = Image.new('1', (256, 64), 0)
     draw = ImageDraw.Draw(test_image)
     
-    track = {
+    track_data = {
         'title': 'Test Song',
         'artist': 'Test Artist',
         'album': 'Test Album',
         'length': 180000,
-        'time_position': 90000
+        'time_position': 90000,
+        'playing': True,
+        'volume': 60
     }
     
-    track_function, truncation_info = formatter.format_track_info(track, playing=True, volume=60)
+    track_function, truncation_info = formatter.format_track_info(track_data)
     track_function(draw)
     
     pixels = list(test_image.getdata())
@@ -383,7 +413,7 @@ def test_visual_rendering():
     test_image = Image.new('1', (256, 64), 0)
     draw = ImageDraw.Draw(test_image)
     
-    volume_function = formatter.format_volume_display(75)
+    volume_function = formatter.format_volume_display({"volume": 75})
     volume_function(draw)
     
     pixels = list(test_image.getdata())

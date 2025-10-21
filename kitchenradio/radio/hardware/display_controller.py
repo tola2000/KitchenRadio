@@ -66,18 +66,26 @@ class DisplayController:
         # Display state
         self.last_status = None
         self.refresh_rate = refresh_rate
-        self.last_truncation_info = None
+        
+        # Current display tracking
+        self.current_display_type = None  # 'track_info', 'status_message', 'menu', 'volume', etc.
+        self.current_display_data = None  # Last data used to render current display
+        
+        # Truncation info storage - JSON structure with original strings as keys
+        self.last_truncation_info = {}
+        self.current_scroll_offsets = {}  # Track current scroll positions for each string
         
         # Scrolling state
         self.scrolling_active = False
         self.scroll_timer = None
         self.scroll_update_interval = 0.5  # Update every 500ms
         
-        # Volume screen state
-        self.volume_screen_active = False
-        self.volume_screen_end_time = 0
+        # Overlay state (for volume, menu, etc.)
+        self.overlay_active = False
+        self.overlay_type = None  # 'volume', 'menu', etc.
+        self.overlay_end_time = 0
+        self.overlay_timeout = 3.0  # 3 seconds default
         self.last_volume = None
-        self.volume_screen_timeout = 3.0  # 3 seconds
         
         # Threading for updates
         self.update_thread = None
@@ -166,25 +174,19 @@ class DisplayController:
             try:
                 start_time = time.time()
                 
-                # Check if volume screen should be dismissed
-                if self.volume_screen_active and time.time() >= self.volume_screen_end_time:
-                    self.volume_screen_active = False
+                # Check if overlay should be dismissed
+                overlay_dismissed = False
+                if self.overlay_active and time.time() >= self.overlay_end_time:
+                    self.overlay_active = False
+                    self.overlay_type = None
                     # Force update to return to normal display
                     self.last_status = None
-                
+                    overlay_dismissed = True
+           
                 # Update display if KitchenRadio is available
                 if self.kitchen_radio:
-                    self._update_from_kitchen_radio()
-                
-                # Handle scrolling updates when text is truncated
-                if self.last_truncation_info and self.last_truncation_info.get('title_truncated', False):
-                    scroll_frame_count += 1
-                    if scroll_frame_count >= scroll_frames_per_update:
-                        scroll_frame_count = 0
-                        # Update scroll position and refresh display
-                        self.formatter.update_scroll_position(2)  # Move 2 pixels per update
-                        self._refresh_current_display()
-                
+                    self._update_display()
+
                 # Handle manual update requests
                 if self.manual_update_requested:
                     self.manual_update_requested = False
@@ -199,64 +201,108 @@ class DisplayController:
                 logger.error(f"Error in display update loop: {e}")
                 time.sleep(1.0)  # Wait longer on error
     
-    def _update_from_kitchen_radio(self):
-        """Update display based on KitchenRadio status"""
-        try:
-            status = self.kitchen_radio.get_status()
-            
-            # Check if status has changed
-            if status != self.last_status:
-                self.last_status = status
-                self._update_display_content(status)
-                
-        except Exception as e:
-            logger.error(f"Error updating from KitchenRadio: {e}")
-    
-    def _refresh_current_display(self):
-        """Refresh the current display with updated scroll position"""
-        if not self.last_status:
-            return
+    def _update_display(self, force_refresh: bool = False, scroll_update: bool = False):
+        """
+        Unified display update method that handles both status updates and refresh/scrolling.
         
+        Args:
+            force_refresh: Force a refresh even if status hasn't changed
+            scroll_update: Update is for scrolling (don't fetch new status)
+        """
         try:
-            # Re-render current display content with new scroll position
-            current_source = self.last_status.get('current_source')
-            
-            if current_source == 'mpd' and self.last_status.get('mpd', {}).get('connected'):
-                self._update_mpd_display(self.last_status['mpd'])
-            elif current_source == 'librespot' and self.last_status.get('librespot', {}).get('connected'):
-                self._update_librespot_display(self.last_status['librespot'])
-            else:
-                self._update_no_source_display(self.last_status)
+            # Handle status updates from KitchenRadio
+            if self.kitchen_radio:
+
+                current_status = self.kitchen_radio.get_status()
+                # Update last volume for tracking
+                current_volume = self._get_current_volume(current_status)
+
+                # Determine display content based on current source
+                current_source = current_status.get('current_source')
                 
+                scroll_update = self._is_scroll_update_needed()
+                
+
+
+                # If any overlay is active, keep showing it
+                if self.overlay_active:
+                    return
+                
+                # Check for external update of the volume
+                if current_volume != self.last_volume:
+                    self._show_volume_screen(current_volume)
+
+                # Check if status has changed or force refresh
+                if current_status != self.last_status or  force_refresh:
+                    self.last_status = current_status
+                    self.last_volume = current_volume
+
+                    if current_source == 'mpd' and current_status.get('mpd', {}).get('connected'):
+                        self._render_mpd_display(current_status['mpd'])
+                        return
+                    elif current_source == 'librespot' and current_status.get('librespot', {}).get('connected'):
+                        self._render_librespot_display(current_status['librespot'])
+                        return
+                    else:
+                        self._render_no_source_display(current_status)
+                        return
+                # Handle scroll updates - refresh current display with updated scroll offsets
+                if not self.current_display_type or not self.current_display_data:
+                    return                
+                elif scroll_update:
+                    # Update scroll offsets in current display data
+                    display_data = self.current_display_data.copy()
+                    display_data['scroll_offsets'] = self.current_scroll_offsets
+                    # Render with appropriate formatter
+                    self._render_display_content(self.current_display_type, display_data)
+                return         
         except Exception as e:
-            logger.error(f"Error refreshing display with scroll: {e}")
+            logger.error(f"Error updating display: {e}")
+
+    def _is_scroll_update_needed(self) -> bool:
+        """Determine if a scroll update is needed based on truncation info"""
+        for key, info in self.last_truncation_info.items():
+            if info.get('truncated', False):
+                return True
+        return False
     
-    def _update_display_content(self, status: Dict[str, Any]):
-        """Update display content based on status"""
+    def _render_display_content(self, display_type: str, display_data: Dict[str, Any]):
+        """Generic method to render display content based on type"""
         try:
-            # Update last volume for tracking (but don't auto-show volume screen)
-            current_volume = self._get_current_volume(status)
-            if current_volume is not None:
-                self.last_volume = current_volume
+            truncation_info = None
             
-            # If volume screen is active, keep showing it
-            if self.volume_screen_active:
+            if display_type == 'track_info':
+                draw_func, truncation_info = self.formatter.format_track_info(display_data)
+            elif display_type == 'status_message':
+                draw_func, truncation_info = self.formatter.format_status_message(display_data)
+            elif display_type == 'menu':
+                draw_func, truncation_info = self.formatter.format_menu_display(display_data)
+            elif display_type == 'volume':
+                draw_func, truncation_info = self.formatter.format_volume_display(display_data)
+            elif display_type == 'fullscreen_volume':
+                draw_func, truncation_info = self.formatter.format_fullscreen_volume(display_data)
+            elif display_type == 'simple_text':
+                draw_func, truncation_info = self.formatter.format_simple_text(display_data)
+            elif display_type == 'error_message':
+                draw_func, truncation_info = self.formatter.format_error_message(display_data)
+            elif display_type == 'status':
+                draw_func, truncation_info = self.formatter.format_status(display_data)
+            else:
+                logger.warning(f"Unknown display type: {display_type}")
                 return
             
-            # Normal display logic
-            current_source = status.get('current_source')
+            # Render the display
+            self.i2c_interface.render_frame(draw_func)
             
-            if current_source == 'mpd' and status.get('mpd', {}).get('connected'):
-                self._update_mpd_display(status['mpd'])
-            elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
-                self._update_librespot_display(status['librespot'])
-            else:
-                self._update_no_source_display(status)
+            # Update truncation info and scroll offsets if provided
+            if isinstance(truncation_info, dict):
+                self.last_truncation_info.update(truncation_info)
+                self._update_scroll_offsets(truncation_info)
                 
         except Exception as e:
-            logger.error(f"Error updating display content: {e}")
+            logger.error(f"Error rendering {display_type}: {e}")
     
-    def _update_mpd_display(self, mpd_status: Dict[str, Any]):
+    def _render_mpd_display(self, mpd_status: Dict[str, Any]):
         """Update display for MPD source"""
         current_song = mpd_status.get('current_track', {})
         if current_song:
@@ -267,107 +313,252 @@ class DisplayController:
             volume = mpd_status.get('volume', 50)
             
             # Use unified track info formatter without progress bar for MPD
-            draw_func, truncation_info = self.formatter.format_track_info(
-                current_song, playing, volume
-            )
-            self.i2c_interface.render_frame(draw_func)
+            track_data = {
+                'title': current_song.get('title', 'No Track'),
+                'artist': current_song.get('artist', 'Unknown'),
+                'album': current_song.get('album', 'Unknown'),
+                'length': current_song.get('length', 0),
+                'time_position': current_song.get('time_position', 0),
+                'playing': playing,
+                'volume': volume,
+                'scroll_offsets': self.current_scroll_offsets
+            }
             
-            # Log truncation information
-            if truncation_info['title_truncated']:
-                logger.info(f"Title truncated: '{truncation_info['original_title']}' -> '{truncation_info['displayed_title']}'")
-            if truncation_info['artist_album_truncated']:
-                logger.info(f"Artist/Album truncated: '{truncation_info['original_artist_album']}' -> '{truncation_info['displayed_artist_album']}'")
+            # Track current display state
+            self.current_display_type = 'track_info'
+            self.current_display_data = track_data
             
-            # Store truncation info for potential use by other components
-            self.last_truncation_info = truncation_info
+            # Render the display content
+            self._render_display_content('track_info', track_data)
         else:
             # No track playing
-            draw_func = self.formatter.format_status_message("MPD Connected", "♪", "info")
-            self.i2c_interface.render_frame(draw_func)
+            message_data = {
+                'message': 'MPD Connected',
+                'icon': '♪',
+                'message_type': 'info',
+                'scroll_offsets': self.current_scroll_offsets
+            }
+            
+            # Track current display state
+            self.current_display_type = 'status_message'
+            self.current_display_data = message_data
+            
+            # Render the display content
+            self._render_display_content('status_message', message_data)
     
-    def _update_librespot_display(self, librespot_status: Dict[str, Any]):
+    def _render_librespot_display(self, librespot_status: Dict[str, Any]):
         """Update display for Spotify/librespot source"""
         current_track = librespot_status.get('current_track', {})
         if current_track:
-            title = current_track.get('title', 'Unknown')
-            artist = current_track.get('artist', 'Unknown')
-            album = current_track.get('album', '')
-            playing = librespot_status.get('state') == 'playing'
-            volume = librespot_status.get('volume', 50)
-            
-            # Get progress information for Spotify
-            progress_ms = librespot_status.get('progress_ms', 0)
-            duration_ms = current_track.get('duration_ms', 0)
+  
             
             # Use unified track info formatter with progress bar for Spotify
-            draw_func, truncation_info = self.formatter.format_track_info(
-                current_track, playing, volume
-            )
-            self.i2c_interface.render_frame(draw_func)
+            track_data = {
+                'title': current_track.get('title', 'Unknown'),  # Spotify uses 'name' instead of 'title'
+                'artist': current_track.get('artist', 'Unknown'),
+                'album': current_track.get('album', 'Unknown'),
+                'playing': librespot_status.get('state') == 'playing',
+                'volume': librespot_status.get('volume', 50),
+                'scroll_offsets': self.current_scroll_offsets
+            }
             
-            # Log truncation information
-            if truncation_info['title_truncated']:
-                logger.info(f"Title truncated: '{truncation_info['original_title']}' -> '{truncation_info['displayed_title']}'")
-            if truncation_info['artist_album_truncated']:
-                logger.info(f"Artist/Album truncated: '{truncation_info['original_artist_album']}' -> '{truncation_info['displayed_artist_album']}'")
+            # Track current display state
+            self.current_display_type = 'track_info'
+            self.current_display_data = track_data
             
-            # Store truncation info for potential use by other components
-            self.last_truncation_info = truncation_info
+            # Render the display content
+            self._render_display_content('track_info', track_data)
         else:
             # No track playing
-            draw_func = self.formatter.format_status_message("Spotify Connected", "♫", "info")
-            self.i2c_interface.render_frame(draw_func)
+            message_data = {
+                'message': 'Spotify Connected',
+                'icon': '♫',
+                'message_type': 'info',
+                'scroll_offsets': self.current_scroll_offsets
+            }
+            
+            # Track current display state
+            self.current_display_type = 'status_message'
+            self.current_display_data = message_data
+            
+            # Render the display content
+            self._render_display_content('status_message', message_data)
     
-    def _update_no_source_display(self, status: Dict[str, Any]):
+    def _update_scroll_offsets(self, truncation_info: Dict[str, Any]):
+        """Update current scroll offsets based on truncation info using fixed keys"""
+        # Initialize scroll offsets for fixed keys
+        fixed_keys = ['title', 'artist_album', 'message', 'menu_title']
+        
+        for key in fixed_keys:
+            if key in truncation_info:
+                info = truncation_info[key]
+                if info['truncated']:
+                    # Initialize scroll offset if not already present
+                    if key not in self.current_scroll_offsets:
+                        self.current_scroll_offsets[key] = 0
+                else:
+                    # Remove scroll offset if text is not truncated
+                    self.current_scroll_offsets.pop(key, None)
+            else:
+                # Remove scroll offset for keys not in current truncation info
+                self.current_scroll_offsets.pop(key, None)
+
+
+
+    def _render_no_source_display(self, status: Dict[str, Any]):
         """Update display when no source is active"""
         available_sources = status.get('available_sources', [])
         if available_sources:
             message = f"Available: {', '.join(available_sources)}"
-            draw_func = self.formatter.format_status_message(message, "♪", "info")
+            message_data = {
+                'message': message,
+                'icon': '♪',
+                'message_type': 'info',
+                'scroll_offsets': self.current_scroll_offsets
+            }
         else:
-            draw_func = self.formatter.format_status_message("No audio sources", "⚠", "warning")
+            message_data = {
+                'message': 'No audio sources qdsjfmslqdjfmlqskdjflkdmsqjfmlqsdjsd',
+                'icon': '⚠',
+                'message_type': 'warning',
+                'scroll_offsets': self.current_scroll_offsets
+            }
         
-        self.i2c_interface.render_frame(draw_func)
+        # Track current display state
+        self.current_display_type = 'status_message'
+        self.current_display_data = message_data
+        
+        # Render the display content
+        self._render_display_content('status_message', message_data)
     
     # Manual display control methods
     
     def show_track_info(self, track, playing: bool = False, volume: int = None):
+        """Manually show track information display"""
         try:
-            status = self.kitchen_radio.get_status()
+            # Extract track info from various input formats
+            if isinstance(track, dict):
+                title = track.get('title', 'Unknown')
+                artist = track.get('artist', 'Unknown')
+                album = track.get('album', 'Unknown')
+            elif hasattr(track, 'title'):
+                title = getattr(track, 'title', 'Unknown')
+                artist = getattr(track, 'artist', 'Unknown')
+                album = getattr(track, 'album', 'Unknown')
+            else:
+                title = str(track) if track else 'Unknown'
+                artist = 'Unknown'
+                album = 'Unknown'
             
-
-            self._update_display_content(status)
+            # Use unified track info formatter
+            track_data = {
+                'title': title,
+                'artist': artist,
+                'album': album,
+                'playing': playing,
+                'volume': volume if volume is not None else 50,
+                'scroll_offsets': self.current_scroll_offsets
+            }
+            draw_func, truncation_info = self.formatter.format_track_info(track_data)
+            self.i2c_interface.render_frame(draw_func)
+            
+            # Track current display state
+            self.current_display_type = 'track_info'
+            self.current_display_data = track_data
+            
+            # Update truncation info and scroll offsets
+            self.last_truncation_info = truncation_info
+            self._update_scroll_offsets(truncation_info)
                 
         except Exception as e:
-            logger.error(f"Error updating from KitchenRadio: {e}")
+            logger.error(f"Error showing track info: {e}")
     
-    def show_volume(self, volume: int, max_volume: int = 100, muted: bool = False):
-        """Manually show volume level with progress bar"""
-        draw_func = self.formatter.format_volume_display(volume, max_volume, muted)
-        self.i2c_interface.render_frame(draw_func)
+    def show_volume(self, volume: int, max_volume: int = 100, muted: bool = False, timeout: float = None):
+        """
+        Show volume level. If timeout is provided, uses overlay system.
+        Otherwise shows permanent volume display until manually dismissed.
+        """
+        if timeout is not None:
+            # Use overlay system for temporary volume display
+            self.show_volume_overlay(volume, timeout)
+        else:
+            # Show permanent volume display (backward compatibility)
+            volume_data = {
+                'volume': volume,
+                'max_volume': max_volume,
+                'title': 'MUTED' if muted else 'VOLUME'
+            }
+            
+            # Track current display state
+            self.current_display_type = 'volume'
+            self.current_display_data = volume_data
+            
+            # Render the display content
+            self._render_display_content('volume', volume_data)
     
-    def show_menu(self, title: str, options: List[str], selected_index: int = 0):
-        """Manually show menu with options"""
-        draw_func = self.formatter.format_menu_display(title, options, selected_index)
-        self.i2c_interface.render_frame(draw_func)
+    def show_menu(self, title: str, options: List[str], selected_index: int = 0, timeout: float = None):
+        """
+        Show menu with options. If timeout is provided, uses overlay system.
+        Otherwise shows permanent menu until manually dismissed.
+        """
+        if timeout is not None:
+            # Use overlay system for temporary menu
+            self.show_menu_overlay(title, options, selected_index, timeout)
+        else:
+            # Show permanent menu (backward compatibility)
+            menu_data = {
+                'title': title,
+                'menu_items': options,
+                'selected_index': selected_index,
+                'scroll_offsets': self.current_scroll_offsets
+            }
+            
+            # Track current display state
+            self.current_display_type = 'menu'
+            self.current_display_data = menu_data
+            
+            # Render the display content
+            self._render_display_content('menu', menu_data)
     
     def show_source_selection(self, sources: List[str], current_source: str, available_sources: List[str]):
         """Manually show source selection"""
-        draw_func = self.formatter.format_source_display(sources, current_source, available_sources)
+        # Use menu display for source selection
+        menu_data = {
+            'title': 'Select Source',
+            'menu_items': sources,
+            'selected_index': sources.index(current_source) if current_source in sources else 0
+        }
+        draw_func = self.formatter.format_menu_display(menu_data)
         self.i2c_interface.render_frame(draw_func)
     
     def show_status_message(self, message: str, icon: str = "ℹ", message_type: str = "info"):
         """Manually show a status message"""
-        draw_func = self.formatter.format_status_message(message, icon, message_type)
+        message_data = {
+            'message': message,
+            'icon': icon,
+            'message_type': message_type
+        }
+        draw_func, truncation_info = self.formatter.format_status_message(message_data)
         self.i2c_interface.render_frame(draw_func)
+        
+        # Track current display state
+        self.current_display_type = 'status_message'
+        self.current_display_data = message_data
+        
+        self.last_truncation_info.update(truncation_info)
+        self._update_scroll_offsets(truncation_info)
     
     def show_clock(self, time_str: str, date_str: str = None):
         """Manually show clock display"""
-        draw_func = self.formatter.format_clock_display(time_str, date_str)
+        # Use simple text display for clock
+        text_data = {
+            'main_text': time_str,
+            'sub_text': date_str if date_str else ''
+        }
+        draw_func = self.formatter.format_simple_text(text_data)
         self.i2c_interface.render_frame(draw_func)
     
     # Status and information methods
-    
     def get_display_info(self) -> Dict[str, Any]:
         """Get comprehensive display information"""
         i2c_info = self.i2c_interface.get_display_info()
@@ -386,28 +577,6 @@ class DisplayController:
             }
         }
     
-    def get_truncation_info(self) -> Dict[str, Any]:
-        """
-        Get information about text truncation from the last track display.
-        
-        Returns:
-            Dictionary with truncation information:
-            - title_truncated: bool - whether title was truncated
-            - artist_album_truncated: bool - whether artist/album was truncated
-            - original_title: str - original title text
-            - displayed_title: str - truncated title text
-            - original_artist_album: str - original artist/album text
-            - displayed_artist_album: str - truncated artist/album text
-        """
-        return self.last_truncation_info or {
-            'title_truncated': False,
-            'artist_album_truncated': False,
-            'original_title': '',
-            'displayed_title': '',
-            'original_artist_album': '',
-            'displayed_artist_album': ''
-        }
-    
     def _get_current_volume(self, status: Dict[str, Any]) -> Optional[int]:
         """Extract current volume from status"""
         try:
@@ -424,21 +593,62 @@ class DisplayController:
             return None
     
     def _show_volume_screen(self, volume: int):
-        """Show temporary volume screen using formatter's full screen display"""
+        """Show temporary volume screen using the overlay framework"""
+        self.show_volume_overlay(volume)
+
+    def show_overlay(self, overlay_type: str, data: Dict[str, Any], timeout: float = None):
+        """Show a temporary overlay (volume, menu, etc.)"""
         try:
-            # Activate volume screen
-            self.volume_screen_active = True
-            self.volume_screen_end_time = time.time() + self.volume_screen_timeout
+            # Activate overlay
+            self.overlay_active = True
+            self.overlay_type = overlay_type
+            self.overlay_end_time = time.time() + (timeout or self.overlay_timeout)
             
-            # Use formatter's full screen volume display
-            draw_func = self.formatter.format_fullscreen_volume(volume)
-            self.i2c_interface.render_frame(draw_func)
+            # Render the overlay content
+            self._render_display_content(overlay_type, data)
             
-            logger.debug(f"Volume screen displayed: {volume}%")
+            logger.debug(f"Showing {overlay_type} overlay for {timeout or self.overlay_timeout} seconds")
             
         except Exception as e:
-            logger.error(f"Error showing volume screen: {e}")
-    
+            logger.error(f"Error showing {overlay_type} overlay: {e}")
+
+    def dismiss_overlay(self):
+        """Dismiss the current overlay and return to normal display"""
+        if self.overlay_active:
+            self.overlay_active = False
+            self.overlay_type = None
+            # Force update to return to normal display
+            self.last_status = None
+            if self.kitchen_radio:
+                self._update_display(force_refresh=True)
+            logger.debug("Overlay dismissed")
+
+    def extend_overlay_timeout(self, additional_time: float = None):
+        """Extend the current overlay timeout"""
+        if self.overlay_active:
+            extension = additional_time or self.overlay_timeout
+            self.overlay_end_time = time.time() + extension
+            logger.debug(f"Extended overlay timeout by {extension} seconds")
+
+    def show_volume_overlay(self, volume: int, timeout: float = None):
+        """Show volume overlay using the generic overlay system"""
+        volume_data = {
+            'volume': volume,
+            'max_volume': 100,
+            'title': 'VOLUME',
+            'show_percentage': True
+        }
+        self.show_overlay('fullscreen_volume', volume_data, timeout)
+
+    def show_menu_overlay(self, title: str, options: List[str], selected_index: int = 0, timeout: float = None):
+        """Show menu overlay using the generic overlay system"""
+        menu_data = {
+            'title': title,
+            'menu_items': options,
+            'selected_index': selected_index,
+            'scroll_offsets': self.current_scroll_offsets
+        }
+        self.show_overlay('menu', menu_data, timeout)
  
 # Example usage and testing
 if __name__ == "__main__":
