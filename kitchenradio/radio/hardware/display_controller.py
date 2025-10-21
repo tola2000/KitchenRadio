@@ -260,10 +260,9 @@ class DisplayController:
     def _render_display_content(self, display_type: str, display_data: Dict[str, Any]):
         """Generic method to render display content based on type"""
         try:
-
-            
+            truncation_info = None
             if display_type == 'track_info':
-                draw_func = self.formatter.format_track_info(display_data)
+                draw_func, truncation_info = self.formatter.format_track_info(display_data)
             elif display_type == 'status_message':
                 draw_func = self.formatter.format_status_message(display_data)
             elif display_type == 'menu':
@@ -281,13 +280,16 @@ class DisplayController:
                 return
             
             # Render the display
-            truncation_info = self.i2c_interface.render_frame(draw_func)
-            
-            # Update truncation info and scroll offsets if provided
-            if isinstance(truncation_info, dict):
-                self.last_truncation_info.update(truncation_info)
-                self._update_scroll_offsets(truncation_info)
-                
+            if display_type == 'track_info':
+                self.i2c_interface.render_frame(draw_func)
+                if isinstance(truncation_info, dict):
+                    self.last_truncation_info.update(truncation_info)
+                    self._update_scroll_offsets(truncation_info)
+            else:
+                truncation_info = self.i2c_interface.render_frame(draw_func)
+                if isinstance(truncation_info, dict):
+                    self.last_truncation_info.update(truncation_info)
+                    self._update_scroll_offsets(truncation_info)
         except Exception as e:
             logger.error(f"Error rendering {display_type}: {e}")
     
