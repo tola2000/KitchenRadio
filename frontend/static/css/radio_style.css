@@ -556,7 +556,61 @@ body {
     font-size: 8px;
 }
 
-/* Volume display removed - now shown on OLED display */
+/* Volume and Menu Controls Row */
+.volume-menu-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin: 15px 0;
+}
+
+.volume-menu-row .volume-controls,
+.volume-menu-row .menu-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* Menu buttons with same form factor as volume buttons */
+.menu-btn.volume-btn {
+    width: 60px;
+    height: 45px;
+    background: linear-gradient(145deg, #4a4a4a, #3a3a3a);
+    border: 2px solid #555;
+    border-radius: 10px;
+    color: #ccc;
+    font-size: 9px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    text-transform: uppercase;
+}
+
+.menu-btn.volume-btn:hover:not(:disabled) {
+    background: linear-gradient(145deg, #5a5a5a, #4a4a4a);
+    color: #fff;
+    border-color: #666;
+}
+
+.menu-btn.volume-btn:active {
+    background: linear-gradient(145deg, #3a3a3a, #2a2a2a);
+    transform: translateY(1px);
+}
+
+.menu-btn.volume-btn i {
+    font-size: 14px;
+}
+
+.menu-btn.volume-btn span {
+    font-size: 8px;
+    margin-top: 2px;
+}
 
 /* Power Controls */
 .power-controls {
@@ -623,10 +677,12 @@ body {
 /* Status Messages */
 .status-messages {
     position: fixed;
-    top: 20px;
-    right: 20px;
+    top: 50%;
+    left: calc(50% + 280px); /* Position to the right of the radio */
+    transform: translateY(-50%);
     z-index: 1000;
-    max-width: 300px;
+    max-width: 250px;
+    min-width: 200px;
 }
 
 .status-message {

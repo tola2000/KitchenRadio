@@ -107,6 +107,7 @@
                         <i class="fas fa-times"></i>
                         <span>EXIT</span>
                     </button>
+                    
                 </div>
             </div>
 
@@ -130,31 +131,32 @@
                 </button>
             </div>
 
-            <!-- Playlist Navigation Controls -->
-            <div class="menu-controls">
-                <button id="btn-menu-down" onclick="sendCommand('menu_down')" class="menu-btn">
-                    <i class="fas fa-list"></i>
-                    <i class="fas fa-chevron-left playlist-arrow"></i>
-                    <span>Menu down</span>
-                </button>
-                <button id="btn-menu-up" onclick="sendCommand('menu_up')" class="menu-btn">
-                    <i class="fas fa-list"></i>
-                    <i class="fas fa-chevron-right playlist-arrow"></i>
-                    <span>Menu down</span>
-                </button>
-            </div>
+            <!-- Volume and Menu Controls Row -->
+            <div class="volume-menu-row">
+                <!-- Volume Controls -->
+                <div class="volume-controls">
+                    <button id="btn-volume-down" onclick="adjustVolume('down')" class="volume-btn">
+                        <i class="fas fa-volume-down"></i>
+                        <span>VOL-</span>
+                    </button>
+                    <!-- Volume display removed - now shown on OLED display -->
+                    <button id="btn-volume-up" onclick="adjustVolume('up')" class="volume-btn">
+                        <i class="fas fa-volume-up"></i>
+                        <span>VOL+</span>
+                    </button>
+                </div>
 
-            <!-- Volume Controls -->
-            <div class="volume-controls">
-                <button id="btn-volume-down" onclick="adjustVolume('down')" class="volume-btn">
-                    <i class="fas fa-volume-down"></i>
-                    <span>VOL-</span>
-                </button>
-                <!-- Volume display removed - now shown on OLED display -->
-                <button id="btn-volume-up" onclick="adjustVolume('up')" class="volume-btn">
-                    <i class="fas fa-volume-up"></i>
-                    <span>VOL+</span>
-                </button>
+                <!-- Menu Navigation Controls (same form factor as volume) -->
+                <div class="menu-controls">
+                    <button id="btn-menu-up" onclick="sendCommand('menu_up')" class="volume-btn menu-btn">
+                        <i class="fas fa-chevron-up"></i>
+                        <span>MENU↑</span>
+                    </button>
+                    <button id="btn-menu-down" onclick="sendCommand('menu_down')" class="volume-btn menu-btn">
+                        <i class="fas fa-chevron-down"></i>
+                        <span>MENU↓</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Power Button -->
