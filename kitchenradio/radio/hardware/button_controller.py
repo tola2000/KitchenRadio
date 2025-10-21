@@ -318,7 +318,6 @@ class ButtonController:
         """Show menu and scroll down (next menu item)"""
         logger.info("Next playlist - menu down")
         try:
-            # Show menu if display controller is available
             if self.display_controller and hasattr(self.display_controller, 'show_menu'):
                 # Get available playlists/sources for menu
                 menu_items = self._get_menu_items()
@@ -326,17 +325,15 @@ class ButtonController:
                 # Show or update menu
                 if not hasattr(self, '_menu_visible') or not self._menu_visible:
                     # First time - show menu
-                    self._menu_visible = True
-                    self._current_menu_index = 0
-                    logger.info("Showing playlist menu")
+                    return self._show_menu()
                 else:
                     # Menu already visible - scroll down
                     self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
                     logger.info(f"Menu scroll down to index {self._current_menu_index}")
                 
-                # Update display with menu
-                self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
-                return True
+                    # Update display with menu
+                    self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                    return True
             else:
                 logger.warning("Display controller not available for menu")
                 return False
@@ -348,7 +345,6 @@ class ButtonController:
         """Show menu and scroll up (previous menu item)"""
         logger.info("Previous playlist - menu up")
         try:
-            # Show menu if display controller is available
             if self.display_controller and hasattr(self.display_controller, 'show_menu'):
                 # Get available playlists/sources for menu
                 menu_items = self._get_menu_items()
@@ -357,16 +353,20 @@ class ButtonController:
                 if not hasattr(self, '_menu_visible') or not self._menu_visible:
                     # First time - show menu (start at last item)
                     self._menu_visible = True
-                    self._current_menu_index = len(menu_items) - 1
+                    self._current_menu_index = len(menu_items) - 1 if menu_items else 0
                     logger.info("Showing playlist menu (last item)")
+                    
+                    # Update display with menu
+                    self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                    return True
                 else:
                     # Menu already visible - scroll up
                     self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
                     logger.info(f"Menu scroll up to index {self._current_menu_index}")
                 
-                # Update display with menu
-                self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
-                return True
+                    # Update display with menu
+                    self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                    return True
             else:
                 logger.warning("Display controller not available for menu")
                 return False
@@ -375,29 +375,94 @@ class ButtonController:
             return False
     
     def _menu_up(self) -> bool:
-        """Menu up navigation - placeholder"""
-        logger.info("Menu up - not implemented yet")
-        return True
+        """Menu up navigation"""
+        logger.info("Menu up navigation")
+        try:
+            # Only work if menu is currently visible
+            if hasattr(self, '_menu_visible') and self._menu_visible:
+                menu_items = self._get_menu_items()
+                if menu_items:
+                    # Scroll up (previous item)
+                    self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
+                    logger.info(f"Menu scroll up to index {self._current_menu_index}")
+                    
+                    # Update display with menu
+                    if self.display_controller:
+                        self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                    return True
+            else:
+                # If no menu visible, show the menu
+                return self._show_menu()
+        except Exception as e:
+            logger.error(f"Error in menu up navigation: {e}")
+            return False
     
     def _menu_down(self) -> bool:
-        """Menu down navigation - placeholder"""
-        logger.info("Menu down - not implemented yet")
-        return True
+        """Menu down navigation"""
+        logger.info("Menu down navigation")
+        try:
+            # Only work if menu is currently visible
+            if hasattr(self, '_menu_visible') and self._menu_visible:
+                menu_items = self._get_menu_items()
+                if menu_items:
+                    # Scroll down (next item)
+                    self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
+                    logger.info(f"Menu scroll down to index {self._current_menu_index}")
+                    
+                    # Update display with menu
+                    if self.display_controller:
+                        self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                    return True
+            else:
+                # If no menu visible, show the menu
+                return self._show_menu()
+        except Exception as e:
+            logger.error(f"Error in menu down navigation: {e}")
+            return False
     
     def _menu_ok(self) -> bool:
-        """Menu OK/select - placeholder"""
-        logger.info("Menu OK - not implemented yet")
-        return True
+        """Menu OK/select - choose the currently selected item"""
+        logger.info("Menu OK - selecting current item")
+        try:
+            if hasattr(self, '_menu_visible') and self._menu_visible:
+                menu_items = self._get_menu_items()
+                if menu_items and 0 <= self._current_menu_index < len(menu_items):
+                    selected_item = menu_items[self._current_menu_index]
+                    logger.info(f"Selected menu item: '{selected_item}'")
+                    
+                    # Handle selection based on item type
+                    result = self._handle_menu_selection(selected_item)
+                    
+                    # Exit menu after selection (unless it's a navigation item)
+                    if selected_item not in ["Settings", "Exit Menu"]:
+                        self._exit_menu()
+                    
+                    return result
+            else:
+                # If no menu visible, show the menu
+                return self._show_menu()
+        except Exception as e:
+            logger.error(f"Error in menu OK: {e}")
+            return False
     
     def _menu_exit(self) -> bool:
-        """Menu exit/back - placeholder"""
-        logger.info("Menu exit - not implemented yet")
-        return True
+        """Menu exit/back - hide the menu and return to normal display"""
+        logger.info("Menu exit")
+        return self._exit_menu()
     
     def _menu_toggle(self) -> bool:
-        """Toggle menu display - placeholder"""
-        logger.info("Menu toggle - not implemented yet")
-        return True
+        """Toggle menu display"""
+        logger.info("Menu toggle")
+        try:
+            if hasattr(self, '_menu_visible') and self._menu_visible:
+                # Menu is visible, hide it
+                return self._exit_menu()
+            else:
+                # Menu is not visible, show it
+                return self._show_menu()
+        except Exception as e:
+            logger.error(f"Error in menu toggle: {e}")
+            return False
     
     def _menu_set(self) -> bool:
         """Menu set/confirm - placeholder"""
@@ -409,43 +474,7 @@ class ButtonController:
         logger.info("Power button pressed - stopping all playback")
         return self.kitchen_radio.stop()
     
-    def _next_playlist(self) -> bool:
-        """Navigate to next playlist"""
-        logger.info("Next playlist")
-        try:
-            # Get current backend and handle playlist navigation
-            current_backend = self.kitchen_radio.get_current_backend()
-            if current_backend == 'mpd':
-                # For MPD, this could navigate through playlists or queue
-                return self.kitchen_radio.mpd_controller.next_playlist() if hasattr(self.kitchen_radio.mpd_controller, 'next_playlist') else True
-            elif current_backend == 'librespot':
-                # For Spotify, this could skip to next item in queue/playlist
-                return self.kitchen_radio.librespot_controller.next_playlist() if hasattr(self.kitchen_radio.librespot_controller, 'next_playlist') else True
-            else:
-                logger.warning("No active backend for playlist navigation")
-                return False
-        except Exception as e:
-            logger.error(f"Error navigating to next playlist: {e}")
-            return False
-    
-    def _previous_playlist(self) -> bool:
-        """Navigate to previous playlist"""
-        logger.info("Previous playlist")
-        try:
-            # Get current backend and handle playlist navigation
-            current_backend = self.kitchen_radio.get_current_backend()
-            if current_backend == 'mpd':
-                # For MPD, this could navigate through playlists or queue
-                return self.kitchen_radio.mpd_controller.previous_playlist() if hasattr(self.kitchen_radio.mpd_controller, 'previous_playlist') else True
-            elif current_backend == 'librespot':
-                # For Spotify, this could skip to previous item in queue/playlist
-                return self.kitchen_radio.librespot_controller.previous_playlist() if hasattr(self.kitchen_radio.librespot_controller, 'previous_playlist') else True
-            else:
-                logger.warning("No active backend for playlist navigation")
-                return False
-        except Exception as e:
-            logger.error(f"Error navigating to previous playlist: {e}")
-            return False
+
 
     def get_button_state(self, button_type: ButtonType) -> bool:
         """
@@ -468,6 +497,79 @@ class ButtonController:
         """
         return {bt: state['pressed'] for bt, state in self.button_states.items()}
     
+    def _show_menu(self) -> bool:
+        """Show the menu with default selection"""
+        logger.info("Showing menu")
+        try:
+            if self.display_controller and hasattr(self.display_controller, 'show_menu'):
+                # Get available playlists/sources for menu
+                menu_items = self._get_menu_items()
+                
+                # Initialize menu state
+                self._menu_visible = True
+                self._current_menu_index = 0
+                logger.info("Menu displayed")
+                
+                # Update display with menu
+                self.display_controller.show_menu("Playlists", menu_items, self._current_menu_index)
+                return True
+            else:
+                logger.warning("Display controller not available for menu")
+                return False
+        except Exception as e:
+            logger.error(f"Error showing menu: {e}")
+            return False
+    
+    def _handle_menu_selection(self, selected_item: str) -> bool:
+        """Handle selection of a menu item"""
+        logger.info(f"Handling menu selection: '{selected_item}'")
+        
+        try:
+            # Handle different types of menu items
+            if selected_item == "MPD Music":
+                # Switch to MPD source
+                return self.kitchen_radio.switch_source('mpd')
+            
+            elif selected_item == "Spotify":
+                # Switch to Spotify source
+                return self.kitchen_radio.switch_source('librespot')
+            
+            elif selected_item in ["Rock Playlist", "Jazz Collection", "Chill Music", "Favorites"]:
+                # Load an MPD playlist
+                logger.info(f"Loading MPD playlist: {selected_item}")
+                # In a real implementation, this would load the specific playlist
+                return self.kitchen_radio.switch_source('mpd')
+            
+            elif selected_item in ["Discover Weekly", "Liked Songs", "Recent Tracks", "Top Hits"]:
+                # Load a Spotify playlist
+                logger.info(f"Loading Spotify playlist: {selected_item}")
+                # In a real implementation, this would load the specific playlist
+                return self.kitchen_radio.switch_source('librespot')
+            
+            elif selected_item == "Radio Stations":
+                logger.info("Radio stations not implemented yet")
+                if self.display_controller:
+                    self.display_controller.show_status_message("Radio stations coming soon", "📻", "info")
+                return True
+            
+            elif selected_item == "Settings":
+                logger.info("Settings menu not implemented yet")
+                if self.display_controller:
+                    self.display_controller.show_status_message("Settings menu coming soon", "⚙", "info")
+                return True
+            
+            elif selected_item == "Exit Menu":
+                # Just exit the menu
+                return True
+            
+            else:
+                logger.warning(f"Unknown menu item: '{selected_item}'")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error handling menu selection '{selected_item}': {e}")
+            return False
+
     def _get_menu_items(self) -> list:
         """Get available menu items for playlist/source selection"""
         menu_items = []
@@ -532,8 +634,41 @@ class ButtonController:
             
             # Return to normal display
             if self.display_controller:
-                # This would trigger a return to the main display
-                status = self.kitchen_radio.get_status()
+                # Trigger a return to the main display
+                # This will cause the display controller to show the current status
+                try:
+                    # Get current status and show it
+                    status = self.kitchen_radio.get_status()
+                    current_source = status.get('current_source')
+                    
+                    if current_source == 'mpd':
+                        mpd_status = status.get('mpd', {})
+                        if mpd_status.get('connected') and mpd_status.get('current_track'):
+                            # Show current MPD track
+                            track = mpd_status['current_track']
+                            self.display_controller.show_track(track, mpd_status.get('state', 'stopped'))
+                        else:
+                            self.display_controller.show_status_message("MPD Connected", "♪", "info")
+                    
+                    elif current_source == 'librespot':
+                        librespot_status = status.get('librespot', {})
+                        if librespot_status.get('connected') and librespot_status.get('current_track'):
+                            # Show current Spotify track with progress
+                            track = librespot_status['current_track']
+                            progress = librespot_status.get('progress', {})
+                            self.display_controller.show_track_with_progress(track, librespot_status.get('state', 'stopped'), progress)
+                        else:
+                            self.display_controller.show_status_message("Spotify Connected", "♫", "info")
+                    
+                    else:
+                        # No active source or disconnected
+                        self.display_controller.show_status_message("Ready", "📻", "info")
+                        
+                except Exception as e:
+                    logger.warning(f"Error refreshing display after menu exit: {e}")
+                    # Fallback to simple status message
+                    self.display_controller.show_status_message("Kitchen Radio", "📻", "info")
+                
                 return True
             return False
         except Exception as e:

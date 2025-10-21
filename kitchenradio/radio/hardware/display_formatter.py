@@ -603,8 +603,126 @@ class DisplayFormatter:
             # Playing icon in bottom right corner
             icon_size = 12
             icon_x = self.width - icon_size - 5
-            icon_y = self.height - icon_size - 0
+            icon_y = self.height - icon_size - 2
             play_icon = "▶" if playing else "⏸"
             draw.text((icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)
         
         return draw_track_info_with_progress
+    
+    def format_menu_display(self, title: str, menu_items: list, selected_index: int = 0) -> Callable:
+        """
+        Format scrollable menu display with current selection centered.
+        
+        Args:
+            title: Menu title
+            menu_items: List of menu items
+            selected_index: Index of currently selected item
+            
+        Returns:
+            Drawing function for scrollable menu display
+        """
+        def draw_menu(draw: ImageDraw.Draw):
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Menu title at top
+            title_truncated = self._truncate_text(title, self.width - 20, self.fonts['medium'])
+            draw.text((10, 5), title_truncated, font=self.fonts['medium'], fill=255)
+            
+            # Draw separator line under title
+            draw.line([(5, 22), (self.width - 5, 22)], fill=255, width=1)
+            
+            # Menu area dimensions
+            menu_start_y = 26
+            menu_height = self.height - menu_start_y - 5
+            line_height = 12
+            max_visible_items = menu_height // line_height
+            
+            if not menu_items:
+                # No items to display
+                draw.text((10, menu_start_y + 10), "No items", font=self.fonts['small'], fill=128)
+                return
+            
+            # Calculate which items to show (center the selection)
+            total_items = len(menu_items)
+            half_visible = max_visible_items // 2
+            
+            # Calculate start and end indices for visible items
+            if total_items <= max_visible_items:
+                # All items fit on screen
+                start_idx = 0
+                end_idx = total_items
+                display_selected_idx = selected_index
+            else:
+                # Need scrolling - center the selected item
+                start_idx = max(0, selected_index - half_visible)
+                end_idx = min(total_items, start_idx + max_visible_items)
+                
+                # Adjust if we're near the end
+                if end_idx == total_items:
+                    start_idx = max(0, total_items - max_visible_items)
+                
+                display_selected_idx = selected_index - start_idx
+            
+            # Draw visible menu items
+            for i, item_idx in enumerate(range(start_idx, end_idx)):
+                item = menu_items[item_idx]
+                y_pos = menu_start_y + (i * line_height)
+                
+                # Truncate item text to fit screen
+                max_item_width = self.width - 40  # Leave space for selection indicator
+                item_truncated = self._truncate_text(item, max_item_width, self.fonts['small'])
+                
+                if i == display_selected_idx:
+                    # This is the selected item - highlight it
+                    # Draw selection background
+                    selection_bg_y = y_pos - 1
+                    draw.rectangle([
+                        (8, selection_bg_y), 
+                        (self.width - 8, selection_bg_y + line_height - 1)
+                    ], fill=255)
+                    
+                    # Draw selection arrow
+                    draw.text((12, y_pos), "►", font=self.fonts['small'], fill=0)
+                    
+                    # Draw item text in black (on white background)
+                    draw.text((25, y_pos), item_truncated, font=self.fonts['small'], fill=0)
+                else:
+                    # Regular item
+                    draw.text((25, y_pos), item_truncated, font=self.fonts['small'], fill=255)
+            
+            # Draw scroll indicators if needed
+            if total_items > max_visible_items:
+                indicator_x = self.width - 15
+                
+                # Up arrow if there are items above
+                if start_idx > 0:
+                    draw.text((indicator_x, menu_start_y), "▲", font=self.fonts['small'], fill=255)
+                
+                # Down arrow if there are items below
+                if end_idx < total_items:
+                    bottom_y = menu_start_y + (max_visible_items - 1) * line_height
+                    draw.text((indicator_x, bottom_y), "▼", font=self.fonts['small'], fill=255)
+                
+                # Draw scroll position indicator
+                if total_items > 0:
+                    scroll_height = menu_height - 20
+                    scroll_y = menu_start_y + 10
+                    scroll_pos = int((selected_index / (total_items - 1)) * scroll_height)
+                    
+                    # Draw scroll track
+                    draw.line([(indicator_x + 8, scroll_y), (indicator_x + 8, scroll_y + scroll_height)], fill=128, width=1)
+                    
+                    # Draw scroll thumb
+                    thumb_y = scroll_y + scroll_pos
+                    draw.rectangle([
+                        (indicator_x + 6, thumb_y - 2),
+                        (indicator_x + 10, thumb_y + 2)
+                    ], fill=255)
+            
+            # Show item count at bottom right
+            count_text = f"{selected_index + 1}/{total_items}"
+            count_width = len(count_text) * 6  # Approximate width
+            draw.text((self.width - count_width - 5, self.height - 12), count_text, font=self.fonts['small'], fill=128)
+        
+        return draw_menu
