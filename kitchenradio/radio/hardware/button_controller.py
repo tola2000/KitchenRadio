@@ -368,7 +368,7 @@ class ButtonController:
     def _power(self) -> bool:
         """Power button - stop all playback"""
         logger.info("Power button pressed - stopping all playback")
-        return self.kitchen_radio.stop()
+        return self.kitchen_radio.power()
     
 
 

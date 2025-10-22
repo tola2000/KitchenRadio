@@ -3,7 +3,6 @@
 KitchenRadio Daemon - Main application daemon
 """
 
-from pickle import NONE
 import sys
 import os
 import time
@@ -52,15 +51,15 @@ class KitchenRadio:
         self.librespot_monitor = None
         self.librespot_connected = False
 
+        self.callbacks = {}
+        
+        self.is_powered_on = False
+
         self.source = None  # Current active source backend
         
         # Monitor threads
         self.mpd_monitor_thread = None
         self.librespot_monitor_thread = None
-
-        self.callbacks = {}
-
-        self.powered_on = False
         
         # Configuration from environment
         self.config = self._load_config()
@@ -163,8 +162,6 @@ class KitchenRadio:
             self.mpd_monitor = MPDMonitor(self.mpd_client)
             self.mpd_connected = True
             
-            self.mpd_monitor.add_callback('any', self._on_client_changed)
-            
             self.logger.info(f"MPD backend initialized successfully - {self.config['mpd_host']}:{self.config['mpd_port']}")
             return True
             
@@ -190,8 +187,7 @@ class KitchenRadio:
             self.librespot_controller = LibrespotController(self.librespot_client)
             self.librespot_monitor = LibrespotMonitor(self.librespot_client)
             self.librespot_connected = True
-
-            self.librespot_monitor.add_callback('any', self._on_client_changed)
+            self.librespot_monitor.add_callback('state_changed', self._on_librespot_state_changed)
             
             self.logger.info(f"Librespot backend initialized successfully - {self.config['librespot_host']}:{self.config['librespot_port']}")
             return True
@@ -200,6 +196,7 @@ class KitchenRadio:
             self.logger.warning(f"Librespot initialization failed: {e}")
             return False
 
+    
     def add_callback(self, event: str, callback: Callable):
         """
         Add callback for specific event.
@@ -214,25 +211,20 @@ class KitchenRadio:
         self.logger.debug(f"Added callback for {event}")
 
     def _on_client_changed(self, **kwargs):
-        self._trigger_callbacks(event='any', **kwargs)
+        try:
+            self._wake_event.set()
+        except Exception:
+            pass
 
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
-
-        for callback in self.callbacks['any']:
-            try:
-                callback(**kwargs)
-            except Exception as e:
-                self.logger.error(f"Error in 'any' callback for {event}: {e}")
-
         if event in self.callbacks:
             for callback in self.callbacks[event]:
                 try:
                     callback(**kwargs)
                 except Exception as e:
-                    self.logger.error(f"Error in callback for {event}: {e}")
-
-
+                    logger.error(f"Error in callback for {event}: {e}")
+    
     def _on_mpd_track_change(self, current_track, last_track):
         """Handle MPD track change events"""
         if current_track:
@@ -320,15 +312,14 @@ class KitchenRadio:
         new_state = kwargs.get('new_state', 'unknown')
         old_state = kwargs.get('old_state', 'unknown')
         
-        state_icons = {
-            'Playing': '▶️',
-            'Paused': '⏸️',
-            'Stopped': '⏹️'
-        }
-        
-        icon = state_icons.get(new_state, '❓')
-        self.logger.info(f"{icon} [Spotify] State changed: {old_state} → {new_state}")
-        
+        try:
+            state_norm = str(new_state).lower() if new_state is not None else ''
+            if 'play' in state_norm:
+                # set_source is idempotent and will only stop other backends if necessary
+                self.set_source(BackendType.LIBRESPOT)
+        except Exception as e:
+            self.logger.debug(f"Error switching source on librespot state change: {e}")
+
         # If source switching is enabled, handle exclusive playback
         if new_state == 'play':
             self.set_source(BackendType.LIBRESPOT)
@@ -440,16 +431,6 @@ class KitchenRadio:
         except Exception as e:
             self.logger.error(f"Error in play/pause command on {source_name}: {e}")
             return False
-    
-    def power(self):
-        if not self.powered_on:
-            self.powered_on = True
-        else:
-            self.powered_on = False
-            self._stop_source(BackendType.MPD)
-            self._stop_source(BackendType.LIBRESPOT)
-            self.set_source(BackendType.NONE)
-        return True
     
     def play(self) -> bool:
         """
@@ -802,6 +783,34 @@ class KitchenRadio:
         
         self.logger.info("KitchenRadio daemon stopped")
     
+    def power(self):
+        if self.is_powered_on:
+            """Power off the KitchenRadio daemon and connected backends"""
+            self.logger.info("Powering off KitchenRadio daemon...")
+            
+            # Stop playback on both backends
+            if self.mpd_connected:
+                try:
+                    self.mpd_controller.stop()
+                    self.logger.info("Stopped MPD playback")
+                except Exception as e:
+                    self.logger.warning(f"Error stopping MPD playback: {e}")
+            
+            if self.librespot_connected:
+                try:
+                    self.librespot_controller.stop()
+                    self.logger.info("Stopped librespot playback")
+                except Exception as e:
+                    self.logger.warning(f"Error stopping librespot playback: {e}")
+            
+            self.set_source(BackendType.NONE   )
+            self.is_powered_on = False
+            self.logger.info("KitchenRadio daemon powered off")
+        else:
+            self.is_powered_on = True
+            self.logger.info("KitchenRadio daemon powered on")
+        return True
+
     # Source management methods
     def set_source(self, source: BackendType) -> bool:
         """
@@ -816,7 +825,7 @@ class KitchenRadio:
         self.logger.info(f"Setting audio source to: {source.value}")
         
         # Validate source
-        if source not in [BackendType.MPD, BackendType.LIBRESPOT, BackendType.NONE]:
+        if source not in [BackendType.NONE, BackendType.MPD, BackendType.LIBRESPOT]:
             self.logger.error(f"Invalid source: {source}")
             return False
         
@@ -915,7 +924,7 @@ class KitchenRadio:
         """
         status = {
             'daemon_running': self.running,
-            'powered_on': self.powered_on,
+            'is_powered_on': self.is_powered_on,
             'current_source': self.source.value if self.source else None,
             'available_sources': [s.value for s in self.get_available_sources()],
             'mpd': {'connected': False},

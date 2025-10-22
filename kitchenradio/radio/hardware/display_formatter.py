@@ -20,7 +20,7 @@ FONT_SMALL = 12
 FONT_MEDIUM = 14
 FONT_LARGE = 16
 FONT_XLARGE = 18
-
+FONT_XXLARGE = 28
 
 class DisplayFormatter:
     """
@@ -95,7 +95,7 @@ class DisplayFormatter:
                 break
         
         # Load fonts for all sizes
-        font_sizes = {'small': FONT_SMALL, 'medium': FONT_MEDIUM, 'large': FONT_LARGE, 'xlarge': FONT_XLARGE}
+        font_sizes = {'small': FONT_SMALL, 'medium': FONT_MEDIUM, 'large': FONT_LARGE, 'xlarge': FONT_XLARGE, 'xxlarge': FONT_XXLARGE}
         
         for name, size in font_sizes.items():
             if homevideo_path:
@@ -705,9 +705,9 @@ class DisplayFormatter:
         
         # Pre-calculate play icon
         play_icon = "▶" if playing else "⏸"
-        icon_size = 12
-        icon_x = self.width - icon_size - 5
-        icon_y = self.height - icon_size - 2
+        icon_size = 28
+        icon_x = self.width - icon_size + 2
+        icon_y = self.height - icon_size + 2
         
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Clear background
@@ -726,7 +726,7 @@ class DisplayFormatter:
                 draw.text((content_x, 28), artist_album_displayed, font=self.fonts['small'], fill=255)
             
             # Draw play icon
-            draw.text((icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)
+            draw.text((icon_x, icon_y), play_icon, font=self.fonts['xxlarge'], fill=255)
         
         return draw_track_info_with_progress, truncation_info
     
@@ -881,3 +881,119 @@ class DisplayFormatter:
                         (bar_x + bar_width - 2, current_item_y + int(item_height))
                     ], fill=255)
         return draw_menu
+    
+
+    def format_clock_display(self, time_data: Dict[str, Any]) -> Callable:
+        """
+        Format a retro-style clock display.
+        
+        Accepts time_data:
+            {
+                "time": "HH:MM" (preferred),
+                "hour": "HH",
+                "minute": "MM",
+                "date": "Mon 01 Jan" (optional),
+                "ampm": True/False (optional, show AM/PM)
+            }
+        Returns a drawing function for the clock screen.
+        """
+        # Extract time pieces
+        time_str = time_data.get('time')
+        hour = time_data.get('hour')
+        minute = time_data.get('minute')
+        date_str = time_data.get('date', '')
+        show_ampm = time_data.get('ampm', False)
+        
+        if not time_str:
+            if hour is None or minute is None:
+                # fallback: use empty clock
+                hour_text = "--"
+                minute_text = "--"
+            else:
+                hour_text = f"{int(hour):02d}"
+                minute_text = f"{int(minute):02d}"
+        else:
+            parts = str(time_str).split(':')
+            hour_text = parts[0].zfill(2)
+            minute_text = parts[1].zfill(2) if len(parts) > 1 else "00"
+        
+        # Optionally determine AM/PM suffix
+        ampm_text = ""
+        if show_ampm:
+            try:
+                h = int(hour_text)
+                ampm_text = "AM" if h < 12 else "PM"
+            except Exception:
+                ampm_text = ""
+        
+        # Choose fonts
+        font_hour = self.fonts.get('xxlarge', self.fonts['default'])
+        font_min = self.fonts.get('xxlarge', self.fonts['default'])
+        font_date = self.fonts.get('medium', self.fonts['default'])
+        font_ampm = self.fonts.get('small', self.fonts['default'])
+        
+        # Pre-calc widths/heights
+        # Compose big hour/minute with colon
+        colon = ":"
+        # Pre-render text widths via getbbox
+        hour_bbox = font_hour.getbbox(hour_text)
+        hour_w = hour_bbox[2] - hour_bbox[0]
+        hour_h = hour_bbox[3] - hour_bbox[1]
+        min_bbox = font_min.getbbox(minute_text)
+        min_w = min_bbox[2] - min_bbox[0]
+        min_h = min_bbox[3] - min_bbox[1]
+        colon_bbox = font_hour.getbbox(colon)
+        colon_w = colon_bbox[2] - colon_bbox[0]
+        colon_h = colon_bbox[3] - colon_bbox[1]
+        
+        total_width = hour_w + colon_w + min_w
+        # center horizontally
+        start_x = max(0, (self.width - total_width) // 2)
+        hour_x = start_x
+        colon_x = hour_x + hour_w
+        min_x = colon_x + colon_w
+        
+        # vertical positions
+        clock_top = 6
+        hour_y = clock_top
+        # align minute baseline a bit lower for visual balance
+        min_y = hour_y + (hour_h - min_h)
+        date_y = hour_y + max(hour_h, min_h) + 6
+        
+        def draw_clock(draw: ImageDraw.Draw):
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Optional retro shadow: draw slightly offset dark shadow then bright text
+            shadow_offset = 1
+            # shadow
+            draw.text((hour_x + shadow_offset, hour_y + shadow_offset), hour_text, font=font_hour, fill=40)
+            draw.text((colon_x + shadow_offset, hour_y + shadow_offset), colon, font=font_hour, fill=40)
+            draw.text((min_x + shadow_offset, min_y + shadow_offset), minute_text, font=font_min, fill=40)
+            
+            # main text (bright)
+            draw.text((hour_x, hour_y), hour_text, font=font_hour, fill=255)
+            draw.text((colon_x, hour_y), colon, font=font_hour, fill=255)
+            draw.text((min_x, min_y), minute_text, font=font_min, fill=255)
+            
+            # AM/PM if requested
+            if ampm_text:
+                ampm_bbox = font_ampm.getbbox(ampm_text)
+                ampm_w = ampm_bbox[2] - ampm_bbox[0]
+                # place AM/PM to the right of minutes
+                ampm_x = min(self.width - ampm_w - 6, min_x + min_w + 6)
+                ampm_y = hour_y + (hour_h - (ampm_bbox[3] - ampm_bbox[1])) // 2
+                draw.text((ampm_x, ampm_y), ampm_text, font=font_ampm, fill=200)
+            
+            # Date line centered below clock
+            if date_str:
+                date_bbox = font_date.getbbox(date_str)
+                date_w = date_bbox[2] - date_bbox[0]
+                date_x = max(0, (self.width - date_w) // 2)
+                draw.text((date_x, date_y), date_str, font=font_date, fill=180)
+            
+            # Small decorative retro line below date
+            draw.line([(20, date_y + 18), (self.width - 20, date_y + 18)], fill=60, width=1)
+        
+        return draw_clock
+

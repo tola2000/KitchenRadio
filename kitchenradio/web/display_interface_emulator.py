@@ -261,7 +261,7 @@ if __name__ == "__main__":
     print("Testing SSD1322 Display Interface Emulator...")
     
     # Create interface emulator for SSD1322
-    interface = EmulatorDisplayInterface()
+    interface = DisplayInterfaceEmulator()
     
     # Initialize
     if interface.initialize():

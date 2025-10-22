@@ -5,7 +5,10 @@ KitchenRadio LibreSpot Client - Main client class for go-librespot interaction
 import logging
 import requests
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
+import websockets
+import asyncio, threading
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +34,12 @@ class KitchenRadioLibrespotClient:
         self.port = port
         self.timeout = timeout
         self._connected = False
-        
+        self.websocket = None
+        self.callbacks = {}
+
         # Construct base URL
         self.base_url = f"http://{host}:{port}"
+        self.wsurl = f"ws://{host}:{port}/events"
         
         logger.info(f"KitchenRadio LibreSpot client initialized for {self.base_url}")
     
@@ -94,16 +100,105 @@ class KitchenRadioLibrespotClient:
             if status is not None:
                 self._connected = True
                 logger.info("Connected to go-librespot successfully")
+
+
+
+                loop = asyncio.new_event_loop()
+                t = threading.Thread(target=loop.run_forever, daemon=True)
+                t.start()
+                # store for later shutdown if needed
+                self._ws_thread = t
+                self._ws_loop = loop
+                asyncio.run_coroutine_threadsafe(self.connect_ws(), loop)
                 return True
             else:
                 logger.error("Failed to get status from go-librespot")
                 self._connected = False
                 return False
+
+            
                 
         except Exception as e:
             logger.error(f"Failed to connect to go-librespot: {e}")
             self._connected = False
             return False
+        
+    async def connect_ws(self):
+        try:
+            logger.info(f"Connecting to go-librespot WebSocket at {self.wsurl}")
+
+            async with websockets.connect(self.wsurl) as websocket:
+                self.websocket = websocket
+                logger.info("Connected successfully  {self.wsurl}!")
+                
+                # Listen for messages
+                async for message in websocket:
+                    await self.handle_message(message)
+                
+        except websockets.exceptions.ConnectionClosed:
+            logger.warning("WebSocket connection closed")
+        except websockets.exceptions.InvalidURI:
+            logger.error(f"Invalid WebSocket URI: {self.uri}")
+        except ConnectionRefusedError:
+            logger.error(f"Connection refused to {self.uri}. Is go-librespot running?")
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+
+    def add_callback(self, event: str, callback: Callable):
+        """
+        Add callback for specific event.
+        
+        Args:
+            event: Event name (track_started, track_paused, track_resumed, track_ended, volume_changed, state_changed)
+            callback: Callback function
+        """
+        if event not in self.callbacks:
+            self.callbacks[event] = []
+        self.callbacks[event].append(callback)
+        logger.debug(f"Added callback for {event}")
+
+    def _trigger_callbacks(self, event: str, **kwargs):
+        """Trigger callbacks for event."""
+        for callback in self.callbacks['any']:
+            try:
+                callback(event='any', **kwargs)
+            except Exception as e:
+                logger.error(f"Error in 'any' callback for {event}: {e}")
+
+        if event in self.callbacks:
+            for callback in self.callbacks[event]:
+                try:
+                    callback(**kwargs)
+                except Exception as e:
+                    logger.error(f"Error in callback for {event}: {e}")
+
+    async def handle_message(self, message):
+        """Handle incoming WebSocket messages"""
+        try:
+            data = json.loads(message)
+            message_type = data.get('type', 'unknown')
+            
+            if message_type == 'metadata':
+                self._trigger_callbacks('metadata', data=data)
+                return
+                
+            elif message_type == 'state':
+                self._trigger_callbacks('state', data=data)
+                return
+                
+            elif message_type == 'volume':
+                self._trigger_callbacks('volume', data=data)
+                return
+
+            else:
+                self._trigger_callbacks('other', data=data)
+                return
+
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse JSON message: {message}")
+        except Exception as e:
+            logger.error(f"Error handling message: {e}")
+    
     
     def disconnect(self):
         """Disconnect from go-librespot server."""
@@ -139,6 +234,18 @@ class KitchenRadioLibrespotClient:
             logger.error(f"Error pausing playback: {e}")
             return False
 
+    def stop(self) -> bool:
+        """Pause playback."""
+        try:
+            result = self._send_request("/player/pause", method="POST", data={"play": False})
+
+            logger.info("Paused playback")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error pausing playback: {e}")
+            return False
+        
     def playpause(self) -> bool:
         """playpause playback."""
         try:

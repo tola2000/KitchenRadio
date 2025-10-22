@@ -11,6 +11,8 @@ import threading
 import time
 from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
 
+from kitchenradio.radio.kitchen_radio import BackendType
+
 from .display_formatter import DisplayFormatter
 from .display_interface_i2c import I2CDisplayInterface
 
@@ -32,7 +34,7 @@ class DisplayController:
                  kitchen_radio: 'KitchenRadio' = None,
                  i2c_port: int = 1,
                  i2c_address: int = 0x3C,
-                 refresh_rate: float = 2.0,
+                 refresh_rate: float = 10,
                  i2c_interface = None):
         """
         Initialize simplified display controller for SSD1322.
@@ -45,6 +47,8 @@ class DisplayController:
             i2c_interface: Optional external I2C interface (for emulation)
         """
         self.kitchen_radio = kitchen_radio
+
+        self._wake_event = threading.Event()
         
         # Use provided interface or create I2C interface for SSD1322
         if i2c_interface:
@@ -78,8 +82,12 @@ class DisplayController:
         # Scrolling state
         self.scrolling_active = False
         self.scroll_timer = None
-        self.scroll_update_interval = 0.5  # Update every 500ms
-        
+        self.scroll_update_interval = 0.2  # Update every 500ms
+          # Pause before starting scroll (seconds)
+        self.scroll_pause_duration = 30
+        # Per-key timestamp (epoch) until which scrolling is paused for that key
+        self.scroll_pause_until: Dict[str, float] = {}
+      
         # Overlay state (for volume, menu, etc.)
         self.overlay_active = False
         self.overlay_type = None  # 'volume', 'menu', etc.
@@ -89,6 +97,8 @@ class DisplayController:
 
         self.selected_index = 0
         self.on_menu_selected: None
+
+        self.scroll_step = 2  # pixels per update
 
         # Threading for updates
         self.update_thread = None
@@ -116,9 +126,16 @@ class DisplayController:
             self.update_thread.start()
             logger.info("Display update thread started")
         
+        self.kitchen_radio.add_callback('any', self._on_client_changed)
         logger.info("Simplified DisplayController initialized successfully")
         return True
     
+    def _on_client_changed(self, **kwargs):
+        try:
+            self._wake_event.set()
+        except Exception:
+            pass
+
     def cleanup(self):
         """Clean up display resources"""
         logger.info("Cleaning up DisplayController...")
@@ -186,11 +203,20 @@ class DisplayController:
                     self.manual_update_requested = False
                     # Manual update is handled by the manual methods
                 
+
                 # Sleep to maintain refresh rate
                 elapsed = time.time() - start_time
                 sleep_time = max(0, frame_time - elapsed)
                 time.sleep(sleep_time)
-                
+
+
+                # Wait either for wake_event (set by callback) or timeout
+                self._wake_event.wait(timeout=sleep_time)
+                # Clear wake flag so next wait will block again until next callback
+                self._wake_event.clear()
+
+
+                logger.debug(f"Display update loop cycle time: {elapsed:.3f}s, slept for {sleep_time:.3f}s")
             except Exception as e:
                 logger.error(f"Error in display update loop: {e}")
                 time.sleep(1.0)  # Wait longer on error
@@ -218,8 +244,15 @@ class DisplayController:
                 
                 overlay_dismissed = self._dismiss_overlay()
            
+                if(current_status.get('powered_on', False) == False):
+                    self._render_clock_display()
+                    return
+                elif current_source == 'none' or current_source is None:
+                    self._render_no_source_display(current_status)
+                    return
+                
                 # Check for external update of the volume
-                if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
+                elif (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
                     self._render_volume_overlay(current_volume)
                     return
                 elif self.overlay_active:
@@ -253,22 +286,75 @@ class DisplayController:
             logger.error(f"Error updating display: {e}")
 
     def _is_scroll_update_needed(self) -> bool:
-        """Determine if a scroll update is needed based on truncation info"""
+        # """Determine if a scroll update is needed based on truncation info"""
+        # for key, info in self.last_truncation_info.items():
+        #     if info.get('truncated', False):
+        #         scroll_step = self.scroll_step  # pixels per update
+        #         for key, offset in self.current_scroll_offsets.items():
+        #             info = self.last_truncation_info.get(key)
+        #             if info and info.get('truncated', False):
+        #                 max_scroll = info['original_width'] - info['max_width']
+        #                 new_offset = offset + scroll_step
+        #                 if new_offset > max_scroll:
+        #                     new_offset = 0  # loop back
+        #                 self.current_scroll_offsets[key] = new_offset
+        #         return True
+        # return False
+
+        now = time.time()
+        any_truncated = False
         for key, info in self.last_truncation_info.items():
-            if info.get('truncated', False):
-                scroll_step = 2  # pixels per update
-                for key, offset in self.current_scroll_offsets.items():
-                    info = self.last_truncation_info.get(key)
-                    if info and info.get('truncated', False):
-                        max_scroll = info['original_width'] - info['max_width']
-                        new_offset = offset + scroll_step
-                        if new_offset > max_scroll:
-                            new_offset = 0  # loop back
-                        self.current_scroll_offsets[key] = new_offset
-                    return False
-    
+            if not info.get('truncated', False):
+                # Ensure we don't keep stale pause entries for non-truncated keys
+                self.scroll_pause_until.pop(key, None)
+                continue
 
+            any_truncated = True
+            # Initialize offset if missing
+            if key not in self.current_scroll_offsets:
+                self.current_scroll_offsets[key] = 0
+                # Start pause for newly truncated key
+                self.scroll_pause_until[key] = now + self.scroll_pause_duration
 
+        if not any_truncated:
+            return False
+
+        scroll_step = self.scroll_step  # pixels per update
+        advanced = False
+        for key, offset in list(self.current_scroll_offsets.items()):
+            info = self.last_truncation_info.get(key)
+            if not info or not info.get('truncated', False):
+                # Remove offsets for keys no longer truncated
+                self.current_scroll_offsets.pop(key, None)
+                self.scroll_pause_until.pop(key, None)
+                continue
+
+            pause_until = self.scroll_pause_until.get(key, 0)
+            if offset == 0 and now < pause_until:
+                # Still in initial pause; don't advance offset
+                continue
+
+            max_scroll = info['original_width'] - info['max_width']
+            new_offset = offset + scroll_step
+            if new_offset > max_scroll:
+                new_offset = 0
+                # restart pause when looped back to start
+                self.scroll_pause_until[key] = now + self.scroll_pause_duration
+            self.current_scroll_offsets[key] = new_offset
+            advanced = True
+
+        return advanced
+
+    def _render_clock_display(self):
+        """Update display to show clock"""
+        now = time.localtime()
+        clock_data = {
+            'time': time.strftime("%H:%M", now),
+            'date': time.strftime("%Y-%m-%d", now),
+            'ampm': False,
+        }
+
+        self._render_display_content('clock', clock_data)
 
     def _render_display_content(self, display_type: str, display_data: Dict[str, Any]):
         """Generic method to render display content based on type"""
@@ -277,7 +363,7 @@ class DisplayController:
             if display_type == 'track_info':
                 draw_func, truncation_info = self.formatter.format_track_info(display_data)
             elif display_type == 'status_message':
-                draw_func = self.formatter.format_status_message(display_data)
+                draw_func, truncation_info = self.formatter.format_status_message(display_data)
             elif display_type == 'menu':
                 draw_func = self.formatter.format_menu_display(display_data)
             elif display_type == 'volume':
@@ -288,6 +374,9 @@ class DisplayController:
                 draw_func = self.formatter.format_error_message(display_data)
             elif display_type == 'status':
                 draw_func = self.formatter.format_status(display_data)
+            elif display_type == 'clock':
+                draw_func = self.formatter.format_clock_display(display_data)
+
             else:
                 logger.warning(f"Unknown display type: {display_type}")
                 return
@@ -399,13 +488,22 @@ class DisplayController:
                 if info['truncated']:
                     # Initialize scroll offset if not already present
                     if key not in self.current_scroll_offsets:
-                        self.current_scroll_offsets[key] = 0
+                       #self.current_scroll_offsets[key] = 0
+                       self.current_scroll_offsets[key] = 0
+                       # Set initial pause before scrolling begins
+                       self.scroll_pause_until[key] = time.time() + self.scroll_pause_duration
+
                 else:
                     # Remove scroll offset if text is not truncated
+                    # self.current_scroll_offsets.pop(key, None)
                     self.current_scroll_offsets.pop(key, None)
+                    self.scroll_pause_until.pop(key, None)
+
             else:
                 # Remove scroll offset for keys not in current truncation info
                 self.current_scroll_offsets.pop(key, None)
+                self.scroll_pause_until.pop(key, None)
+
 
 
 
@@ -688,6 +786,17 @@ class DisplayController:
         }
         self._render_display_content('volume', volume_data)
         self._activate_overlay('volume', timeout)
+
+    def show_clock(self):
+        """Show clock overlay using the generic overlay system"""
+        now = time.localtime()
+        time_str = time.strftime("%H:%M", now)
+        date_str = time.strftime("%Y-%m-%d", now)
+        clock_data = {
+            'main_text': time_str,
+            'sub_text': date_str
+        }
+        self._render_display_content('clock', clock_data)
 
     def show_menu_overlay(self, options: List[str], selected_index: int = 0, timeout: float = 3.0, on_selected: Optional[Callable[[int], None]] = None):
         """Show menu overlay using the generic overlay system"""

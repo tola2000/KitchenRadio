@@ -50,6 +50,15 @@ class LibrespotController:
         """
         return self.client.resume()
     
+    def stop(self) -> bool:
+        """
+        Pause playback.
+        
+        Returns:
+            True if successful
+        """
+        return self.client.stop()
+        
     def playpause(self) -> bool:
         """
         Toggle between play and pause.
@@ -171,6 +180,10 @@ class LibrespotController:
             True if successful
         """
         return self.client.set_repeat(mode)
+    
+    def stop(self) -> bool:
+
+        return self.client.stop()
     
     def get_repeat(self) -> Optional[str]:
         """

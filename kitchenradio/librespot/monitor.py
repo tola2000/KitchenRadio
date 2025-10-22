@@ -30,6 +30,7 @@ class LibrespotMonitor:
         self.is_monitoring = False
         self._monitor_thread = None
         self._stop_event = threading.Event()
+        self._wake_event = threading.Event()
         
     def add_callback(self, event: str, callback: Callable):
         """
@@ -43,9 +44,22 @@ class LibrespotMonitor:
             self.callbacks[event] = []
         self.callbacks[event].append(callback)
         logger.debug(f"Added callback for {event}")
-    
+
+    def _on_client_changed(self, **kwargs):
+        try:
+            self._wake_event.set()
+        except Exception:
+            pass
+
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
+
+        for callback in self.callbacks['any']:
+            try:
+                callback(**kwargs)
+            except Exception as e:
+                logger.error(f"Error in 'any' callback for {event}: {e}")
+
         if event in self.callbacks:
             for callback in self.callbacks[event]:
                 try:
@@ -82,6 +96,11 @@ class LibrespotMonitor:
             'is_playing': status.get('is_playing', False)
         }
     
+    def _on_mpd_state_changed(self, data):
+        """Handle MPD state change events."""
+        logger.info(f"MPD state changed: {data}")
+
+    
     def _check_for_changes(self):
         """Check for status and track changes."""
         try:
@@ -91,9 +110,13 @@ class LibrespotMonitor:
                 return
             
             # Check for playing state changes
-            old_playing = self.current_status.get('is_playing', False)
-            new_playing = status.get('is_playing', False)
-            
+            old_paused = self.current_status.get('paused', False)
+            new_paused = status.get('paused', False)
+            old_stopped = self.current_status.get('stopped', False)
+            new_stopped = status.get('stopped', False)     
+            old_playing = not old_paused and not old_stopped
+            new_playing = not new_paused and not new_stopped
+
             if old_playing != new_playing:
                 logger.info(f"Playback state changed: {'playing' if new_playing else 'paused'}")
                 self._trigger_callbacks('state_changed', 
@@ -105,10 +128,10 @@ class LibrespotMonitor:
                 if new_playing and not old_playing:
                     # Started or resumed playing
                     if self._is_same_track(status, self.current_status):
-                        logger.info(f"Track resumed: {track_info['artists']} - {track_info['name']}")
+                        logger.info(f"Track resumed: {track_info['artist']} - {track_info['name']}")
                         self._trigger_callbacks('track_resumed', track=track_info)
                     else:
-                        logger.info(f"Track started: {track_info['artists']} - {track_info['name']}")
+                        logger.info(f"Track started: {track_info['artist']} - {track_info['name']}")
                         self._trigger_callbacks('track_started', track=track_info)
                         
                 elif not new_playing and old_playing:
@@ -120,7 +143,7 @@ class LibrespotMonitor:
             if self._is_different_track(status, self.current_status) and new_playing:
                 track_info = self._format_track_info(status)
                 self.current_track = track_info
-                logger.info(f"New track: {track_info['artists']} - {track_info['name']}")
+                logger.info(f"New track: {track_info}")
                 self._trigger_callbacks('track_started', track=track_info)
             
             # Check for volume changes
@@ -163,8 +186,14 @@ class LibrespotMonitor:
                 # Try to reconnect
                 self.client.connect()
                 
-            # Wait for next check
-            self._stop_event.wait(1.0)  # Check every second
+            try:
+                # Wait either for wake_event (set by callback) or timeout
+                self._wake_event.wait(timeout=1)
+                # Clear wake flag so next wait will block again until next callback
+                self._wake_event.clear()
+            except Exception as e:
+                # Fallback to small sleep if wait fails for any reason
+               time.sleep(1.0)
         
         logger.info("go-librespot monitoring loop stopped")
     
@@ -180,6 +209,8 @@ class LibrespotMonitor:
         if not self.client.is_connected():
             self.client.connect()
         
+
+
         # Initialize current status
         self.current_status = self.client.get_status() or {}
         self.current_track = self._format_track_info(self.current_status)
@@ -188,7 +219,9 @@ class LibrespotMonitor:
         self._stop_event.clear()
         self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._monitor_thread.start()
-        
+
+        self.client.add_callback('any', self._on_client_changed)
+
         self.is_monitoring = True
     
     def stop_monitoring(self):

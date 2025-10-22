@@ -48,6 +48,13 @@ class NowPlayingMonitor:
     
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
+        
+        for callback in self.callbacks['any']:
+            try:
+                callback(event='any', **kwargs)
+            except Exception as e:
+                logger.error(f"Error in 'any' callback for {event}: {e}")
+                
         if event in self.callbacks:
             for callback in self.callbacks[event]:
                 try:

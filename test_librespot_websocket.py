@@ -18,10 +18,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class LibrespotWebSocketTest:
-    def __init__(self, host="localhost", port=24879):
+    def __init__(self, host="192.168.1.4", port=3678):
         self.host = host
         self.port = port
-        self.uri = f"ws://{host}:{port}"
+        self.uri = f"ws://{host}:{port}/events"
         self.websocket = None
         
     async def connect_and_listen(self):
