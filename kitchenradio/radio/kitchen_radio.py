@@ -441,15 +441,27 @@ class KitchenRadio:
             self.logger.error(f"Error in play/pause command on {source_name}: {e}")
             return False
     
-    def power(self):
+    
+    def _power_on(self) -> bool:
+        """Power on the KitchenRadio daemon"""
         if not self.powered_on:
             self.powered_on = True
-        else:
+        return True
+    
+    def _power_off(self) -> bool:
+        """Power off the KitchenRadio daemon"""
+        if self.powered_on:
             self.powered_on = False
             self._stop_source(BackendType.MPD)
             self._stop_source(BackendType.LIBRESPOT)
-            self.set_source(BackendType.NONE)
-        return True
+            self._set_source(BackendType.NONE)
+        return True    
+
+    def power(self):
+        if not self.powered_on:
+            return self._power_on()
+        else:
+            return self._power_off()
     
     def play(self) -> bool:
         """
@@ -548,7 +560,11 @@ class KitchenRadio:
         if not is_connected:
             self.logger.warning(f"Active source {source_name} is not connected")
             return False
-        
+
+        if self.source == BackendType.NONE:
+            self.logger.warning(f"No active source selected for next command")
+            return False
+
         try:
             result = controller.next()
             if result:
@@ -575,7 +591,11 @@ class KitchenRadio:
         if not is_connected:
             self.logger.warning(f"Active source {source_name} is not connected")
             return False
-        
+
+        if self.source == BackendType.NONE:
+            self.logger.warning(f"No active source selected for next command")
+            return False
+               
         try:
             result = controller.previous()
             if result:
@@ -606,7 +626,11 @@ class KitchenRadio:
         if not is_connected:
             self.logger.warning(f"Active source {source_name} is not connected")
             return False
-        
+
+        if self.source == BackendType.NONE:
+            self.logger.warning(f"No active source selected for next command")
+            return False
+               
         # Validate volume range
         if not 0 <= volume <= 100:
             self.logger.error(f"Invalid volume level: {volume}. Must be 0-100")
@@ -639,6 +663,10 @@ class KitchenRadio:
             self.logger.warning(f"Active source {source_name} is not connected")
             return None
         
+        if self.source == BackendType.NONE:
+            self.logger.warning(f"No active source selected for next command")
+            return False
+
         try:
             volume = controller.get_volume()
             return volume
@@ -667,6 +695,10 @@ class KitchenRadio:
             self.logger.warning(f"Active source {source_name} is not connected")
             return False
         
+        if self.source == BackendType.NONE:
+            self.logger.warning(f"No active source selected for next command")
+            return False
+               
         try:
             result = controller.volume_up(step)
             if result:
@@ -697,6 +729,9 @@ class KitchenRadio:
             self.logger.warning(f"Active source {source_name} is not connected")
             return False
         
+        if self.source == BackendType.NONE:
+            self.logger.warning(f"No active source selected for next command")
+            return False       
         try:
             result = controller.volume_down(step)
             if result:
@@ -802,8 +837,15 @@ class KitchenRadio:
         
         self.logger.info("KitchenRadio daemon stopped")
     
-    # Source management methods
+
     def set_source(self, source: BackendType) -> bool:
+        if not self.powered_on:
+            self._power_on()
+        return self._set_source(source)
+
+
+    # Source management methods
+    def _set_source(self, source: BackendType) -> bool:
         """
         Set the active audio source, stopping the currently active one.
         
@@ -813,6 +855,8 @@ class KitchenRadio:
         Returns:
             True if source was set successfully
         """
+
+
         self.logger.info(f"Setting audio source to: {source.value}")
         
         # Validate source

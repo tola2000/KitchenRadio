@@ -221,15 +221,20 @@ class ButtonController:
         """
         if button_type not in self.button_actions:
             logger.warning(f"No action defined for button: {button_type.value}")
+            self.display_controller.show_Notification_overlay("Oeps, Niet Toegewezen" , "Knop {button_type.value}", timeout=2)
             return False
         
         try:
             action_method = self.button_actions[button_type]
             result = action_method()
             logger.debug(f"Button action {button_type.value} result: {result}")
+            if not result:
+                self.display_controller.show_Notification_overlay("Oeps Mislukt", f"Functie iet Beschikbaar", timeout=2)  
+            
             return result
         except Exception as e:
             logger.error(f"Error executing action for button {button_type.value}: {e}")
+            self.display_controller.show_Notification_overlay("Oeps Error",  "{e}", timeout=2) 
             return False
 
 

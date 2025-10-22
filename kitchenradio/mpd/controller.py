@@ -112,7 +112,7 @@ class PlaybackController:
         """
         return self.client.stop()
     
-    def next_track(self) -> bool:
+    def next(self) -> bool:
         """
         Skip to next track.
         
@@ -122,7 +122,7 @@ class PlaybackController:
         return False
        # return self.client.next()
     
-    def previous_track(self) -> bool:
+    def previous(self) -> bool:
         """
         Skip to previous track.
         
@@ -132,23 +132,7 @@ class PlaybackController:
         return False
       #  return self.client.previous()
     
-    def next(self) -> bool:
-        """
-        Skip to next track.
-        
-        Returns:
-            True if successful
-        """
-        return self.next_track()
-    
-    def previous(self) -> bool:
-        """
-        Skip to previous track.
-        
-        Returns:
-            True if successful
-        """
-        return self.previous_track()
+
     
     def set_volume(self, volume: int) -> bool:
         """

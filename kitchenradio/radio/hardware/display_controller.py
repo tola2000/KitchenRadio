@@ -244,20 +244,22 @@ class DisplayController:
                 
                 overlay_dismissed = self._dismiss_overlay()
            
-                if(current_status.get('powered_on', False) == False):
+
+                
+                # Check for external update of the volume
+                if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
+                    self._render_volume_overlay(current_volume)
+                    return
+                elif self.overlay_active:
+                    return
+            
+                elif(current_status.get('powered_on', False) == False):
                     self._render_clock_display()
                     return
                 elif current_source == 'none' or current_source is None:
                     self._render_no_source_display(current_status)
                     return
                 
-                # Check for external update of the volume
-                elif (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
-                    self._render_volume_overlay(current_volume)
-                    return
-                elif self.overlay_active:
-                    return
-
                 # Check if status has changed or force refresh
                 if not self.overlay_active and ( (current_volume != self.last_volume ) or current_status != self.last_status or overlay_dismissed or  force_refresh ):
                     self.last_status = current_status
@@ -376,6 +378,8 @@ class DisplayController:
                 draw_func = self.formatter.format_status(display_data)
             elif display_type == 'clock':
                 draw_func = self.formatter.format_clock_display(display_data)
+            elif display_type == 'notification':
+                draw_func = self.formatter.format_simple_text(display_data)
 
             else:
                 logger.warning(f"Unknown display type: {display_type}")
@@ -786,6 +790,15 @@ class DisplayController:
         }
         self._render_display_content('volume', volume_data)
         self._activate_overlay('volume', timeout)
+
+    def show_Notification_overlay(self, title: str, description:str,  timeout: float = 3):
+        """Show volume overlay using the generic overlay system"""
+        notification_data = {
+            'main_text': title,
+            'sub_text': description 
+        }
+        self._render_display_content('notification', notification_data)
+        self._activate_overlay('notification', timeout)
 
     def show_clock(self):
         """Show clock overlay using the generic overlay system"""

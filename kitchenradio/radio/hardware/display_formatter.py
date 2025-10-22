@@ -269,7 +269,7 @@ class DisplayFormatter:
         sub_text = text_data.get('sub_text', '')
         scroll_offsets = text_data.get('scroll_offsets', {})
         
-        font_main = self.fonts['medium']
+        font_main = self.fonts['large']
         font_sub = self.fonts['small']
         max_width = self.width - 20
         
