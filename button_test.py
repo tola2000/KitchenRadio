@@ -11,21 +11,23 @@ mcp = MCP23017(i2c, address=0x27)
 button_pin = mcp.get_pin(0)
 button_pin.switch_to_input(pullup=True)
 
-button_pressed = False
-debounce_time = 0.2  # 200 ms debounce
-last_press_time = 0
+last_state = True   # button not pressed (HIGH)
+debounce_time = 0.2  # 200 ms
+last_time = time.time()
 
 try:
     print("Monitoring Button 0 (GPA0)... Press to test.")
     while True:
+        current_state = button_pin.value  # True = not pressed, False = pressed
         current_time = time.time()
-        if not button_pin.value and not button_pressed:
-            if current_time - last_press_time > debounce_time:
-                print("Button 0 pressed!")
-                button_pressed = True
-                last_press_time = current_time
-        elif button_pin.value and button_pressed:
-            button_pressed = False
+
+        if current_state != last_state:
+            # State changed, check debounce
+            if (current_time - last_time) >= debounce_time:
+                last_time = current_time
+                last_state = current_state
+                if not current_state:  # pressed
+                    print("Button 0 pressed!")
         time.sleep(0.01)
 except KeyboardInterrupt:
     print("Exiting...")
