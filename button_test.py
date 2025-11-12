@@ -7,26 +7,22 @@ import time
 # I2C setup
 # ------------------------------
 i2c = busio.I2C(board.SCL, board.SDA)
-mcp = MCP23017(i2c, address=0x27)  # use detected address 0x27
+mcp = MCP23017(i2c, address=0x27)  # use your detected address
 
 # ------------------------------
-# Configure GPA0-GPA7 as inputs with internal pull-ups
+# Configure GPA0 as input with internal pull-up
 # ------------------------------
-buttons = []
-for i in range(8):
-    pin = mcp.get_pin(i)
-    pin.switch_to_input(pullup=True)
-    buttons.append(pin)
+button_pin = mcp.get_pin(0)
+button_pin.switch_to_input(pullup=True)
 
 # ------------------------------
-# Main loop: polling
+# Main loop: detect button press
 # ------------------------------
 try:
-    print("Monitoring buttons on MCP23017 (address 0x27)...")
+    print("Monitoring Button 0 (GPA0)... Press to test.")
     while True:
-        pressed = [i for i, pin in enumerate(buttons) if not pin.value]
-        if pressed:
-            print("Button(s) pressed:", pressed)
+        if not button_pin.value:  # active LOW when pressed
+            print("Button 0 pressed!")
         time.sleep(0.1)
 except KeyboardInterrupt:
     print("Exiting...")
