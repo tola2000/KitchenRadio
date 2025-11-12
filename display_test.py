@@ -10,7 +10,7 @@ serial = spi(
     device=0,             # CE0 (GPIO8)
     gpio_DC=25,           # D/C# pin (GPIO25)
     gpio_RST=24,          # RESET pin (GPIO24)
-    bus_speed_hz=8000000  # 8 MHz, safe starting speed
+    bus_speed_hz=4000000  # 8 MHz, safe starting speed
 )
 
 # --- Initialize display ---
