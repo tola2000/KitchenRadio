@@ -18,7 +18,7 @@ GPIO.output(RESET, GPIO.HIGH)
 def write_byte(value, is_data=True):
 	GPIO.output(DC, GPIO.HIGH if is_data else GPIO.LOW)
 	for i, pin in enumerate(DATA_PINS):
-    	GPIO.output(pin, (value >> i) & 1)
+		GPIO.output(pin, (value >> i) & 1)
 	GPIO.output(CS, GPIO.LOW)
 	GPIO.output(WR, GPIO.LOW)
 	GPIO.output(WR, GPIO.HIGH)
