@@ -1,8 +1,8 @@
 """
 Button Controller for KitchenRadio Physical Interface
 
-Provides button control interface without GPIO dependencies.
-Uses display-based emulation for button interactions.
+Provides button control interface with MCP23017 GPIO support.
+Supports both hardware buttons and programmatic control.
 """
 
 import logging
@@ -15,6 +15,17 @@ if TYPE_CHECKING:
     from ..kitchen_radio import KitchenRadio, BackendType
 
 logger = logging.getLogger(__name__)
+
+# Hardware configuration flag
+try:
+    import board
+    import busio
+    from adafruit_mcp230xx.mcp23017 import MCP23017
+    from digitalio import Pull
+    HARDWARE_AVAILABLE = True
+except ImportError:
+    HARDWARE_AVAILABLE = False
+    logger.info("Hardware libraries not available, running in software mode")
 
 
 class ButtonType(Enum):
@@ -47,6 +58,38 @@ class ButtonType(Enum):
     POWER = "power"
 
 
+# MCP23017 Pin assignments for buttons
+# Format: ButtonType -> MCP23017 pin number (0-15)
+# Pins 0-7 are on Port A (GPA0-GPA7)
+# Pins 8-15 are on Port B (GPB0-GPB7)
+BUTTON_PIN_MAP = {
+    # Source buttons (Port A, pins 0-1)
+    ButtonType.SOURCE_MPD: 0,        # GPA0
+    ButtonType.SOURCE_SPOTIFY: 1,     # GPA1
+    
+    # Menu buttons (Port A, pins 2-7)
+    ButtonType.MENU_UP: 2,            # GPA2
+    ButtonType.MENU_DOWN: 3,          # GPA3
+    ButtonType.MENU_TOGGLE: 4,        # GPA4
+    ButtonType.MENU_SET: 5,           # GPA5
+    ButtonType.MENU_OK: 6,            # GPA6
+    ButtonType.MENU_EXIT: 7,          # GPA7
+    
+    # Transport buttons (Port B, pins 8-11)
+    ButtonType.TRANSPORT_PREVIOUS: 8,     # GPB0
+    ButtonType.TRANSPORT_PLAY_PAUSE: 9,   # GPB1
+    ButtonType.TRANSPORT_STOP: 10,        # GPB2
+    ButtonType.TRANSPORT_NEXT: 11,        # GPB3
+    
+    # Volume buttons (Port B, pins 12-13)
+    ButtonType.VOLUME_DOWN: 12,       # GPB4
+    ButtonType.VOLUME_UP: 13,         # GPB5
+    
+    # Power button (Port B, pin 14)
+    ButtonType.POWER: 14,             # GPB6
+}
+
+
 class ButtonEvent:
     """Represents a button event"""
     def __init__(self, button_type: ButtonType, event_type: str, timestamp: float = None):
@@ -71,15 +114,19 @@ class ButtonController:
                  kitchen_radio: 'KitchenRadio',
                  debounce_time: float = 0.05,
                  long_press_time: float = 1.0,
-                 display_controller = None):
+                 display_controller = None,
+                 use_hardware: bool = True,
+                 i2c_address: int = 0x27):
         """
-        Initialize button controller with direct KitchenRadio integration.
+        Initialize button controller with MCP23017 hardware support.
         
         Args:
             kitchen_radio: KitchenRadio instance to control
-            debounce_time: Button debounce time in seconds (for compatibility)
+            debounce_time: Button debounce time in seconds
             long_press_time: Time threshold for long press detection
             display_controller: Optional display controller for volume screen
+            use_hardware: Enable MCP23017 hardware buttons (auto-disabled if not available)
+            i2c_address: I2C address of MCP23017 (default 0x27)
         """
         # Store KitchenRadio reference
         self.kitchen_radio = kitchen_radio
@@ -87,13 +134,18 @@ class ButtonController:
         # Store display controller for volume screen
         self.display_controller = display_controller
         
-        # Timing configuration (kept for compatibility)
+        # Timing configuration
         self.debounce_time = debounce_time
         self.long_press_time = long_press_time
-
-
         
-        # Button state tracking
+        # Hardware configuration
+        self.use_hardware = use_hardware and HARDWARE_AVAILABLE
+        self.i2c_address = i2c_address
+        self.mcp = None
+        self.button_pins = {}
+        self.monitor_thread = None
+        
+        # Button state tracking for debouncing
         self.button_states: Dict[ButtonType, Dict[str, Any]] = {}
         self.press_threads: Dict[ButtonType, threading.Thread] = {}
         
@@ -103,7 +155,10 @@ class ButtonController:
                 'pressed': False,
                 'last_event_time': 0,
                 'press_start_time': 0,
-                'long_press_fired': False
+                'long_press_fired': False,
+                'pending_state': None,
+                'pending_since': None,
+                'last_state': True  # HIGH (not pressed) with pull-up
             }
         
         # Button action mapping - direct KitchenRadio calls
@@ -143,26 +198,159 @@ class ButtonController:
 
     def initialize(self) -> bool:
         """
-        Initialize button controller (display-based, no GPIO needed).
+        Initialize button controller with MCP23017 hardware if available.
         
         Returns:
-            True if initialization successful (always succeeds)
+            True if initialization successful
         """
         try:
+            if self.use_hardware:
+                logger.info("Initializing MCP23017 button hardware...")
+                success = self._initialize_hardware()
+                if success:
+                    logger.info(f"ButtonController initialized with hardware support ({len(BUTTON_PIN_MAP)} buttons)")
+                else:
+                    logger.warning("Hardware initialization failed, falling back to software mode")
+                    self.use_hardware = False
+            else:
+                logger.info("ButtonController initialized in software mode")
+            
             self.initialized = True
             self.running = True
-            logger.info(f"ButtonController initialized in display mode with {len(self.button_actions)} buttons")
             return True
             
         except Exception as e:
             logger.error(f"Failed to initialize button controller: {e}")
             return False
     
+    def _initialize_hardware(self) -> bool:
+        """
+        Initialize MCP23017 GPIO expander and configure button pins.
+        
+        Returns:
+            True if hardware initialization successful
+        """
+        try:
+            # Initialize I2C and MCP23017
+            i2c = busio.I2C(board.SCL, board.SDA)
+            self.mcp = MCP23017(i2c, address=self.i2c_address)
+            logger.info(f"MCP23017 found at address 0x{self.i2c_address:02X}")
+            
+            # Configure all button pins as inputs with pull-up resistors
+            # Buttons connect pins to GND when pressed (active-low)
+            for button_type, pin_number in BUTTON_PIN_MAP.items():
+                pin = self.mcp.get_pin(pin_number)
+                pin.switch_to_input(pull=Pull.UP)
+                self.button_pins[button_type] = pin
+                logger.debug(f"Configured {button_type.value} on pin {pin_number}")
+            
+            # Verify pull-ups are enabled
+            gppu_a = self.mcp._read_u8(0x0C)  # GPPU register Port A
+            gppu_b = self.mcp._read_u8(0x0D)  # GPPU register Port B
+            logger.info(f"Pull-up registers: Port A=0x{gppu_a:02X}, Port B=0x{gppu_b:02X}")
+            
+            # Start monitoring thread
+            self.monitor_thread = threading.Thread(target=self._monitor_buttons, daemon=True)
+            self.monitor_thread.start()
+            logger.info("Button monitoring thread started")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Hardware initialization failed: {e}")
+            return False
+    
     def cleanup(self):
-        """Clean up resources (no GPIO to clean up)"""
+        """Clean up resources"""
         self.running = False
+        
+        # Stop monitoring thread
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            logger.info("Stopping button monitoring thread...")
+            self.monitor_thread.join(timeout=2.0)
+            if self.monitor_thread.is_alive():
+                logger.warning("Button monitoring thread did not stop cleanly")
+        
         self.initialized = False
         logger.info("Button controller cleanup completed")
+    
+    def _monitor_buttons(self):
+        """
+        Monitor all button pins and handle state changes with debouncing.
+        Runs in separate thread.
+        """
+        logger.info("Button monitoring started")
+        
+        try:
+            while self.running:
+                for button_type, pin in self.button_pins.items():
+                    self._check_button_state(button_type, pin)
+                
+                time.sleep(0.01)  # 10ms polling interval
+                
+        except Exception as e:
+            logger.error(f"Error in button monitoring: {e}")
+        
+        logger.info("Button monitoring stopped")
+    
+    def _check_button_state(self, button_type: ButtonType, pin):
+        """
+        Check button state and handle debouncing.
+        
+        Args:
+            button_type: The button to check
+            pin: The MCP23017 pin object
+        """
+        state = self.button_states[button_type]
+        current_pin_state = pin.value  # True = HIGH (not pressed), False = LOW (pressed)
+        current_time = time.time()
+        
+        # Detect state change
+        if current_pin_state != state['last_state']:
+            # New state change - start debounce timer
+            if state['pending_state'] is None:
+                state['pending_state'] = current_pin_state
+                state['pending_since'] = current_time
+            
+            # Check if state has been stable long enough
+            if (state['pending_state'] == current_pin_state and 
+                (current_time - state['pending_since']) >= self.debounce_time):
+                # Accept the change
+                state['last_state'] = state['pending_state']
+                state['pending_state'] = None
+                state['pending_since'] = None
+                
+                # Handle button event
+                if not state['last_state']:  # Button pressed (LOW)
+                    self._handle_button_press(button_type)
+                else:  # Button released (HIGH)
+                    self._handle_button_release(button_type)
+        else:
+            # State returned to last_state - cancel pending change (bounce)
+            if state['pending_state'] is not None:
+                state['pending_state'] = None
+                state['pending_since'] = None
+    
+    def _handle_button_press(self, button_type: ButtonType):
+        """
+        Handle button press event.
+        
+        Args:
+            button_type: The button that was pressed
+        """
+        logger.info(f"Button pressed: {button_type.value}")
+        
+        # Execute button action
+        self._execute_button_action(button_type)
+    
+    def _handle_button_release(self, button_type: ButtonType):
+        """
+        Handle button release event.
+        
+        Args:
+            button_type: The button that was released
+        """
+        logger.debug(f"Button released: {button_type.value}")
     
     def press_button(self, button_name: str) -> bool:
         """
