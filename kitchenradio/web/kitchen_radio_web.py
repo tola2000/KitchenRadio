@@ -837,7 +837,7 @@ if __name__ == "__main__":
         host='0.0.0.0',  # Listen on all network interfaces (accessible from other devices)
         port=5001,
         enable_gpio=False,  # Disable GPIO for testing
-        use_hardware_display=False  # Use emulator for testing (set to True for hardware SPI)
+        use_hardware_display=True  # Use emulator for testing (set to True for hardware SPI)
     )
     
     if api.start():
