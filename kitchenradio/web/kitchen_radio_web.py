@@ -18,7 +18,7 @@ import base64
 from kitchenradio.radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
 from kitchenradio.radio.hardware.display_controller import DisplayController
 from kitchenradio.radio.kitchen_radio import KitchenRadio
-from kitchenradio.radio.hardware.display_interface import DisplayInterfaceHybrid
+from kitchenradio.radio.hardware.display_interface import DisplayInterface
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class KitchenRadioWeb:
         
 
         try:
-            self.display_interface = DisplayInterfaceHybrid(use_hardware=use_hardware_display)
+            self.display_interface = DisplayInterface(use_hardware=use_hardware_display)
             if hasattr(self.display_interface, 'is_emulator_mode') and self.display_interface.is_emulator_mode():
                 self.display_emulator = self.display_interface
             logger.info(f"Using hybrid display interface (hardware mode: {use_hardware_display})")
