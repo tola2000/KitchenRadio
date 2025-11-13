@@ -93,14 +93,30 @@ class KitchenRadioClient:
     def disconnect(self):
         """Disconnect from MPD server (thread-safe)."""
         with self._connection_lock:
+            if not self._connected:
+                logger.debug("Already disconnected from MPD")
+                return
+                
             try:
-                if self._connected:
-                    logger.info("Disconnecting from MPD")
+                logger.info("Disconnecting from MPD")
+                self._connected = False  # Set this FIRST to prevent reconnect attempts
+                
+                # Close the client connection
+                try:
                     self.client.close()
+                except Exception as e:
+                    logger.debug(f"Error closing MPD client: {e}")
+                
+                # Disconnect the client
+                try:
                     self.client.disconnect()
-                    self._connected = False
+                except Exception as e:
+                    logger.debug(f"Error disconnecting MPD client: {e}")
+                    
+                logger.info("Disconnected from MPD successfully")
+                
             except Exception as e:
-                logger.error(f"Error disconnecting: {e}")
+                logger.error(f"Error during MPD disconnect: {e}")
                 self._connected = False
     
     def is_connected(self) -> bool:

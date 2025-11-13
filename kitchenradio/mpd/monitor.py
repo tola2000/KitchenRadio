@@ -195,7 +195,12 @@ class NowPlayingMonitor:
         self._stop_event.set()
         
         if self._monitor_thread and self._monitor_thread.is_alive():
+            logger.debug("Waiting for MPD monitor thread to exit...")
             self._monitor_thread.join(timeout=5.0)
+            if self._monitor_thread.is_alive():
+                logger.warning("MPD monitor thread did not exit within timeout")
+            else:
+                logger.debug("MPD monitor thread exited successfully")
     
     def get_current_track(self) -> Optional[Dict[str, Any]]:
         """

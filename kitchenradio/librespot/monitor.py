@@ -234,7 +234,12 @@ class LibrespotMonitor:
         self._stop_event.set()
         
         if self._monitor_thread and self._monitor_thread.is_alive():
+            logger.debug("Waiting for librespot monitor thread to exit...")
             self._monitor_thread.join(timeout=5.0)
+            if self._monitor_thread.is_alive():
+                logger.warning("Librespot monitor thread did not exit within timeout")
+            else:
+                logger.debug("Librespot monitor thread exited successfully")
     
     def get_current_track(self) -> Optional[Dict[str, Any]]:
         """
