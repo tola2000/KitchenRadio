@@ -49,9 +49,14 @@ class DisplayController:
         self._wake_event = threading.Event()
         
 
-        # Use hybrid interface (auto-selects hardware or emulator)
-        self.display_interface = DisplayInterface(use_hardware=use_hardware_display)
-        logger.info(f"Created hybrid display interface (use_hardware={use_hardware_display})")
+        # Use provided display interface or create new one
+        if display_interface:
+            self.display_interface = display_interface
+            logger.info(f"Using provided display interface")
+        else:
+            # Create new hybrid interface (auto-selects hardware or emulator)
+            self.display_interface = DisplayInterface(use_hardware=use_hardware_display)
+            logger.info(f"Created new display interface (use_hardware={use_hardware_display})")
 
         # Create display formatter for SSD1322
         self.formatter = DisplayFormatter(
@@ -106,10 +111,14 @@ class DisplayController:
         Returns:
             True if initialization successful
         """
-        # Initialize I2C interface
-        if not self.display_interface.initialize():
-            logger.error("Failed to initialize display interface")
-            return False
+        # Initialize display interface if not already initialized
+        if not self.display_interface.initialized:
+            logger.debug("Display interface not initialized, initializing now")
+            if not self.display_interface.initialize():
+                logger.error("Failed to initialize display interface")
+                return False
+        else:
+            logger.debug("Display interface already initialized")
         
         # Start update thread if KitchenRadio is provided
         if self.kitchen_radio:
@@ -353,7 +362,11 @@ class DisplayController:
     def _render_display_content(self, display_type: str, display_data: Dict[str, Any]):
         """Generic method to render display content based on type"""
         try:
+            logger.debug(f"Rendering display type: {display_type}")
             truncation_info = None
+            draw_func = None
+            
+            # Get formatter function based on display type
             if display_type == 'track_info':
                 draw_func, truncation_info = self.formatter.format_track_info(display_data)
             elif display_type == 'status_message':
@@ -372,24 +385,27 @@ class DisplayController:
                 draw_func = self.formatter.format_clock_display(display_data)
             elif display_type == 'notification':
                 draw_func = self.formatter.format_simple_text(display_data)
-
             else:
                 logger.warning(f"Unknown display type: {display_type}")
                 return
             
-            # Render the display
-            if display_type == 'track_info':
-                self.display_interface.render_frame(draw_func)
-                if isinstance(truncation_info, dict):
-                    self.last_truncation_info.update(truncation_info)
-                    self._update_scroll_offsets(truncation_info)
-            else:
-                truncation_info = self.display_interface.render_frame(draw_func)
-                if isinstance(truncation_info, dict):
-                    self.last_truncation_info.update(truncation_info)
-                    self._update_scroll_offsets(truncation_info)
+            # Verify we got a drawing function
+            if draw_func is None:
+                logger.error(f"No drawing function returned for display type: {display_type}")
+                return
+            
+            # Render the display (render_frame returns None)
+            logger.debug(f"Calling render_frame for {display_type}")
+            self.display_interface.render_frame(draw_func)
+            logger.debug(f"Successfully rendered {display_type}")
+            
+            # Update truncation info if available (only from track_info and status_message)
+            if truncation_info and isinstance(truncation_info, dict):
+                self.last_truncation_info.update(truncation_info)
+                self._update_scroll_offsets(truncation_info)
+                
         except Exception as e:
-            logger.error(f"Error rendering {display_type}: {e}")
+            logger.error(f"Error rendering {display_type}: {e}", exc_info=True)
     
     def _render_mpd_display(self, mpd_status: Dict[str, Any]):
         """Update display for MPD source"""
