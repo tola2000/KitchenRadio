@@ -377,13 +377,17 @@ class DisplayController:
                 logger.warning(f"Unknown display type: {display_type}")
                 return
             
-            # Render the display (render_frame returns None)
-            self.display_interface.render_frame(draw_func)
-            
-            # Update truncation info if available (only from track_info and status_message)
-            if truncation_info and isinstance(truncation_info, dict):
-                self.last_truncation_info.update(truncation_info)
-                self._update_scroll_offsets(truncation_info)
+            # Render the display
+            if display_type == 'track_info':
+                self.display_interface.render_frame(draw_func)
+                if isinstance(truncation_info, dict):
+                    self.last_truncation_info.update(truncation_info)
+                    self._update_scroll_offsets(truncation_info)
+            else:
+                truncation_info = self.display_interface.render_frame(draw_func)
+                if isinstance(truncation_info, dict):
+                    self.last_truncation_info.update(truncation_info)
+                    self._update_scroll_offsets(truncation_info)
         except Exception as e:
             logger.error(f"Error rendering {display_type}: {e}")
     
