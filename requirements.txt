@@ -1,6 +1,7 @@
 # Production dependencies
 python-mpd2>=3.0.0
 requests>=2.25.0
+websockets>=10.0
 
 # Web interface dependencies
 Flask>=2.3.0
