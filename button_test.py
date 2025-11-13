@@ -18,7 +18,8 @@ pending_state = None
 pending_since = None
 
 print("Button test started. Press Ctrl+C to exit.")
-print(f"Debounce time: {debounce_time*1000}ms\n")
+print(f"Debounce time: {debounce_time*1000}ms")
+print(f"Initial state: {last_state}\n")
 
 try:
     while True:
@@ -31,22 +32,25 @@ try:
             if pending_state is None:
                 pending_state = current_state
                 pending_since = current_time
+                print(f"[DEBUG] New change detected: {last_state} -> {current_state}, starting timer")
             
             # Check if state has been stable long enough
             if pending_state == current_state and (current_time - pending_since) >= debounce_time:
                 # Accept the change
+                print(f"[DEBUG] Debounce passed, accepting change: {last_state} -> {current_state}")
                 last_state = pending_state
                 pending_state = None
                 pending_since = None
                 
                 # Log the event
                 if not last_state:  # Button pressed (LOW)
-                    print("Button PRESSED")
+                    print(">>> Button PRESSED\n")
                 else:  # Button released (HIGH)
-                    print("Button RELEASED")
+                    print(">>> Button RELEASED\n")
         else:
             # State returned to last_state - cancel pending change
             if pending_state is not None:
+                print(f"[DEBUG] Bounce detected: state returned to {current_state}")
                 pending_state = None
                 pending_since = None
         
