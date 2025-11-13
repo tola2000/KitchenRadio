@@ -83,7 +83,7 @@ class KitchenRadioWeb:
             # Create display controller with display interface and kitchen_radio
             self.display_controller = DisplayController(
                 kitchen_radio=self.kitchen_radio,
-                i2c_interface=self.display_interface  # Works with both emulator and SPI
+                display_interface=self.display_interface  # Works with both emulator and SPI
             )
             self.display_controller.initialize()
             logger.info("Display controller initialized with display interface and update loop started")
