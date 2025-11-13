@@ -834,7 +834,7 @@ if __name__ == "__main__":
     # Create KitchenRadio Web API
     api = KitchenRadioWeb(
         kitchen_radio=None,  # Will create its own
-        host='127.0.0.1',
+        host='0.0.0.0',  # Listen on all network interfaces (accessible from other devices)
         port=5001,
         enable_gpio=False,  # Disable GPIO for testing
         use_hardware_display=False  # Use emulator for testing (set to True for hardware SPI)
@@ -842,7 +842,10 @@ if __name__ == "__main__":
     
     if api.start():
         print("KitchenRadio Web API started successfully")
-        print("API available at: http://127.0.0.1:5001")
+        print("API available at:")
+        print("  - Local:   http://127.0.0.1:5001")
+        print("  - Network: http://<your-ip>:5001")
+        print("  (Use 'ipconfig' to find your IP address)")
         print("\nAvailable endpoints:")
         print("  Button Control:")
         print("    GET  /api/buttons - List all buttons")
