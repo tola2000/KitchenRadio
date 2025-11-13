@@ -297,9 +297,9 @@ class KitchenRadioWeb:
                 if not self.display_interface:
                     return jsonify({'error': 'Display interface not available'}), 503
                 
-                # Check if display supports image export (emulator mode has this)
+                # Check if display supports image export
                 if not hasattr(self.display_interface, 'getDisplayImage'):
-                    return jsonify({'error': 'Display image export only available in emulator mode'}), 503
+                    return jsonify({'error': 'Display image export not supported'}), 503
                     
                 # Get BMP data from display interface
                 bmp_data = self.display_interface.getDisplayImage()

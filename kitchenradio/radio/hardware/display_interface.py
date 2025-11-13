@@ -402,17 +402,13 @@ class DisplayInterface:
             }
     
     def getDisplayImage(self):
-        """Get display image as BMP data (emulator mode only)"""
-        if self.mode == 'emulator':
-            return self.bmp_data
-        else:
-            logger.warning("Display image export only available in emulator mode")
-            return None
+        """Get display image as BMP data (available in both hardware and emulator mode)"""
+        return self.bmp_data
     
     def get_ascii_representation(self) -> str:
-        """Get ASCII art representation of display (emulator mode only)"""
-        if self.mode != 'emulator' or not self.current_image:
-            return f"[ASCII representation only available in emulator mode - current mode: {self.mode}]"
+        """Get ASCII art representation of display (available in both hardware and emulator mode)"""
+        if not self.current_image:
+            return f"[No image available - mode: {self.mode}]"
         
         try:
             ascii_chars = [" ", ".", ":", "+", "*", "#", "@"]
