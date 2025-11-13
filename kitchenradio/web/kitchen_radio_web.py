@@ -16,18 +16,27 @@ import io
 import base64
 
 from kitchenradio.radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
-from kitchenradio.web.display_interface_emulator import DisplayInterfaceEmulator
 from kitchenradio.radio.hardware.display_controller import DisplayController
 from kitchenradio.radio.kitchen_radio import KitchenRadio
 
-# Try to import SPI interface (may not be available on all platforms)
-try:
-    from kitchenradio.radio.hardware.display_interface_spi import DisplayInterfaceSPI
-    SPI_AVAILABLE = True
-except ImportError:
-    SPI_AVAILABLE = False
-
 logger = logging.getLogger(__name__)
+
+# Try to import hybrid interface (preferred - supports both hardware and emulator)
+try:
+    from kitchenradio.radio.hardware.display_interface_hybrid import DisplayInterfaceHybrid
+    HYBRID_AVAILABLE = True
+except ImportError:
+    HYBRID_AVAILABLE = False
+    logger.warning("Hybrid display interface not available")
+
+# Fallback to emulator if hybrid not available
+if not HYBRID_AVAILABLE:
+    try:
+        from kitchenradio.web.display_interface_emulator import DisplayInterfaceEmulator
+        EMULATOR_AVAILABLE = True
+    except ImportError:
+        EMULATOR_AVAILABLE = False
+        logger.warning("Display emulator not available")
 
 
 
@@ -71,42 +80,45 @@ class KitchenRadioWeb:
         self.enable_gpio = enable_gpio
         self.use_hardware_display = use_hardware_display
         
-        # Initialize display interface (emulator or hardware SPI)
+        # Initialize display interface (hybrid, emulator, or custom)
         self.display_interface = None
         self.display_emulator = None  # Keep for backwards compatibility
         
         if display_interface is not None:
             # Use provided display interface
             self.display_interface = display_interface
-            if isinstance(display_interface, DisplayInterfaceEmulator):
+            if hasattr(display_interface, 'get_ascii_representation'):
+                # Likely an emulator or hybrid in emulator mode
                 self.display_emulator = display_interface
             logger.info(f"Using provided display interface: {type(display_interface).__name__}")
-        elif use_hardware_display and SPI_AVAILABLE:
-            # Use hardware SPI display
+        elif HYBRID_AVAILABLE:
+            # Use hybrid interface (preferred - auto-selects hardware or emulator)
             try:
-                self.display_interface = DisplayInterfaceSPI()
-                logger.info("Using hardware SPI display interface")
+                self.display_interface = DisplayInterfaceHybrid(use_hardware=use_hardware_display)
+                if hasattr(self.display_interface, 'is_emulator_mode') and self.display_interface.is_emulator_mode():
+                    self.display_emulator = self.display_interface
+                logger.info(f"Using hybrid display interface (hardware mode: {use_hardware_display})")
             except Exception as e:
-                logger.error(f"Failed to create SPI display interface: {e}")
-                logger.info("Falling back to emulator")
-                use_hardware_display = False
-        
-        if not self.display_interface:
-            # Use emulator (default for development)
+                logger.error(f"Failed to create hybrid display interface: {e}")
+                self.display_interface = None
+        elif EMULATOR_AVAILABLE:
+            # Fallback to emulator only
             try:
                 self.display_interface = DisplayInterfaceEmulator()
                 self.display_emulator = self.display_interface
-                logger.info("Using display emulator interface")
+                logger.info("Using display emulator interface (hybrid not available)")
             except Exception as e:
                 logger.error(f"Failed to create display emulator: {e}")
                 self.display_interface = None
-                self.display_emulator = None
 
         # Initialize display interface
         if self.display_interface:
             try:
                 if self.display_interface.initialize():
-                    logger.info(f"Display interface initialized successfully: {type(self.display_interface).__name__}")
+                    mode_info = ""
+                    if hasattr(self.display_interface, 'get_mode'):
+                        mode_info = f" in {self.display_interface.get_mode()} mode"
+                    logger.info(f"Display interface initialized successfully: {type(self.display_interface).__name__}{mode_info}")
                 else:
                     logger.warning("Display interface initialization failed")
             except Exception as e:
@@ -454,11 +466,18 @@ class KitchenRadioWeb:
                 status = {
                     'interface_available': self.display_interface is not None,
                     'interface_type': type(self.display_interface).__name__ if self.display_interface else None,
-                    'emulator_mode': isinstance(self.display_interface, DisplayInterfaceEmulator) if self.display_interface else False,
-                    'hardware_mode': self.use_hardware_display,
                     'controller_available': self.display_controller is not None,
                     'timestamp': time.time()
                 }
+                
+                # Add mode information if available (hybrid interface)
+                if self.display_interface and hasattr(self.display_interface, 'get_mode'):
+                    status['display_mode'] = self.display_interface.get_mode()
+                    status['is_hardware'] = self.display_interface.is_hardware_mode() if hasattr(self.display_interface, 'is_hardware_mode') else False
+                    status['is_emulator'] = self.display_interface.is_emulator_mode() if hasattr(self.display_interface, 'is_emulator_mode') else False
+                else:
+                    status['emulator_mode'] = self.display_emulator is not None
+                    status['hardware_mode'] = self.use_hardware_display
                 
                 if self.display_interface:
                     if hasattr(self.display_interface, 'get_display_info'):
@@ -787,8 +806,17 @@ class KitchenRadioWeb:
             
             logger.info(f"KitchenRadio Web API started on http://{self.host}:{self.port}")
             logger.info(f"GPIO buttons {'enabled' if self.enable_gpio else 'disabled'}")
-            logger.info(f"Display interface: {type(self.display_interface).__name__ if self.display_interface else 'None'}")
-            logger.info(f"Display mode: {'Hardware SPI' if self.use_hardware_display else 'Emulator'}")
+            
+            # Display mode information
+            if self.display_interface:
+                interface_name = type(self.display_interface).__name__
+                if hasattr(self.display_interface, 'get_mode'):
+                    mode = self.display_interface.get_mode()
+                    logger.info(f"Display interface: {interface_name} ({mode} mode)")
+                else:
+                    logger.info(f"Display interface: {interface_name}")
+            else:
+                logger.info("Display interface: None")
             
             return True
             
