@@ -1,48 +1,47 @@
 """
-Hybrid Display Interface for KitchenRadio
+Unified Display Interface for KitchenRadio
 
-Supports both hardware SPI display and web emulation mode.
-Automatically falls back to emulation if hardware is not available.
+Provides both emulation (always available) and hardware SPI (optional).
+Built-in emulator with BMP export for web viewing.
 
-This allows the same code to work in both development (emulator) and
-production (hardware SPI) environments.
+Design Philosophy:
+- Emulation is built-in and always works (baseline)
+- Hardware SPI is optional (requires luma.oled on Raspberry Pi)
+- Single unified class for both modes
+- BMP export support for web visualization
 """
 
 import logging
 import time
-from typing import Callable, Optional, Tuple
+import io
+from typing import Callable, Optional, Tuple, Dict, Any
 from PIL import Image, ImageDraw
 
 logger = logging.getLogger(__name__)
 
-# Try to import hardware SPI support
+# Hardware SPI support is OPTIONAL - only available on Raspberry Pi
 try:
     from luma.core.interface.serial import spi
     from luma.oled.device import ssd1322
     from luma.core.render import canvas
     SPI_AVAILABLE = True
+    logger.info("Hardware SPI support available (luma.oled detected)")
 except ImportError:
     SPI_AVAILABLE = False
-    logger.info("luma.oled not available - SPI hardware mode disabled")
-
-# Try to import emulator support
-try:
-    from kitchenradio.web.display_interface_emulator import DisplayInterfaceEmulator
-    EMULATOR_AVAILABLE = True
-except ImportError:
-    EMULATOR_AVAILABLE = False
-    logger.info("Display emulator not available")
+    logger.info("Hardware SPI not available - will use emulator mode only")
 
 
 class DisplayInterface:
     """
-    Hybrid display interface that supports both SPI hardware and emulation.
+    Unified display interface with built-in emulation and optional hardware SPI.
     
-    Automatically selects the best available mode:
-    1. Hardware SPI (if use_hardware=True and available)
-    2. Emulator (fallback or if use_hardware=False)
+    Features:
+    - Built-in emulator (always available, no external dependencies)
+    - Optional hardware SPI (requires luma.oled on Raspberry Pi)
+    - BMP export for web visualization (emulator mode)
+    - Same API for both modes with automatic fallback
     
-    Provides a unified interface regardless of the underlying implementation.
+    Perfect for development (emulator) and production (hardware).
     """
     
     # Display specifications (same for both modes)
@@ -65,15 +64,18 @@ class DisplayInterface:
                  spi_port: int = SPI_PORT,
                  spi_device: int = SPI_DEVICE):
         """
-        Initialize hybrid display interface.
+        Initialize display interface.
+        
+        Emulator is built-in and always available.
+        Hardware SPI used only if explicitly requested AND available.
         
         Args:
-            use_hardware: Try to use hardware SPI instead of emulator
-            bus_speed_hz: SPI bus speed in Hz (hardware mode only)
-            gpio_dc: GPIO pin for D/C signal (hardware mode only)
-            gpio_rst: GPIO pin for RST signal (hardware mode only)
-            spi_port: SPI port number (hardware mode only)
-            spi_device: SPI device/CE number (hardware mode only)
+            use_hardware: Try to use hardware SPI (default: False = emulator)
+            bus_speed_hz: SPI bus speed in Hz (hardware only, default: 4 MHz)
+            gpio_dc: D/C GPIO pin (hardware only, default: 25)
+            gpio_rst: RST GPIO pin (hardware only, default: 24)
+            spi_port: SPI port (hardware only, default: 0)
+            spi_device: SPI device/CE (hardware only, default: 0)
         """
         self.use_hardware = use_hardware
         self.bus_speed_hz = bus_speed_hz
@@ -82,45 +84,49 @@ class DisplayInterface:
         self.spi_port = spi_port
         self.spi_device = spi_device
         
-        # Active display interface
-        self.display = None
+        # Display state
         self.mode = None  # 'hardware' or 'emulator'
         self.initialized = False
         
-        # Hardware SPI components (if using hardware)
+        # Hardware SPI components (hardware mode only)
         self.serial = None
         self.device = None
+        
+        # Emulator components (emulator mode only) - for BMP export
+        self.current_image = None
+        self.bmp_data = None
+        self.last_update = None
         
     def initialize(self) -> bool:
         """
         Initialize the display interface.
-        Tries hardware first if requested, falls back to emulator.
+        
+        Strategy:
+        1. If use_hardware=True and SPI available: try hardware, fall back to emulator
+        2. Otherwise: use emulator (guaranteed to work)
         
         Returns:
-            True if initialization successful
+            True if initialization successful (always True - emulator is guaranteed)
         """
         # Try hardware mode if requested and available
         if self.use_hardware and SPI_AVAILABLE:
             if self._initialize_hardware():
                 self.mode = 'hardware'
                 self.initialized = True
-                logger.info("Hybrid display initialized in HARDWARE SPI mode")
+                logger.info("Display initialized in HARDWARE SPI mode")
                 return True
             else:
-                logger.warning("Hardware initialization failed, falling back to emulator")
+                logger.warning("Hardware SPI initialization failed, falling back to emulator")
         
-        # Fall back to emulator mode
-        if EMULATOR_AVAILABLE:
-            if self._initialize_emulator():
-                self.mode = 'emulator'
-                self.initialized = True
-                logger.info("Hybrid display initialized in EMULATOR mode")
-                return True
-            else:
-                logger.error("Emulator initialization failed")
-                return False
+        # Use emulator mode (always available)
+        if self._initialize_emulator():
+            self.mode = 'emulator'
+            self.initialized = True
+            logger.info("Display initialized in EMULATOR mode")
+            return True
         else:
-            logger.error("No display mode available (neither hardware nor emulator)")
+            # This should never happen since emulator is guaranteed
+            logger.error("CRITICAL: Emulator initialization failed - this should not happen!")
             return False
     
     def _initialize_hardware(self) -> bool:
@@ -144,8 +150,6 @@ class DisplayInterface:
                 height=self.HEIGHT
             )
             
-            self.display = self.device
-            
             # Clear display
             with canvas(self.device) as draw:
                 draw.rectangle(self.device.bounding_box, outline="black", fill="black")
@@ -159,40 +163,61 @@ class DisplayInterface:
             return False
     
     def _initialize_emulator(self) -> bool:
-        """Initialize display emulator"""
+        """
+        Initialize built-in emulator mode.
+        
+        This should always succeed since emulator uses only PIL.
+        """
         try:
-            self.display = DisplayInterfaceEmulator()
-            return self.display.initialize()
+            # Initialize emulator state
+            self.current_image = Image.new('1', (self.WIDTH, self.HEIGHT), 0)
+            self._update_bmp_data()
+            self.last_update = time.time()
+            logger.debug("Built-in emulator initialized successfully")
+            return True
         except Exception as e:
-            logger.error(f"Emulator initialization failed: {e}")
-            self.display = None
+            logger.error(f"Emulator initialization failed (unexpected): {e}")
             return False
+    
+    def _update_bmp_data(self):
+        """Convert current image to BMP bytes (emulator mode only)."""
+        try:
+            if self.current_image:
+                bmp_buffer = io.BytesIO()
+                self.current_image.save(bmp_buffer, format='BMP')
+                self.bmp_data = bmp_buffer.getvalue()
+                bmp_buffer.close()
+        except Exception as e:
+            logger.error(f"BMP conversion error: {e}")
+            self.bmp_data = None
     
     def cleanup(self):
         """Clean up display resources"""
         try:
-            if self.display:
-                if self.mode == 'hardware' and self.device:
-                    # Clear hardware display
-                    with canvas(self.device) as draw:
-                        draw.rectangle(self.device.bounding_box, outline="black", fill="black")
-                    self.device.cleanup()
-                elif self.mode == 'emulator':
-                    # Clean up emulator
-                    self.display.cleanup()
-                
-                logger.info(f"Display cleanup completed ({self.mode} mode)")
+            if self.mode == 'hardware' and self.device:
+                # Clear and cleanup hardware display
+                with canvas(self.device) as draw:
+                    draw.rectangle(self.device.bounding_box, outline="black", fill="black")
+                self.device.cleanup()
+            elif self.mode == 'emulator':
+                # Clean up emulator resources
+                self.current_image = None
+                self.bmp_data = None
+            
+            logger.info(f"Display cleanup completed ({self.mode} mode)")
         except Exception as e:
             logger.error(f"Error during display cleanup: {e}")
         finally:
             self.initialized = False
-            self.display = None
+            self.mode = None
             self.device = None
             self.serial = None
+            self.current_image = None
+            self.bmp_data = None
     
     def clear(self):
         """Clear the display (all black)"""
-        if not self.initialized or not self.display:
+        if not self.initialized:
             return
         
         try:
@@ -200,7 +225,9 @@ class DisplayInterface:
                 with canvas(self.device) as draw:
                     draw.rectangle(self.device.bounding_box, outline="black", fill="black")
             else:  # emulator
-                self.display.clear()
+                self.current_image = Image.new('1', (self.WIDTH, self.HEIGHT), 0)
+                self._update_bmp_data()
+                self.last_update = time.time()
         except Exception as e:
             logger.error(f"Error clearing display: {e}")
     
@@ -211,7 +238,7 @@ class DisplayInterface:
         Args:
             draw_func: Function that takes ImageDraw.Draw and draws content
         """
-        if not self.initialized or not self.display:
+        if not self.initialized:
             logger.warning("Display not initialized - cannot render frame")
             return
         
@@ -221,8 +248,12 @@ class DisplayInterface:
                 with canvas(self.device) as draw:
                     draw_func(draw)
             else:  # emulator
-                # Emulator mode - delegate to emulator
-                self.display.render_frame(draw_func)
+                # Emulator mode - render to PIL image
+                self.current_image = Image.new('1', (self.WIDTH, self.HEIGHT), 0)
+                draw = ImageDraw.Draw(self.current_image)
+                draw_func(draw)
+                self._update_bmp_data()
+                self.last_update = time.time()
                 
         except Exception as e:
             logger.error(f"Error rendering frame: {e}")
@@ -247,14 +278,21 @@ class DisplayInterface:
         """Display a test pattern to verify display is working"""
         if not self.initialized:
             logger.warning("Display not initialized - cannot show test pattern")
-            return
+            return False
         
         try:
             logger.info(f"Displaying test pattern ({self.mode} mode)")
             
             if self.mode == 'emulator':
-                # Use emulator's test pattern
-                return self.display.test_display()
+                # Emulator test pattern
+                def draw_test(draw):
+                    draw.rectangle([(0, 0), (self.WIDTH-1, self.HEIGHT-1)], outline=255)
+                    draw.text((10, 10), "EMULATOR TEST", fill=255)
+                    draw.text((10, 25), f"{self.WIDTH}x{self.HEIGHT}", fill=255)
+                    draw.line([(0, 0), (self.WIDTH-1, self.HEIGHT-1)], fill=255)
+                
+                self.render_frame(draw_test)
+                return True
             
             # Hardware mode - custom test pattern
             # Test 1: Text
@@ -329,16 +367,25 @@ class DisplayInterface:
                 'spi_port': self.spi_port,
                 'spi_device': self.spi_device
             })
-        elif self.mode == 'emulator' and hasattr(self.display, 'get_display_info'):
-            # Merge emulator info
-            info.update(self.display.get_display_info())
+        elif self.mode == 'emulator':
+            info.update({
+                'display_type': 'Emulator',
+                'emulation_mode': True,
+                'last_update': self.last_update,
+                'has_image': self.current_image is not None,
+                'bmp_size': len(self.bmp_data) if self.bmp_data else 0
+            })
         
         return info
     
     def get_statistics(self) -> dict:
         """Get display statistics (emulator mode only)"""
-        if self.mode == 'emulator' and hasattr(self.display, 'get_statistics'):
-            return self.display.get_statistics()
+        if self.mode == 'emulator':
+            return {
+                'mode': 'emulator',
+                'last_update': self.last_update,
+                'image_size': len(self.bmp_data) if self.bmp_data else 0
+            }
         else:
             return {
                 'mode': self.mode,
@@ -348,18 +395,34 @@ class DisplayInterface:
     
     def getDisplayImage(self):
         """Get display image as BMP data (emulator mode only)"""
-        if self.mode == 'emulator' and hasattr(self.display, 'getDisplayImage'):
-            return self.display.getDisplayImage()
+        if self.mode == 'emulator':
+            return self.bmp_data
         else:
             logger.warning("Display image export only available in emulator mode")
             return None
     
     def get_ascii_representation(self) -> str:
         """Get ASCII art representation of display (emulator mode only)"""
-        if self.mode == 'emulator' and hasattr(self.display, 'get_ascii_representation'):
-            return self.display.get_ascii_representation()
-        else:
+        if self.mode != 'emulator' or not self.current_image:
             return f"[ASCII representation only available in emulator mode - current mode: {self.mode}]"
+        
+        try:
+            ascii_chars = [" ", ".", ":", "+", "*", "#", "@"]
+            width, height = 64, 16
+            resized = self.current_image.resize((width, height))
+            
+            result = []
+            for y in range(height):
+                line = ""
+                for x in range(width):
+                    pixel = resized.getpixel((x, y))
+                    char_index = int(pixel * (len(ascii_chars) - 1) / 255)
+                    line += ascii_chars[char_index]
+                result.append(line)
+            
+            return "\n".join(result)
+        except Exception as e:
+            return f"ASCII conversion error: {e}"
     
     def set_bus_speed(self, bus_speed_hz: int) -> bool:
         """
@@ -407,10 +470,13 @@ if __name__ == "__main__":
     # Parse command line argument for mode
     use_hardware = '--hardware' in sys.argv or '-hw' in sys.argv
     
-    print(f"Initializing hybrid display (hardware mode: {use_hardware})...")
+    print(f"Initializing unified display interface...")
+    print(f"  Hardware mode requested: {use_hardware}")
+    print(f"  SPI hardware available: {SPI_AVAILABLE}")
+    print(f"  Emulator: Built-in (always available)")
     
-    # Create hybrid display
-    display = DisplayInterfaceHybrid(use_hardware=use_hardware)
+    # Create display interface
+    display = DisplayInterface(use_hardware=use_hardware)
     
     if display.initialize():
         print(f"Display initialized successfully in {display.get_mode()} mode")

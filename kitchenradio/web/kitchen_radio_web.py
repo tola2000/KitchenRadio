@@ -62,34 +62,20 @@ class KitchenRadioWeb:
         self.enable_gpio = enable_gpio
         self.use_hardware_display = use_hardware_display
         
-        # Initialize display interface (hybrid, emulator, or custom)
+        # Initialize unified display interface (has built-in emulator, optional hardware)
         self.display_interface = None
         
-
         try:
             self.display_interface = DisplayInterface(use_hardware=use_hardware_display)
-            if hasattr(self.display_interface, 'is_emulator_mode') and self.display_interface.is_emulator_mode():
-                self.display_emulator = self.display_interface
-            logger.info(f"Using hybrid display interface (hardware mode: {use_hardware_display})")
-        except Exception as e:
-            logger.error(f"Failed to create hybrid display interface: {e}")
-            self.display_interface = None
-
-
-        # Initialize display interface
-        if self.display_interface:
-            try:
-                if self.display_interface.initialize():
-                    mode_info = ""
-                    if hasattr(self.display_interface, 'get_mode'):
-                        mode_info = f" in {self.display_interface.get_mode()} mode"
-                    logger.info(f"Display interface initialized successfully: {type(self.display_interface).__name__}{mode_info}")
-                else:
-                    logger.warning("Display interface initialization failed")
-            except Exception as e:
-                logger.error(f"Error initializing display interface: {e}")
+            if self.display_interface.initialize():
+                mode = self.display_interface.get_mode() if hasattr(self.display_interface, 'get_mode') else 'unknown'
+                logger.info(f"Display interface initialized in {mode} mode")
+            else:
+                logger.warning("Display interface initialization failed")
                 self.display_interface = None
-                self.display_emulator = None
+        except Exception as e:
+            logger.error(f"Failed to create display interface: {e}")
+            self.display_interface = None
 
         # Initialize display controller
         self.display_controller = None
@@ -308,12 +294,15 @@ class KitchenRadioWeb:
         def get_display_image():
             """Get current display image as BMP"""
             try:
-                # Only emulator supports image export
-                if not self.display_emulator:
-                    return jsonify({'error': 'Display image export only available with emulator'}), 503
+                if not self.display_interface:
+                    return jsonify({'error': 'Display interface not available'}), 503
+                
+                # Check if display supports image export (emulator mode has this)
+                if not hasattr(self.display_interface, 'getDisplayImage'):
+                    return jsonify({'error': 'Display image export only available in emulator mode'}), 503
                     
-                # Get BMP data from emulator
-                bmp_data = self.display_emulator.getDisplayImage()
+                # Get BMP data from display interface
+                bmp_data = self.display_interface.getDisplayImage()
                 if bmp_data:
                     # Return BMP data directly
                     img_buffer = io.BytesIO(bmp_data)
@@ -336,11 +325,14 @@ class KitchenRadioWeb:
         def get_display_ascii():
             """Get current display as ASCII art"""
             try:
-                # Only emulator supports ASCII export
-                if not self.display_emulator:
-                    return jsonify({'error': 'ASCII display export only available with emulator'}), 503
+                if not self.display_interface:
+                    return jsonify({'error': 'Display interface not available'}), 503
+                
+                # Check if display supports ASCII export (emulator mode has this)
+                if not hasattr(self.display_interface, 'get_ascii_representation'):
+                    return jsonify({'error': 'ASCII display export only available in emulator mode'}), 503
                     
-                ascii_art = self.display_emulator.get_ascii_representation()
+                ascii_art = self.display_interface.get_ascii_representation()
                 return jsonify({
                     'ascii_art': ascii_art,
                     'timestamp': time.time()
@@ -398,28 +390,28 @@ class KitchenRadioWeb:
         def display_stats():
             """Get display statistics and info"""
             try:
-                # Only emulator provides detailed stats
-                if self.display_emulator and hasattr(self.display_emulator, 'get_statistics'):
-                    stats = self.display_emulator.get_statistics()
-                    info = self.display_emulator.get_display_info()
-                    return jsonify({
-                        'display_info': info,
-                        'display_stats': stats,
-                        'timestamp': time.time()
-                    })
-                elif self.display_interface:
-                    # Provide basic info for non-emulator displays
-                    info = {
+                if not self.display_interface:
+                    return jsonify({'error': 'Display interface not available'}), 503
+                
+                result = {}
+                
+                # Get display info (available on all display interfaces)
+                if hasattr(self.display_interface, 'get_display_info'):
+                    result['display_info'] = self.display_interface.get_display_info()
+                else:
+                    result['display_info'] = {
                         'type': type(self.display_interface).__name__,
                         'size': self.display_interface.get_size() if hasattr(self.display_interface, 'get_size') else 'unknown',
                         'initialized': self.display_interface.is_initialized() if hasattr(self.display_interface, 'is_initialized') else 'unknown'
                     }
-                    return jsonify({
-                        'display_info': info,
-                        'timestamp': time.time()
-                    })
-                else:
-                    return jsonify({'error': 'Display interface not available'}), 503
+                
+                # Get statistics if available (emulator mode has this)
+                if hasattr(self.display_interface, 'get_statistics'):
+                    result['display_stats'] = self.display_interface.get_statistics()
+                
+                result['timestamp'] = time.time()
+                return jsonify(result)
+                
             except Exception as e:
                 logger.error(f"Error getting display stats: {e}")
                 return jsonify({'error': str(e)}), 500
@@ -435,15 +427,13 @@ class KitchenRadioWeb:
                     'timestamp': time.time()
                 }
                 
-                # Add mode information if available (hybrid interface)
+                # Add mode information if available
                 if self.display_interface and hasattr(self.display_interface, 'get_mode'):
                     status['display_mode'] = self.display_interface.get_mode()
                     status['is_hardware'] = self.display_interface.is_hardware_mode() if hasattr(self.display_interface, 'is_hardware_mode') else False
                     status['is_emulator'] = self.display_interface.is_emulator_mode() if hasattr(self.display_interface, 'is_emulator_mode') else False
-                else:
-                    status['emulator_mode'] = self.display_emulator is not None
-                    status['hardware_mode'] = self.use_hardware_display
                 
+                # Add detailed interface information
                 if self.display_interface:
                     if hasattr(self.display_interface, 'get_display_info'):
                         status['interface_info'] = self.display_interface.get_display_info()
@@ -452,10 +442,7 @@ class KitchenRadioWeb:
                     if hasattr(self.display_interface, 'is_initialized'):
                         status['interface_initialized'] = self.display_interface.is_initialized()
                 
-                if self.display_controller:
-                    status['controller_initialized'] = True
-                else:
-                    status['controller_initialized'] = False
+                status['controller_initialized'] = self.display_controller is not None
                     
                 return jsonify(status)
             except Exception as e:
