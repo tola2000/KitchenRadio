@@ -18,27 +18,9 @@ import base64
 from kitchenradio.radio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
 from kitchenradio.radio.hardware.display_controller import DisplayController
 from kitchenradio.radio.kitchen_radio import KitchenRadio
+from kitchenradio.radio.hardware.display_interface import DisplayInterfaceHybrid
 
 logger = logging.getLogger(__name__)
-
-# Try to import hybrid interface (preferred - supports both hardware and emulator)
-try:
-    from kitchenradio.radio.hardware.display_interface_hybrid import DisplayInterfaceHybrid
-    HYBRID_AVAILABLE = True
-except ImportError:
-    HYBRID_AVAILABLE = False
-    logger.warning("Hybrid display interface not available")
-
-# Fallback to emulator if hybrid not available
-if not HYBRID_AVAILABLE:
-    try:
-        from kitchenradio.web.display_interface_emulator import DisplayInterfaceEmulator
-        EMULATOR_AVAILABLE = True
-    except ImportError:
-        EMULATOR_AVAILABLE = False
-        logger.warning("Display emulator not available")
-
-
 
 class KitchenRadioWeb:
     """
@@ -82,34 +64,17 @@ class KitchenRadioWeb:
         
         # Initialize display interface (hybrid, emulator, or custom)
         self.display_interface = None
-        self.display_emulator = None  # Keep for backwards compatibility
         
-        if display_interface is not None:
-            # Use provided display interface
-            self.display_interface = display_interface
-            if hasattr(display_interface, 'get_ascii_representation'):
-                # Likely an emulator or hybrid in emulator mode
-                self.display_emulator = display_interface
-            logger.info(f"Using provided display interface: {type(display_interface).__name__}")
-        elif HYBRID_AVAILABLE:
-            # Use hybrid interface (preferred - auto-selects hardware or emulator)
-            try:
-                self.display_interface = DisplayInterfaceHybrid(use_hardware=use_hardware_display)
-                if hasattr(self.display_interface, 'is_emulator_mode') and self.display_interface.is_emulator_mode():
-                    self.display_emulator = self.display_interface
-                logger.info(f"Using hybrid display interface (hardware mode: {use_hardware_display})")
-            except Exception as e:
-                logger.error(f"Failed to create hybrid display interface: {e}")
-                self.display_interface = None
-        elif EMULATOR_AVAILABLE:
-            # Fallback to emulator only
-            try:
-                self.display_interface = DisplayInterfaceEmulator()
+
+        try:
+            self.display_interface = DisplayInterfaceHybrid(use_hardware=use_hardware_display)
+            if hasattr(self.display_interface, 'is_emulator_mode') and self.display_interface.is_emulator_mode():
                 self.display_emulator = self.display_interface
-                logger.info("Using display emulator interface (hybrid not available)")
-            except Exception as e:
-                logger.error(f"Failed to create display emulator: {e}")
-                self.display_interface = None
+            logger.info(f"Using hybrid display interface (hardware mode: {use_hardware_display})")
+        except Exception as e:
+            logger.error(f"Failed to create hybrid display interface: {e}")
+            self.display_interface = None
+
 
         # Initialize display interface
         if self.display_interface:
