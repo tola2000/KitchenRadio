@@ -31,7 +31,6 @@ try:
             if pending_state is None:
                 pending_state = current_state
                 pending_since = current_time
-                print(f"State change detected, debouncing... ({current_state})")
             
             # Check if state has been stable long enough
             if pending_state == current_state and (current_time - pending_since) >= debounce_time:
@@ -42,13 +41,12 @@ try:
                 
                 # Log the event
                 if not last_state:  # Button pressed (LOW)
-                    print(">>> Button PRESSED\n")
+                    print("Button PRESSED")
                 else:  # Button released (HIGH)
-                    print(">>> Button RELEASED\n")
+                    print("Button RELEASED")
         else:
             # State returned to last_state - cancel pending change
             if pending_state is not None:
-                print(f"Bounce detected, rejecting change")
                 pending_state = None
                 pending_since = None
         
