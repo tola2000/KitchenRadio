@@ -28,25 +28,29 @@ try:
         # Detect state change
         if current_state != last_state:
             # New state change - start debounce timer
-            if pending_state != current_state:
+            if pending_state is None:
                 pending_state = current_state
                 pending_since = current_time
+                print(f"State change detected, debouncing... ({current_state})")
             
             # Check if state has been stable long enough
-            elif pending_state is not None and (current_time - pending_since) >= debounce_time:
+            if pending_state == current_state and (current_time - pending_since) >= debounce_time:
                 # Accept the change
                 last_state = pending_state
                 pending_state = None
+                pending_since = None
                 
                 # Log the event
                 if not last_state:  # Button pressed (LOW)
-                    print("Button PRESSED")
+                    print(">>> Button PRESSED\n")
                 else:  # Button released (HIGH)
-                    print("Button RELEASED")
+                    print(">>> Button RELEASED\n")
         else:
             # State returned to last_state - cancel pending change
             if pending_state is not None:
+                print(f"Bounce detected, rejecting change")
                 pending_state = None
+                pending_since = None
         
         time.sleep(0.01)
         
