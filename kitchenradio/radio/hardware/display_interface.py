@@ -34,7 +34,7 @@ except ImportError:
     logger.info("Display emulator not available")
 
 
-class DisplayInterfaceHybrid:
+class DisplayInterface:
     """
     Hybrid display interface that supports both SPI hardware and emulation.
     

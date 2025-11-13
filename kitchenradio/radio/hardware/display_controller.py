@@ -14,10 +14,8 @@ from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
 from kitchenradio.radio.kitchen_radio import BackendType
 
 from .display_formatter import DisplayFormatter
-from .display_interface_i2c import I2CDisplayInterface
-
-if TYPE_CHECKING:
-    from ..kitchen_radio import KitchenRadio
+from .display_interface import DisplayInterface
+from ..kitchen_radio import KitchenRadio
 
 logger = logging.getLogger(__name__)
 
@@ -32,39 +30,33 @@ class DisplayController:
     
     def __init__(self, 
                  kitchen_radio: 'KitchenRadio' = None,
-                 i2c_port: int = 1,
-                 i2c_address: int = 0x3C,
                  refresh_rate: float = 10,
-                 i2c_interface = None):
+                 display_interface = None,
+                 use_hardware_display: bool = False):
         """
         Initialize simplified display controller for SSD1322.
         
         Args:
             kitchen_radio: KitchenRadio instance for status updates
-            i2c_port: I2C port number (ignored if i2c_interface provided)
-            i2c_address: I2C address of the SSD1322 display (ignored if i2c_interface provided)
+            i2c_port: I2C port number (ignored if display_interface provided)
+            i2c_address: I2C address of the SSD1322 display (ignored if display_interface provided)
             refresh_rate: Display refresh rate in Hz
-            i2c_interface: Optional external I2C interface (for emulation)
+            display_interface: Optional external I2C interface (for emulation or custom interface)
+            use_hardware_display: Use hardware display if available (when creating interface automatically)
         """
         self.kitchen_radio = kitchen_radio
 
         self._wake_event = threading.Event()
         
-        # Use provided interface or create I2C interface for SSD1322
-        if i2c_interface:
-            self.i2c_interface = i2c_interface
-            logger.info("Using provided I2C interface (emulation mode)")
-        else:
-            self.i2c_interface = I2CDisplayInterface(
-                i2c_port=i2c_port,
-                i2c_address=i2c_address
-            )
-            logger.info("Created new I2C interface for hardware")
-        
+
+        # Use hybrid interface (auto-selects hardware or emulator)
+        self.display_interface = DisplayInterface(use_hardware=use_hardware_display)
+        logger.info(f"Created hybrid display interface (use_hardware={use_hardware_display})")
+
         # Create display formatter for SSD1322
         self.formatter = DisplayFormatter(
-            width=self.i2c_interface.width,
-            height=self.i2c_interface.height
+            width=self.display_interface.width if hasattr(self.display_interface, 'width') else 256,
+            height=self.display_interface.height if hasattr(self.display_interface, 'height') else 64
         )
         
         # Display state
@@ -105,7 +97,7 @@ class DisplayController:
         self.running = False
         self.manual_update_requested = False
         
-        logger.info(f"Simplified DisplayController initialized for SSD1322 ({self.i2c_interface.width}x{self.i2c_interface.height})")
+        logger.info(f"Simplified DisplayController initialized for SSD1322 ({self.display_interface.width}x{self.display_interface.height})")
     
     def initialize(self) -> bool:
         """
@@ -115,7 +107,7 @@ class DisplayController:
             True if initialization successful
         """
         # Initialize I2C interface
-        if not self.i2c_interface.initialize():
+        if not self.display_interface.initialize():
             logger.error("Failed to initialize display interface")
             return False
         
@@ -145,13 +137,13 @@ class DisplayController:
         if self.update_thread and self.update_thread.is_alive():
             self.update_thread.join(timeout=2.0)
         
-        self.i2c_interface.cleanup()
+        self.display_interface.cleanup()
         
         logger.info("DisplayController cleanup completed")
     
     def clear(self):
         """Clear the display"""
-        self.i2c_interface.clear()
+        self.display_interface.clear()
     
     def set_kitchen_radio(self, kitchen_radio: 'KitchenRadio'):
         """Set or update the KitchenRadio instance"""
@@ -387,12 +379,12 @@ class DisplayController:
             
             # Render the display
             if display_type == 'track_info':
-                self.i2c_interface.render_frame(draw_func)
+                self.display_interface.render_frame(draw_func)
                 if isinstance(truncation_info, dict):
                     self.last_truncation_info.update(truncation_info)
                     self._update_scroll_offsets(truncation_info)
             else:
-                truncation_info = self.i2c_interface.render_frame(draw_func)
+                truncation_info = self.display_interface.render_frame(draw_func)
                 if isinstance(truncation_info, dict):
                     self.last_truncation_info.update(truncation_info)
                     self._update_scroll_offsets(truncation_info)
@@ -566,7 +558,7 @@ class DisplayController:
                 'scroll_offsets': self.current_scroll_offsets
             }
             draw_func, truncation_info = self.formatter.format_track_info(track_data)
-            self.i2c_interface.render_frame(draw_func)
+            self.display_interface.render_frame(draw_func)
             
             # Track current display state
             self.current_display_type = 'track_info'
@@ -635,7 +627,7 @@ class DisplayController:
             'selected_index': sources.index(current_source) if current_source in sources else 0
         }
         draw_func = self.formatter.format_menu_display(menu_data)
-        self.i2c_interface.render_frame(draw_func)
+        self.display_interface.render_frame(draw_func)
     
     def show_status_message(self, message: str, icon: str = "ℹ", message_type: str = "info"):
         """Manually show a status message"""
@@ -645,7 +637,7 @@ class DisplayController:
             'message_type': message_type
         }
         draw_func, truncation_info = self.formatter.format_status_message(message_data)
-        self.i2c_interface.render_frame(draw_func)
+        self.display_interface.render_frame(draw_func)
         
         # Track current display state
         self.current_display_type = 'status_message'
@@ -662,15 +654,15 @@ class DisplayController:
             'sub_text': date_str if date_str else ''
         }
         draw_func = self.formatter.format_simple_text(text_data)
-        self.i2c_interface.render_frame(draw_func)
+        self.display_interface.render_frame(draw_func)
     
     # Status and information methods
     def get_display_info(self) -> Dict[str, Any]:
         """Get comprehensive display information"""
-        i2c_info = self.i2c_interface.get_display_info()
+        i2c_info = self.display_interface.get_display_info()
         
         return {
-            'i2c_interface': i2c_info,
+            'display_interface': i2c_info,
             'formatter': {
                 'width': self.formatter.width,
                 'height': self.formatter.height,
@@ -843,8 +835,8 @@ if __name__ == "__main__":
         
         # Get display info
         info = display.get_display_info()
-        print(f"Display: {info['i2c_interface']['width']}x{info['i2c_interface']['height']}")
-        print(f"Simulation mode: {info['i2c_interface']['simulation_mode']}")
+        print(f"Display: {info['display_interface']['width']}x{info['display_interface']['height']}")
+        print(f"Simulation mode: {info['display_interface']['simulation_mode']}")
         
         try:
             test_scenarios = [
@@ -864,7 +856,7 @@ if __name__ == "__main__":
                 test_func()
                 
                 # Save screenshot if in simulation mode
-                if info['i2c_interface']['simulation_mode']:
+                if info['display_interface']['simulation_mode']:
                     filename = f"ssd1322_test_{name.lower().replace(' ', '_')}.png"
                     display.save_screenshot(filename)
                     print(f"  Screenshot saved: {filename}")
