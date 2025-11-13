@@ -20,6 +20,13 @@ from kitchenradio.web.display_interface_emulator import DisplayInterfaceEmulator
 from kitchenradio.radio.hardware.display_controller import DisplayController
 from kitchenradio.radio.kitchen_radio import KitchenRadio
 
+# Try to import SPI interface (may not be available on all platforms)
+try:
+    from kitchenradio.radio.hardware.display_interface_spi import DisplayInterfaceSPI
+    SPI_AVAILABLE = True
+except ImportError:
+    SPI_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +43,9 @@ class KitchenRadioWeb:
                  kitchen_radio: 'KitchenRadio' = None,
                  host: str = '0.0.0.0',
                  port: int = 5001,
-                 enable_gpio: bool = False):
+                 enable_gpio: bool = False,
+                 use_hardware_display: bool = False,
+                 display_interface = None):
         """
         Initialize KitchenRadio Web API.
         
@@ -45,6 +54,8 @@ class KitchenRadioWeb:
             host: API server host address
             port: API server port
             enable_gpio: Whether to also enable GPIO buttons
+            use_hardware_display: Use hardware SPI display instead of emulator
+            display_interface: Optional display interface to use (overrides other settings)
         """
         # Create or use provided KitchenRadio instance
         if kitchen_radio is None:
@@ -58,30 +69,63 @@ class KitchenRadioWeb:
         self.host = host
         self.port = port
         self.enable_gpio = enable_gpio
+        self.use_hardware_display = use_hardware_display
         
-        # Initialize display emulator if available
-        self.display_emulator = None
+        # Initialize display interface (emulator or hardware SPI)
+        self.display_interface = None
+        self.display_emulator = None  # Keep for backwards compatibility
+        
+        if display_interface is not None:
+            # Use provided display interface
+            self.display_interface = display_interface
+            if isinstance(display_interface, DisplayInterfaceEmulator):
+                self.display_emulator = display_interface
+            logger.info(f"Using provided display interface: {type(display_interface).__name__}")
+        elif use_hardware_display and SPI_AVAILABLE:
+            # Use hardware SPI display
+            try:
+                self.display_interface = DisplayInterfaceSPI()
+                logger.info("Using hardware SPI display interface")
+            except Exception as e:
+                logger.error(f"Failed to create SPI display interface: {e}")
+                logger.info("Falling back to emulator")
+                use_hardware_display = False
+        
+        if not self.display_interface:
+            # Use emulator (default for development)
+            try:
+                self.display_interface = DisplayInterfaceEmulator()
+                self.display_emulator = self.display_interface
+                logger.info("Using display emulator interface")
+            except Exception as e:
+                logger.error(f"Failed to create display emulator: {e}")
+                self.display_interface = None
+                self.display_emulator = None
 
-        try:
-            self.display_emulator = DisplayInterfaceEmulator()
-            self.display_emulator.initialize()
-            logger.info("Display emulator initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to create display emulator: {e}")
-            self.display_emulator = None
+        # Initialize display interface
+        if self.display_interface:
+            try:
+                if self.display_interface.initialize():
+                    logger.info(f"Display interface initialized successfully: {type(self.display_interface).__name__}")
+                else:
+                    logger.warning("Display interface initialization failed")
+            except Exception as e:
+                logger.error(f"Error initializing display interface: {e}")
+                self.display_interface = None
+                self.display_emulator = None
 
         # Initialize display controller
         self.display_controller = None
         try:
-            # Create display controller with emulator as the I2C interface and kitchen_radio
+            # Create display controller with display interface and kitchen_radio
             self.display_controller = DisplayController(
                 kitchen_radio=self.kitchen_radio,
-                i2c_interface=self.display_emulator
+                i2c_interface=self.display_interface  # Works with both emulator and SPI
             )
             self.display_controller.initialize()
-            logger.info("Display controller initialized with emulator interface and update loop started")
+            logger.info("Display controller initialized with display interface and update loop started")
         except Exception as e:
-            logger.warning(f"Failed to initialize display controller with emulator: {e}")
+            logger.warning(f"Failed to initialize display controller: {e}")
             self.display_controller = None
 
         # Create button controller with display controller reference
@@ -170,13 +214,13 @@ class KitchenRadioWeb:
                 }
                 
                 # If it's a source button and the press was successful, update the display
-                if result and button_name in ['source_mpd', 'source_spotify'] and self.display_emulator:
+                if result and button_name in ['source_mpd', 'source_spotify'] and self.display_interface:
                     try:
                         from kitchenradio.radio.hardware.display_formatter import DisplayFormatter
                         formatter = DisplayFormatter()
                         status_data = self.kitchen_radio.get_status()
                         draw_func = formatter.format_status(status_data)
-                        self.display_emulator.render_frame(draw_func)
+                        self.display_interface.render_frame(draw_func)
                         logger.info(f"Display updated after {button_name} press")
                     except Exception as display_error:
                         logger.warning(f"Failed to update display after {button_name}: {display_error}")
@@ -287,8 +331,9 @@ class KitchenRadioWeb:
         def get_display_image():
             """Get current display image as BMP"""
             try:
+                # Only emulator supports image export
                 if not self.display_emulator:
-                    return jsonify({'error': 'Display emulator not available'}), 503
+                    return jsonify({'error': 'Display image export only available with emulator'}), 503
                     
                 # Get BMP data from emulator
                 bmp_data = self.display_emulator.getDisplayImage()
@@ -314,8 +359,9 @@ class KitchenRadioWeb:
         def get_display_ascii():
             """Get current display as ASCII art"""
             try:
+                # Only emulator supports ASCII export
                 if not self.display_emulator:
-                    return jsonify({'error': 'Display emulator not available'}), 503
+                    return jsonify({'error': 'ASCII display export only available with emulator'}), 503
                     
                 ascii_art = self.display_emulator.get_ascii_representation()
                 return jsonify({
@@ -330,10 +376,10 @@ class KitchenRadioWeb:
         def clear_display():
             """Clear the display"""
             try:
-                if not self.display_emulator:
-                    return jsonify({'error': 'Display emulator not available'}), 503
+                if not self.display_interface:
+                    return jsonify({'error': 'Display interface not available'}), 503
                     
-                self.display_emulator.clear()
+                self.display_interface.clear()
                 return jsonify({
                     'success': True,
                     'message': 'Display cleared',
@@ -347,10 +393,21 @@ class KitchenRadioWeb:
         def test_display():
             """Show test pattern on display"""
             try:
-                if not self.display_emulator:
-                    return jsonify({'error': 'Display emulator not available'}), 503
+                if not self.display_interface:
+                    return jsonify({'error': 'Display interface not available'}), 503
+                
+                # Check if display interface has test_display method
+                if hasattr(self.display_interface, 'display_test_pattern'):
+                    result = self.display_interface.display_test_pattern()
+                elif hasattr(self.display_interface, 'test_display'):
+                    result = self.display_interface.test_display()
+                else:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Test pattern not supported by this display interface',
+                        'timestamp': time.time()
+                    })
                     
-                result = self.display_emulator.test_display()
                 return jsonify({
                     'success': result,
                     'message': 'Test pattern displayed' if result else 'Test pattern failed',
@@ -364,37 +421,55 @@ class KitchenRadioWeb:
         def display_stats():
             """Get display statistics and info"""
             try:
-                if not self.display_emulator:
-                    return jsonify({'error': 'Display emulator not available'}), 503
-                    
-                stats = self.display_emulator.get_statistics()
-                info = self.display_emulator.get_display_info()
-                return jsonify({
-                    'display_info': info,
-                    'display_stats': stats,
-                    'timestamp': time.time()
-                })
+                # Only emulator provides detailed stats
+                if self.display_emulator and hasattr(self.display_emulator, 'get_statistics'):
+                    stats = self.display_emulator.get_statistics()
+                    info = self.display_emulator.get_display_info()
+                    return jsonify({
+                        'display_info': info,
+                        'display_stats': stats,
+                        'timestamp': time.time()
+                    })
+                elif self.display_interface:
+                    # Provide basic info for non-emulator displays
+                    info = {
+                        'type': type(self.display_interface).__name__,
+                        'size': self.display_interface.get_size() if hasattr(self.display_interface, 'get_size') else 'unknown',
+                        'initialized': self.display_interface.is_initialized() if hasattr(self.display_interface, 'is_initialized') else 'unknown'
+                    }
+                    return jsonify({
+                        'display_info': info,
+                        'timestamp': time.time()
+                    })
+                else:
+                    return jsonify({'error': 'Display interface not available'}), 503
             except Exception as e:
                 logger.error(f"Error getting display stats: {e}")
                 return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/display/status', methods=['GET'])
         def display_status():
-            """Get display controller and emulator status"""
+            """Get display controller and interface status"""
             try:
                 status = {
-                    'emulator_available': self.display_emulator is not None,
+                    'interface_available': self.display_interface is not None,
+                    'interface_type': type(self.display_interface).__name__ if self.display_interface else None,
+                    'emulator_mode': isinstance(self.display_interface, DisplayInterfaceEmulator) if self.display_interface else False,
+                    'hardware_mode': self.use_hardware_display,
                     'controller_available': self.display_controller is not None,
                     'timestamp': time.time()
                 }
                 
-                if self.display_emulator:
-                    status['emulator_info'] = self.display_emulator.get_display_info()
-                    status['emulator_stats'] = self.display_emulator.get_statistics()
+                if self.display_interface:
+                    if hasattr(self.display_interface, 'get_display_info'):
+                        status['interface_info'] = self.display_interface.get_display_info()
+                    if hasattr(self.display_interface, 'get_statistics'):
+                        status['interface_stats'] = self.display_interface.get_statistics()
+                    if hasattr(self.display_interface, 'is_initialized'):
+                        status['interface_initialized'] = self.display_interface.is_initialized()
                 
                 if self.display_controller:
                     status['controller_initialized'] = True
-                    # Add any display controller specific status here
                 else:
                     status['controller_initialized'] = False
                     
@@ -543,8 +618,8 @@ class KitchenRadioWeb:
         def update_display():
             """Update display with current KitchenRadio status"""
             try:
-                if not self.display_emulator:
-                    return jsonify({'error': 'Display emulator not available'}), 503
+                if not self.display_interface:
+                    return jsonify({'error': 'Display interface not available'}), 503
                 
                 # Get current status from KitchenRadio
                 status_data = self.kitchen_radio.get_status()
@@ -557,8 +632,8 @@ class KitchenRadioWeb:
                     # Format status for display
                     draw_func = formatter.format_status(status_data)
                     
-                    # Render to emulator
-                    result = self.display_emulator.render_frame(draw_func)
+                    # Render to display interface
+                    result = self.display_interface.render_frame(draw_func)
                     
                     return jsonify({
                         'success': result,
@@ -581,8 +656,8 @@ class KitchenRadioWeb:
         def show_text_on_display():
             """Show custom text on display"""
             try:
-                if not self.display_emulator:
-                    return jsonify({'error': 'Display emulator not available'}), 503
+                if not self.display_interface:
+                    return jsonify({'error': 'Display interface not available'}), 503
                 
                 # Get text from request
                 data = request.get_json() or {}
@@ -597,8 +672,8 @@ class KitchenRadioWeb:
                     # Format text for display
                     draw_func = formatter.format_simple_text(main_text, sub_text)
                     
-                    # Render to emulator
-                    result = self.display_emulator.render_frame(draw_func)
+                    # Render to display interface
+                    result = self.display_interface.render_frame(draw_func)
                     
                     return jsonify({
                         'success': result,
@@ -672,12 +747,13 @@ class KitchenRadioWeb:
                     logger.error("Failed to start KitchenRadio instance")
                     return False
             
-            # Initialize display emulator
-            if self.display_emulator:
-                if not self.display_emulator.initialize():
-                    logger.warning("Failed to initialize display emulator, continuing anyway")
+            # Initialize display interface (already done in __init__)
+            if self.display_interface:
+                if not self.display_interface.is_initialized() if hasattr(self.display_interface, 'is_initialized') else False:
+                    if not self.display_interface.initialize():
+                        logger.warning("Failed to initialize display interface, continuing anyway")
             else:
-                logger.info("Display emulator not available - display features disabled")
+                logger.info("Display interface not available - display features disabled")
             
             # Note: Display controller would need hardware - using emulator directly for now
             
@@ -711,7 +787,8 @@ class KitchenRadioWeb:
             
             logger.info(f"KitchenRadio Web API started on http://{self.host}:{self.port}")
             logger.info(f"GPIO buttons {'enabled' if self.enable_gpio else 'disabled'}")
-            logger.info(f"Display emulator available: {self.display_emulator is not None}")
+            logger.info(f"Display interface: {type(self.display_interface).__name__ if self.display_interface else 'None'}")
+            logger.info(f"Display mode: {'Hardware SPI' if self.use_hardware_display else 'Emulator'}")
             
             return True
             
@@ -725,12 +802,12 @@ class KitchenRadioWeb:
         
         self.running = False
         
-        # Cleanup display emulator
-        if self.display_emulator:
+        # Cleanup display interface
+        if self.display_interface:
             try:
-                self.display_emulator.cleanup()
+                self.display_interface.cleanup()
             except Exception as e:
-                logger.warning(f"Error cleaning up display emulator: {e}")
+                logger.warning(f"Error cleaning up display interface: {e}")
         
         # Cleanup GPIO if enabled
         if self.enable_gpio:
@@ -779,7 +856,8 @@ if __name__ == "__main__":
         kitchen_radio=None,  # Will create its own
         host='127.0.0.1',
         port=5001,
-        enable_gpio=False  # Disable GPIO for testing
+        enable_gpio=False,  # Disable GPIO for testing
+        use_hardware_display=False  # Use emulator for testing (set to True for hardware SPI)
     )
     
     if api.start():
