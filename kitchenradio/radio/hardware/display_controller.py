@@ -97,7 +97,7 @@ class DisplayController:
         self.running = False
         self.manual_update_requested = False
         
-        logger.info(f"Simplified DisplayController initialized for SSD1322 ({self.display_interface.width}x{self.display_interface.height})")
+        logger.info(f"Simplified DisplayController initialized for SSD1322")
     
     def initialize(self) -> bool:
         """
