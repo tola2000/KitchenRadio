@@ -8,10 +8,14 @@ i2c = busio.I2C(board.SCL, board.SDA)
 mcp = MCP23017(i2c, address=0x27)
 
 # Configure GPA0 as input with internal pull-up
+# Hardware connection: Button connects GPA0 to GND
+# - Not pressed: Pin pulled HIGH (True) by internal resistor
+# - Pressed: Pin connected to GND → LOW (False)
 button_pin = mcp.get_pin(0)
 from digitalio import Pull
 button_pin.switch_to_input(pull=Pull.UP)  # Enable pull-up resistor
 print(f"Pin configured with pull: {button_pin.pull}")
+print("Hardware: Button should connect GPA0 to GND")
 
 # Verify pull-up is enabled by reading GPPU register
 # GPPU register address is 0x0C for port A
