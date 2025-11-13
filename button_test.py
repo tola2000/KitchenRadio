@@ -9,13 +9,14 @@ mcp = MCP23017(i2c, address=0x27)
 
 # Configure GPA0 as input with internal pull-up
 button_pin = mcp.get_pin(0)
-button_pin.switch_to_input(pull=True)  # Enable pull-up resistor
-print(f"Pin configured with pull-up: {button_pin.pull}")
+from digitalio import Pull
+button_pin.switch_to_input(pull=Pull.UP)  # Enable pull-up resistor
+print(f"Pin configured with pull: {button_pin.pull}")
 
 # Verify pull-up is enabled by reading GPPU register
 # GPPU register address is 0x0C for port A
 gppu_value = mcp._read_u8(0x0C)
-print(f"GPPU register (Port A): 0x{gppu_value:02X} (bit 0 should be 1)")
+print(f"GPPU register (Port A): 0x{gppu_value:02X} (bit 0 should be 1 for pull-up)")
 
 # Debounce settings
 debounce_time = 0.05  # 50 ms
