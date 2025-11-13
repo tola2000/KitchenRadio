@@ -182,9 +182,11 @@ class LibrespotMonitor:
             if self.client.is_connected():
                 self._check_for_changes()
             else:
-                logger.warning("go-librespot connection lost")
-                # Try to reconnect
-                self.client.connect()
+                # Don't try to reconnect if we're shutting down
+                if not self._stop_event.is_set():
+                    logger.warning("go-librespot connection lost")
+                    # Try to reconnect
+                    self.client.connect()
                 
             try:
                 # Wait either for wake_event (set by callback) or timeout
@@ -193,7 +195,7 @@ class LibrespotMonitor:
                 self._wake_event.clear()
             except Exception as e:
                 # Fallback to small sleep if wait fails for any reason
-               time.sleep(1.0)
+                time.sleep(1.0)
         
         logger.info("go-librespot monitoring loop stopped")
     

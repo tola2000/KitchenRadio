@@ -244,11 +244,19 @@ class DisplayInterface:
         
         try:
             if self.mode == 'hardware':
-                # Hardware mode - use luma canvas
+                # Hardware mode - render to real SPI display
                 with canvas(self.device) as draw:
                     draw_func(draw)
+                
+                # Also render to PIL image for BMP export (web viewing)
+                self.current_image = Image.new('1', (self.WIDTH, self.HEIGHT), 0)
+                draw = ImageDraw.Draw(self.current_image)
+                draw_func(draw)
+                self._update_bmp_data()
+                self.last_update = time.time()
+                
             else:  # emulator
-                # Emulator mode - render to PIL image
+                # Emulator mode - render to PIL image only
                 self.current_image = Image.new('1', (self.WIDTH, self.HEIGHT), 0)
                 draw = ImageDraw.Draw(self.current_image)
                 draw_func(draw)

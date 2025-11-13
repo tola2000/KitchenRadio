@@ -810,17 +810,32 @@ class KitchenRadio:
         """Stop the KitchenRadio daemon"""
         self.logger.info("Stopping KitchenRadio daemon...")
         
-        # Stop monitoring
+        # Stop monitoring FIRST (sets stop event so monitors won't try to reconnect)
         self.running = False
         
-        # Wait for monitor threads to finish
+        # Stop monitor instances (sets their _stop_event)
+        if self.mpd_monitor:
+            try:
+                self.mpd_monitor.stop_monitoring()
+                self.logger.info("Stopped MPD monitor")
+            except Exception as e:
+                self.logger.warning(f"Error stopping MPD monitor: {e}")
+        
+        if self.librespot_monitor:
+            try:
+                self.librespot_monitor.stop_monitoring()
+                self.logger.info("Stopped librespot monitor")
+            except Exception as e:
+                self.logger.warning(f"Error stopping librespot monitor: {e}")
+        
+        # Wait for monitor threads to finish (should exit quickly now)
         if self.mpd_monitor_thread and self.mpd_monitor_thread.is_alive():
             self.mpd_monitor_thread.join(timeout=5)
         
         if self.librespot_monitor_thread and self.librespot_monitor_thread.is_alive():
             self.librespot_monitor_thread.join(timeout=5)
         
-        # Disconnect from backends
+        # Disconnect from backends (monitors are stopped, so no reconnect attempts)
         if self.mpd_client and self.mpd_connected:
             try:
                 self.mpd_client.disconnect()

@@ -153,19 +153,17 @@ class NowPlayingMonitor:
         while not self._stop_event.is_set():
             try:   
                 if self.client.is_connected():
-
                     #changes = self.client.wait_for_changes()
                     self._check_for_changes()
                 else:
-                    logger.warning("MPD connection lost, try to reconnect")
-                    self.client.connect()
+                    # Don't try to reconnect if we're shutting down
+                    if not self._stop_event.is_set():
+                        logger.warning("MPD connection lost, try to reconnect")
+                        self.client.connect()
             except Exception as e:
                 logger.error(f"Error While Getting Changes {e} ")
 
-
-
-
-            # Wait for next check
+            # Wait for next check (exit immediately if stop event is set)
             self._stop_event.wait(1.0)  # Check every second
         
         logger.info("MPD monitoring loop stopped")
