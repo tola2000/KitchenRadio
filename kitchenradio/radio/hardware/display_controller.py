@@ -59,8 +59,8 @@ class DisplayController:
             logger.info(f"Created new display interface (use_hardware={use_hardware_display})")
 
         # Create display formatter for SSD1322
+        # Don't override width - let DisplayFormatter use its USABLE_WIDTH default (with margin)
         self.formatter = DisplayFormatter(
-            width=self.display_interface.width if hasattr(self.display_interface, 'width') else 256,
             height=self.display_interface.height if hasattr(self.display_interface, 'height') else 64
         )
         
