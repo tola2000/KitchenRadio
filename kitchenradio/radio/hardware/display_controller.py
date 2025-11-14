@@ -102,6 +102,7 @@ class DisplayController:
         self.update_thread = None
         self.running = False
         self.manual_update_requested = False
+        self._shutting_down = False  # Flag to prevent any status calls during shutdown
         
         logger.info(f"Simplified DisplayController initialized for SSD1322")
     
@@ -142,6 +143,8 @@ class DisplayController:
         """Clean up display resources"""
         logger.info("Cleaning up DisplayController...")
         
+        # Set shutdown flag FIRST to prevent any new status calls
+        self._shutting_down = True
         self.running = False
         
         # Clear kitchen_radio reference to prevent any further status calls
@@ -251,6 +254,10 @@ class DisplayController:
             scroll_update: Update is for scrolling (don't fetch new status)
         """
         try:
+            # Check if we're shutting down - abort immediately
+            if self._shutting_down:
+                return
+                
             # Check if we're still running before updating
             if not self.running:
                 return
