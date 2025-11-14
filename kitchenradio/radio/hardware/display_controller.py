@@ -9,6 +9,7 @@ import logging
 from re import S
 import threading
 import time
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
 
 from kitchenradio.radio.kitchen_radio import BackendType
@@ -373,10 +374,10 @@ class DisplayController:
 
     def _render_clock_display(self):
         """Update display to show clock"""
-        now = time.localtime()
+        now = datetime.now()
         clock_data = {
-            'time': time.strftime("%H:%M", now),
-            'date': time.strftime("%Y-%m-%d", now),
+            'time': now.strftime("%H:%M"),
+            'date': now.strftime("%Y-%m-%d"),
             'ampm': False,
         }
 
@@ -835,9 +836,9 @@ class DisplayController:
 
     def show_clock(self):
         """Show clock overlay using the generic overlay system"""
-        now = time.localtime()
-        time_str = time.strftime("%H:%M", now)
-        date_str = time.strftime("%Y-%m-%d", now)
+        now = datetime.now()
+        time_str = now.strftime("%H:%M")
+        date_str = now.strftime("%Y-%m-%d")
         clock_data = {
             'main_text': time_str,
             'sub_text': date_str
