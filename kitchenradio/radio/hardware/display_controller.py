@@ -30,7 +30,7 @@ class DisplayController:
     
     def __init__(self, 
                  kitchen_radio: 'KitchenRadio' = None,
-                 refresh_rate: float = 10,
+                 refresh_rate: float = 20,
                  display_interface = None,
                  use_hardware_display: bool = False):
         """
@@ -40,7 +40,7 @@ class DisplayController:
             kitchen_radio: KitchenRadio instance for status updates
             i2c_port: I2C port number (ignored if display_interface provided)
             i2c_address: I2C address of the SSD1322 display (ignored if display_interface provided)
-            refresh_rate: Display refresh rate in Hz
+            refresh_rate: Display refresh rate in Hz (default: 20 Hz for smooth scrolling)
             display_interface: Optional external I2C interface (for emulation or custom interface)
             use_hardware_display: Use hardware display if available (when creating interface automatically)
         """
