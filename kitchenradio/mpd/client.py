@@ -257,7 +257,9 @@ class KitchenRadioClient:
             try:
                 return dict(self.client.currentsong())
             except Exception as e:
+                import traceback
                 logger.error(f"Error getting current song: {e}")
+                logger.error(f"Call stack:\n{''.join(traceback.format_stack())}")
                 self.check_connection_error(e)
                 return None
     
