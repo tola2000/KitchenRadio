@@ -171,7 +171,8 @@ class DisplayInterfaceSPI:
             return
         
         try:
-            with canvas(self.device) as draw:
+            # Disable dithering for full brightness grayscale
+            with canvas(self.device, dither=False) as draw:
                 # Call the drawing function
                 draw_func(draw)
             
