@@ -143,8 +143,14 @@ class DisplayController:
         
         self.running = False
         
+        # Wake the thread so it can check the running flag
+        self._wake_event.set()
+        
         if self.update_thread and self.update_thread.is_alive():
+            logger.info("Waiting for display update thread to stop...")
             self.update_thread.join(timeout=2.0)
+            if self.update_thread.is_alive():
+                logger.warning("Display update thread did not stop cleanly")
         
         self.display_interface.cleanup()
         
@@ -231,6 +237,10 @@ class DisplayController:
             scroll_update: Update is for scrolling (don't fetch new status)
         """
         try:
+            # Check if we're still running before updating
+            if not self.running:
+                return
+                
             # Handle status updates from KitchenRadio
             if self.kitchen_radio:
 
