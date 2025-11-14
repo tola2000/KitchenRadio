@@ -177,11 +177,13 @@ class ButtonController:
             ButtonType.VOLUME_UP: self._volume_up,
             ButtonType.VOLUME_DOWN: self._volume_down,
             
-            
-            # Menu buttons (basic implementation)
+            # Menu buttons
             ButtonType.MENU_UP: self._menu_up,
             ButtonType.MENU_DOWN: self._menu_down,
-
+            ButtonType.MENU_TOGGLE: self._menu_toggle,
+            ButtonType.MENU_SET: self._menu_set,
+            ButtonType.MENU_OK: self._menu_ok,
+            ButtonType.MENU_EXIT: self._menu_exit,
             
             # Power button
             ButtonType.POWER: self._power,
@@ -515,18 +517,18 @@ class ButtonController:
             return False
     
     def _menu_down(self) -> bool:
-        """Menu up navigation"""
-        logger.info("Menu up navigation")
+        """Menu down navigation"""
+        logger.info("Menu down navigation")
         try:
             menu_items = self._get_menu_items()
             if menu_items:
-                # Scroll up (previous item)
+                # Scroll down (next item)
                 self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
-                logger.info(f"Menu scroll up to index {self._current_menu_index}")
+                logger.info(f"Menu scroll down to index {self._current_menu_index}")
                 
                 # Update display with menu
                 if self.display_controller:
-                        # Pass an on_selected handler so selection triggers menu action
+                    # Pass an on_selected handler so selection triggers menu action
                     self.display_controller.show_menu_overlay(
                         menu_items,
                         selected_index=self._current_menu_index,
@@ -536,9 +538,53 @@ class ButtonController:
 
                 return True
         except Exception as e:
-            logger.error(f"Error in menu up navigation: {e}")
+            logger.error(f"Error in menu down navigation: {e}")
             return False
-        
+    
+    def _menu_toggle(self) -> bool:
+        """Toggle menu display"""
+        logger.info("Menu toggle")
+        try:
+            menu_items = self._get_menu_items()
+            if menu_items and self.display_controller:
+                self.display_controller.show_menu_overlay(
+                    menu_items,
+                    selected_index=self._current_menu_index,
+                    timeout=self._menu_timeout_seconds,
+                    on_selected=self._on_menu_item_selected
+                )
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error toggling menu: {e}")
+            return False
+    
+    def _menu_set(self) -> bool:
+        """Set/confirm current menu selection"""
+        logger.info("Menu set/confirm")
+        return self._menu_ok()  # Same as OK for now
+    
+    def _menu_ok(self) -> bool:
+        """Confirm menu selection"""
+        logger.info("Menu OK - selecting current item")
+        try:
+            return self._on_menu_item_selected(self._current_menu_index)
+        except Exception as e:
+            logger.error(f"Error confirming menu selection: {e}")
+            return False
+    
+    def _menu_exit(self) -> bool:
+        """Exit menu and return to main display"""
+        logger.info("Menu exit")
+        try:
+            if self.display_controller:
+                # Close menu overlay
+                self.display_controller.hide_overlay()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error exiting menu: {e}")
+            return False
 
     def _on_menu_item_selected(self, index: int) -> None:
         """Handle selection of a menu item by index"""
