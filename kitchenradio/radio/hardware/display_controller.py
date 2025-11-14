@@ -225,7 +225,7 @@ class DisplayController:
                 start_time = time.time()
 
                 # Check running flag before doing any work
-                if not self.running:
+                if not self.running or self._shutting_down:
                     break
 
                 # Update display if KitchenRadio is available
