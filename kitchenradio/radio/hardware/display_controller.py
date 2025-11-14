@@ -254,8 +254,11 @@ class DisplayController:
                 logger.debug(f"Display update loop cycle time: {elapsed:.3f}s, slept for {sleep_time:.3f}s")
             except Exception as e:
                 logger.error(f"Error in display update loop: {e}")
-                if self.running:
-                    time.sleep(1.0)  # Wait longer on error only if still running
+                # Check if we're shutting down - exit immediately on error during shutdown
+                if self._shutting_down or not self.running:
+                    logger.info("Exiting update loop due to shutdown")
+                    break
+                time.sleep(1.0)  # Wait longer on error only if still running
         
         logger.info("Display update loop exited")
     
