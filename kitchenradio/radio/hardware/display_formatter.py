@@ -814,13 +814,15 @@ class DisplayFormatter:
             
             # Draw title (pixel-scroll image or static text)
             if title_image:
-                img.paste(title_image, (content_x, 5))
+                # Use the image itself as the mask to preserve brightness
+                img.paste(title_image, (content_x, 5), title_image)
             elif title_displayed:
                 draw.text((content_x, 5), title_displayed, font=self.fonts['xlarge'], fill=255)
             
             # Draw artist/album (pixel-scroll image or static text)
             if artist_album_image:
-                img.paste(artist_album_image, (content_x, 28))
+                # Use the image itself as the mask to preserve brightness
+                img.paste(artist_album_image, (content_x, 28), artist_album_image)
             elif artist_album_displayed:
                 draw.text((content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
             
