@@ -134,6 +134,9 @@ class DisplayController:
         return True
     
     def _on_client_changed(self, **kwargs):
+        # Don't process callbacks during shutdown
+        if self._shutting_down:
+            return
         try:
             self._wake_event.set()
         except Exception:
@@ -143,9 +146,20 @@ class DisplayController:
         """Clean up display resources"""
         logger.info("Cleaning up DisplayController...")
         
-        # Set shutdown flag FIRST to prevent any new status calls
+        # Set shutdown flag FIRST to prevent any new status calls and callbacks
         self._shutting_down = True
         self.running = False
+        
+        # Try to remove callback if kitchen_radio still exists
+        if self.kitchen_radio:
+            try:
+                # Remove our callback from the list
+                if 'any' in self.kitchen_radio.callbacks:
+                    if self._on_client_changed in self.kitchen_radio.callbacks['any']:
+                        self.kitchen_radio.callbacks['any'].remove(self._on_client_changed)
+                        logger.info("Removed display controller callback")
+            except Exception as e:
+                logger.warning(f"Error removing callback: {e}")
         
         # Clear kitchen_radio reference to prevent any further status calls
         self.kitchen_radio = None
