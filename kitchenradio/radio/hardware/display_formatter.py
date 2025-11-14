@@ -660,6 +660,7 @@ class DisplayFormatter:
         album = track_data.get('album', 'Unknown')
         playing = track_data.get('playing', False)
         volume = track_data.get('volume', 50)
+        source = track_data.get('source', 'Unknown')  # Get source information
         scroll_offsets = track_data.get('scroll_offsets', {})
         
         # Calculate dimensions
@@ -727,6 +728,10 @@ class DisplayFormatter:
             draw.text((content_x, 5), title_displayed, font=self.fonts['xlarge'], fill=255)
             if artist_album_displayed:
                 draw.text((content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
+            
+            # Draw source at bottom left (before play icon)
+            source_y = self.height - 14  # Position at bottom
+            draw.text((content_x, source_y), source.upper(), font=self.fonts['small'], fill=180)
             
             # Draw play icon
             draw.text((icon_x, icon_y), play_icon, font=self.fonts['xxlarge'], fill=255)
