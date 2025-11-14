@@ -223,15 +223,17 @@ class ButtonController:
                 else:
                     logger.warning("✗ Hardware initialization failed, falling back to software mode")
                     self.use_hardware = False
+                    self.running = False  # Ensure running is False if hardware failed
             else:
                 if not HARDWARE_AVAILABLE:
                     logger.info("GPIO buttons disabled: Hardware libraries not available (install adafruit-circuitpython-mcp230xx)")
                 else:
                     logger.info("GPIO buttons disabled: use_hardware=False (set to True to enable)")
                 logger.info("ButtonController initialized in software mode (programmatic control only)")
+                self.running = False  # No hardware monitoring needed
             
             self.initialized = True
-            self.running = True
+            # Note: self.running is set in _initialize_hardware() if hardware is used
             return True
             
         except Exception as e:
@@ -263,6 +265,9 @@ class ButtonController:
             gppu_a = self.mcp._read_u8(0x0C)  # GPPU register Port A
             gppu_b = self.mcp._read_u8(0x0D)  # GPPU register Port B
             logger.info(f"Pull-up registers: Port A=0x{gppu_a:02X}, Port B=0x{gppu_b:02X}")
+            
+            # Set running flag BEFORE starting thread
+            self.running = True
             
             # Start monitoring thread
             self.monitor_thread = threading.Thread(target=self._monitor_buttons, daemon=True)
