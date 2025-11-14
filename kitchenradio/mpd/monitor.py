@@ -151,10 +151,16 @@ class NowPlayingMonitor:
         logger.info("Starting MPD monitoring loop")
         
         while not self._stop_event.is_set():
-            try:   
+            try:
+                # Check stop event before doing any work
+                if self._stop_event.is_set():
+                    break
+                    
                 if self.client.is_connected():
                     #changes = self.client.wait_for_changes()
-                    self._check_for_changes()
+                    # Check stop event again before checking for changes
+                    if not self._stop_event.is_set():
+                        self._check_for_changes()
                 else:
                     # Don't try to reconnect if we're shutting down
                     if not self._stop_event.is_set():

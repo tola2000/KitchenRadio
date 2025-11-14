@@ -889,7 +889,7 @@ class DisplayFormatter:
             
             if not menu_items:
                 # No items to display
-                draw.text((15, menu_start_y + 10), "No items", font=self.fonts['small'], fill=128)
+                draw.text((15, menu_start_y + 10), "No items", font=self.fonts['medium'], fill=128)
                 return
             
             # Draw fixed selection background in center (don't extend over scroll bar area)
@@ -929,14 +929,14 @@ class DisplayFormatter:
                         # Use scrolling for selected item if offset provided
                         selected_item_offset = offsets.get('selected_item', 0)
                         scroll_offset = selected_item_offset if i == selected_index else 0
-                        item_displayed = self._format_text(item, max_item_width, self.fonts['small'], scroll_offset, 'small')
+                        item_displayed = self._format_text(item, max_item_width, self.fonts['medium'], scroll_offset, 'medium')
                         
                         if i == selected_index:
                             # Selected item (drawn on white background) - 5 pixels higher
-                            draw.text((35, y_pos + 6 ), item_displayed, font=self.fonts['small'], fill=0)
+                            draw.text((35, y_pos + 6 ), item_displayed, font=self.fonts['medium'], fill=0)
                         else:
                             # Regular item - 5 pixels higher
-                            draw.text((35, y_pos + 6), item_displayed, font=self.fonts['small'], fill=255)
+                            draw.text((35, y_pos + 6), item_displayed, font=self.fonts['medium'], fill=255)
             else:
                 # Need scrolling - show items around selected with selection fixed at center
                 visible_above = half_visible
@@ -965,14 +965,14 @@ class DisplayFormatter:
                         # Use scrolling for selected item if offset provided
                         selected_item_offset = offsets.get('selected_item', 0)
                         scroll_offset = selected_item_offset if item_idx == selected_index else 0
-                        item_displayed = self._format_text(item, max_item_width, self.fonts['small'], scroll_offset, 'small')
+                        item_displayed = self._format_text(item, max_item_width, self.fonts['medium'], scroll_offset, 'medium')
                         
                         if item_idx == selected_index:
                             # Selected item (drawn on white background) - 5 pixels higher
-                            draw.text((15, y_pos + 6), item_displayed, font=self.fonts['small'], fill=0)
+                            draw.text((15, y_pos + 6), item_displayed, font=self.fonts['medium'], fill=0)
                         else:
                             # Regular item - 5 pixels higher
-                            draw.text((15, y_pos + 6), item_displayed, font=self.fonts['small'], fill=255)
+                            draw.text((15, y_pos + 6), item_displayed, font=self.fonts['medium'], fill=255)
             
             # Draw scroll position indicator bar (volume bar style)
             if total_items > 1:
