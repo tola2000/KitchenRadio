@@ -143,6 +143,9 @@ class DisplayController:
         
         self.running = False
         
+        # Clear kitchen_radio reference to prevent any further status calls
+        self.kitchen_radio = None
+        
         # Wake the thread so it can check the running flag
         self._wake_event.set()
         
