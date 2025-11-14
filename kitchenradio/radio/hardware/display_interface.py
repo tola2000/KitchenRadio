@@ -62,7 +62,8 @@ class DisplayInterface:
                  gpio_dc: int = GPIO_DC,
                  gpio_rst: int = GPIO_RST,
                  spi_port: int = SPI_PORT,
-                 spi_device: int = SPI_DEVICE):
+                 spi_device: int = SPI_DEVICE,
+                 rotate: int = 0):
         """
         Initialize display interface.
         
@@ -76,6 +77,8 @@ class DisplayInterface:
             gpio_rst: RST GPIO pin (hardware only, default: 24)
             spi_port: SPI port (hardware only, default: 0)
             spi_device: SPI device/CE (hardware only, default: 0)
+            rotate: Display rotation in degrees (0, 1, 2, 3 = 0°, 90°, 180°, 270°)
+                    Use 2 to flip display upside down
         """
         self.use_hardware = use_hardware
         self.bus_speed_hz = bus_speed_hz
@@ -83,6 +86,7 @@ class DisplayInterface:
         self.gpio_rst = gpio_rst
         self.spi_port = spi_port
         self.spi_device = spi_device
+        self.rotate = rotate
         
         # Display state
         self.mode = None  # 'hardware' or 'emulator'
@@ -147,8 +151,12 @@ class DisplayInterface:
             self.device = ssd1322(
                 self.serial,
                 width=self.WIDTH,
-                height=self.HEIGHT
+                height=self.HEIGHT,
+                rotate=self.rotate
             )
+            
+            if self.rotate != 0:
+                logger.info(f"Display rotated by {self.rotate * 90}° ({self.rotate})")
             
             # Clear display
             with canvas(self.device) as draw:

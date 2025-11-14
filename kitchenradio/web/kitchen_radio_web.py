@@ -66,7 +66,10 @@ class KitchenRadioWeb:
         self.display_interface = None
         
         try:
-            self.display_interface = DisplayInterface(use_hardware=use_hardware_display)
+            self.display_interface = DisplayInterface(
+                use_hardware=use_hardware_display,
+                rotate=2  # Flip display upside down (180°)
+            )
             if self.display_interface.initialize():
                 mode = self.display_interface.get_mode() if hasattr(self.display_interface, 'get_mode') else 'unknown'
                 logger.info(f"Display interface initialized in {mode} mode")
