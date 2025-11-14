@@ -197,9 +197,15 @@ class DisplayController:
         scroll_frame_count = 0
         scroll_frames_per_update = int(self.refresh_rate * 0.5)  # Update scroll every 0.5 seconds
         
+        logger.info("Display update loop started")
+        
         while self.running:
             try:
                 start_time = time.time()
+
+                # Check running flag before doing any work
+                if not self.running:
+                    break
 
                 # Update display if KitchenRadio is available
                 if self.kitchen_radio:
@@ -210,23 +216,27 @@ class DisplayController:
                     self.manual_update_requested = False
                     # Manual update is handled by the manual methods
                 
+                # Check running flag before sleeping
+                if not self.running:
+                    break
 
-                # Sleep to maintain refresh rate
+                # Calculate sleep time
                 elapsed = time.time() - start_time
                 sleep_time = max(0, frame_time - elapsed)
-                time.sleep(sleep_time)
-
 
                 # Wait either for wake_event (set by callback) or timeout
+                # This will wake immediately if cleanup() sets the event
                 self._wake_event.wait(timeout=sleep_time)
                 # Clear wake flag so next wait will block again until next callback
                 self._wake_event.clear()
 
-
                 logger.debug(f"Display update loop cycle time: {elapsed:.3f}s, slept for {sleep_time:.3f}s")
             except Exception as e:
                 logger.error(f"Error in display update loop: {e}")
-                time.sleep(1.0)  # Wait longer on error
+                if self.running:
+                    time.sleep(1.0)  # Wait longer on error only if still running
+        
+        logger.info("Display update loop exited")
     
     def _update_display(self, force_refresh: bool = False, scroll_update: bool = False):
         """
