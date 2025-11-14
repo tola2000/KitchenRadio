@@ -93,8 +93,9 @@ class KitchenRadioWeb:
 
         # Create button controller with display controller reference
         self.button_controller = ButtonController(
-            self.kitchen_radio, 
-            display_controller=self.display_controller
+            kitchen_radio=self.kitchen_radio,
+            display_controller=self.display_controller,
+            use_hardware=True  # Enable hardware buttons (MCP23017)
         )
  
         # Flask app for REST API
@@ -836,8 +837,8 @@ if __name__ == "__main__":
         kitchen_radio=None,  # Will create its own
         host='0.0.0.0',  # Listen on all network interfaces (accessible from other devices)
         port=5001,
-        enable_gpio=False,  # Disable GPIO for testing
-        use_hardware_display=True  # Use emulator for testing (set to True for hardware SPI)
+        enable_gpio=True,  # Enable GPIO hardware buttons (MCP23017)
+        use_hardware_display=True  # Use hardware SPI display
     )
     
     if api.start():
