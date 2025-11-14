@@ -58,12 +58,36 @@ def check_hardware_availability():
     """
     global HARDWARE_AVAILABLE
     
-    # Check for RPi.GPIO
+    # Check for GPIO hardware (RPi.GPIO or MCP23017)
+    gpio_available = False
+    gpio_type = None
+    
     try:
         import RPi.GPIO as GPIO
-        HARDWARE_AVAILABLE['gpio'] = True
+        gpio_available = True
+        gpio_type = "RPi.GPIO"
     except ImportError:
-        HARDWARE_AVAILABLE['gpio'] = False
+        pass
+    
+    # Also check for MCP23017 (used by ButtonController)
+    try:
+        from adafruit_mcp230xx.mcp23017 import MCP23017
+        gpio_available = True
+        if gpio_type:
+            gpio_type += " + MCP23017"
+        else:
+            gpio_type = "MCP23017"
+    except ImportError:
+        pass
+    
+    HARDWARE_AVAILABLE['gpio'] = gpio_available
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    if gpio_available:
+        logger.info(f"✓ GPIO hardware available: {gpio_type}")
+    else:
+        logger.info("✗ GPIO hardware not available (no RPi.GPIO or MCP23017)")
     
     # Check for I2C libraries
     try:
