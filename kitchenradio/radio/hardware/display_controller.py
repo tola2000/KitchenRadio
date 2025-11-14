@@ -82,7 +82,7 @@ class DisplayController:
         self.scroll_timer = None
         self.scroll_update_interval = 0.2  # Update every 500ms
           # Pause before starting scroll (seconds)
-        self.scroll_pause_duration = 15
+        self.scroll_pause_duration = 2  # Pause 2 seconds at start and when looping back
         # Per-key timestamp (epoch) until which scrolling is paused for that key
         self.scroll_pause_until: Dict[str, float] = {}
       
@@ -96,7 +96,7 @@ class DisplayController:
         self.selected_index = 0
         self.on_menu_selected: None
 
-        self.scroll_step = 2  # pixels per update
+        self.scroll_step = 3  # pixels per update (3 pixels * 20 Hz = 60 pixels/second)
 
         # Threading for updates
         self.update_thread = None
