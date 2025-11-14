@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 # SSD1322 Display specifications
 DISPLAY_WIDTH = 256  
 DISPLAY_HEIGHT = 64
+DISPLAY_WIDTH_MARGIN = 5  # Reduce usable width by 5 pixels
+USABLE_WIDTH = DISPLAY_WIDTH - DISPLAY_WIDTH_MARGIN  # 251 pixels
 
 # Font sizes optimized for SSD1322
 FONT_SMALL = 12
@@ -30,10 +32,11 @@ class DisplayFormatter:
     Much simpler than the previous complex element-based system.
     """
     
-    def __init__(self, width: int = DISPLAY_WIDTH, height: int = DISPLAY_HEIGHT):
-        """Initialize the formatter"""
+    def __init__(self, width: int = USABLE_WIDTH, height: int = DISPLAY_HEIGHT):
+        """Initialize the formatter with reduced width (5px margin)"""
         self.width = width
         self.height = height
+        self.width_margin = DISPLAY_WIDTH_MARGIN
         self.fonts = self._load_fonts()
         self.current_content = None
         

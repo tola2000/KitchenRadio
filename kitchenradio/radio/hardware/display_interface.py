@@ -47,6 +47,7 @@ class DisplayInterface:
     # Display specifications (same for both modes)
     WIDTH = 256
     HEIGHT = 64
+    WIDTH_MARGIN = 5  # Reduce drawable width by 5 pixels (251 usable width)
     
     # SPI configuration (for hardware mode)
     DEFAULT_SPI_BUS_SPEED = 4_000_000  # 4 MHz

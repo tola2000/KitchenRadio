@@ -76,17 +76,17 @@ BUTTON_PIN_MAP = {
     ButtonType.MENU_DOWN: 8,          # 
 
 
-    ButtonType.SLEEP: 2,              # 
-    ButtonType.REPEAT: 3,             # 
-    ButtonType.SHUFFLE: 4,            # 
+    ButtonType.SLEEP: 15,              # 
+    ButtonType.REPEAT: 14,             # 
+    ButtonType.SHUFFLE: 13,            # 
     ButtonType.DISPLAY: 11,            # 
 
     
     # Transport buttons 
     ButtonType.TRANSPORT_PREVIOUS: 1,     # 
-    ButtonType.TRANSPORT_PLAY_PAUSE: 14,   # 
-    ButtonType.TRANSPORT_STOP: 13,        # 
-    ButtonType.TRANSPORT_NEXT: 15,        # 
+    ButtonType.TRANSPORT_PLAY_PAUSE: 3,   # 
+    ButtonType.TRANSPORT_STOP: 4,        # 
+    ButtonType.TRANSPORT_NEXT: 2,        # 
     
     # Volume buttons 
     ButtonType.VOLUME_DOWN: 10,       # 
@@ -430,7 +430,7 @@ class ButtonController:
         """
         if button_type not in self.button_actions:
             logger.warning(f"No action defined for button: {button_type.value}")
-            self.display_controller.show_Notification_overlay("Oeps, Niet Toegewezen" , "Knop {button_type.value}", timeout=2)
+            self.display_controller.show_Notification_overlay("Oeps, Niet Toegewezen", f"Knop {button_type.value}", timeout=2)
             return False
         
         try:
@@ -438,12 +438,12 @@ class ButtonController:
             result = action_method()
             logger.debug(f"Button action {button_type.value} result: {result}")
             if not result:
-                self.display_controller.show_Notification_overlay("Oeps Mislukt", f"Functie iet Beschikbaar", timeout=2)  
+                self.display_controller.show_Notification_overlay("Oeps, Functie Niet Beschikbaar" , f"{button_type.value}", timeout=2)  
             
             return result
         except Exception as e:
             logger.error(f"Error executing action for button {button_type.value}: {e}")
-            self.display_controller.show_Notification_overlay("Oeps Error",  "{e}", timeout=2) 
+            self.display_controller.show_Notification_overlay("Oeps Error", f"{e}", timeout=2) 
             return False
 
 
