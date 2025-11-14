@@ -21,8 +21,8 @@ USABLE_WIDTH = DISPLAY_WIDTH - DISPLAY_WIDTH_MARGIN  # 246 pixels
 FONT_SMALL = 12
 FONT_MEDIUM = 14
 FONT_LARGE = 16
-FONT_XLARGE = 18
-FONT_XXLARGE = 28
+FONT_XLARGE = 24
+FONT_XXLARGE = 34
 
 class DisplayFormatter:
     """
@@ -693,7 +693,7 @@ class DisplayFormatter:
         
         artist_album_offset = scroll_offsets.get('artist_album', 0)
         artist_album_info = self._format_text(
-            artist_album_text, content_width, self.fonts['small'], artist_album_offset, 'small', return_info=True)
+            artist_album_text, content_width, self.fonts['medium'], artist_album_offset, 'medium', return_info=True)
         
         artist_album_displayed = artist_album_info['displayed']
         truncation_info['artist_album'] = artist_album_info
@@ -726,7 +726,7 @@ class DisplayFormatter:
             # Draw pre-processed text
             draw.text((content_x, 5), title_displayed, font=self.fonts['xlarge'], fill=255)
             if artist_album_displayed:
-                draw.text((content_x, 28), artist_album_displayed, font=self.fonts['small'], fill=255)
+                draw.text((content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
             
             # Draw play icon
             draw.text((icon_x, icon_y), play_icon, font=self.fonts['xxlarge'], fill=255)
