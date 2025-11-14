@@ -7,10 +7,19 @@ websockets>=10.0
 Flask>=2.3.0
 Flask-CORS>=4.0.0
 
-# Display system dependencies
+# Display system dependencies (core - always needed)
 Pillow>=9.0.0
+
+# Hardware display dependencies (Raspberry Pi only)
+# For SSD1322 OLED display via SPI
 luma.oled>=3.8.0
 luma.core>=2.4.0
+RPi.GPIO>=0.7.1
+
+# GPIO expander for buttons (Raspberry Pi only)
+# For MCP23017 I2C GPIO expander with 15 buttons
+adafruit-circuitpython-mcp230xx>=2.5.0
+adafruit-blinka>=8.0.0
 
 # Optional dependencies
 # colorama>=0.4.0  # For colored console output on Windows
