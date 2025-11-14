@@ -113,8 +113,12 @@ class DisplayInterfaceSPI:
             self.device = ssd1322(
                 self.serial,
                 width=self.WIDTH,
-                height=self.HEIGHT
+                height=self.HEIGHT,
+                rotate=2  # 180 degree rotation
             )
+            
+            # Set maximum contrast for full brightness
+            self.device.contrast(255)
             
             # Clear display on startup
             self.clear()
