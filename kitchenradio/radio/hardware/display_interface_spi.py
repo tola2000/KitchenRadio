@@ -114,7 +114,8 @@ class DisplayInterfaceSPI:
                 self.serial,
                 width=self.WIDTH,
                 height=self.HEIGHT,
-                rotate=2  # 180 degree rotation
+                rotate=2,  # 180 degree rotation
+                mode='L'   # Grayscale mode for proper brightness
             )
             
             # Set maximum contrast for full brightness
