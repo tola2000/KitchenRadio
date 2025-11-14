@@ -249,6 +249,47 @@ class DisplayFormatter:
                 }
             return "..."
     
+    def _render_scrolling_text(self, text: str, max_width: int, font: ImageFont.ImageFont, 
+                               scroll_offset: int, fill: int = 255) -> Image.Image:
+        """
+        Render scrolling text with true pixel-level scrolling.
+        
+        Args:
+            text: Text to render
+            max_width: Maximum width for visible area
+            font: Font to use
+            scroll_offset: Pixel offset for scrolling
+            fill: Fill color (0-255)
+            
+        Returns:
+            PIL Image of the scrolled text (cropped to max_width)
+        """
+        # Add padding for smooth loop
+        padding = "    "
+        scrolling_text = text + padding
+        
+        # Get dimensions
+        bbox = font.getbbox(scrolling_text)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Create image for full scrolling text (double width for seamless loop)
+        buffer_width = text_width * 2
+        img = Image.new('L', (buffer_width, text_height), color=0)
+        draw = ImageDraw.Draw(img)
+        
+        # Draw text twice for seamless scrolling
+        draw.text((0, -bbox[1]), scrolling_text, font=font, fill=fill)
+        draw.text((text_width, -bbox[1]), scrolling_text, font=font, fill=fill)
+        
+        # Calculate scroll position with wraparound
+        scroll_pos = scroll_offset % text_width
+        
+        # Crop to visible area
+        cropped = img.crop((scroll_pos, 0, scroll_pos + max_width, text_height))
+        
+        return cropped
+    
     def format_simple_text(self, text_data: Dict[str, Any]) -> Callable:
         """
         Format simple text display using JSON structure input.
@@ -678,11 +719,33 @@ class DisplayFormatter:
         # Pre-process all text elements
         # Process title
         title_offset = scroll_offsets.get('title', 0)
-        title_info = self._format_text(
-            title, title_max_width, self.fonts['xlarge'], title_offset, 'xlarge', return_info=True)
         
-        title_displayed = title_info['displayed']
-        truncation_info['title'] = title_info
+        # Get full text width for truncation info
+        title_bbox = self.fonts['xlarge'].getbbox(title)
+        title_full_width = title_bbox[2] - title_bbox[0]
+        title_truncated = title_full_width > title_max_width
+        
+        # Prepare title rendering (pixel-scrolling or static)
+        title_image = None
+        title_displayed = None
+        if title_offset > 0 and title_truncated:
+            # Use pixel-level scrolling
+            title_image = self._render_scrolling_text(title, title_max_width, self.fonts['xlarge'], title_offset, fill=255)
+        else:
+            # Static text (no scroll or fits)
+            if title_truncated:
+                title_displayed = self._format_text(title, title_max_width, self.fonts['xlarge'], 0, 'xlarge', return_info=False)
+            else:
+                title_displayed = title
+        
+        truncation_info['title'] = {
+            'displayed': title_displayed or '',
+            'truncated': title_truncated,
+            'original_width': title_full_width,
+            'max_width': title_max_width,
+            'scroll_offset': title_offset,
+            'font_size': 'xlarge'
+        }
         
         # Process artist/album
         if not artist == 'Unknown' and not album == 'Unknown':
@@ -693,11 +756,33 @@ class DisplayFormatter:
             artist_album_text = artist
         
         artist_album_offset = scroll_offsets.get('artist_album', 0)
-        artist_album_info = self._format_text(
-            artist_album_text, content_width, self.fonts['medium'], artist_album_offset, 'medium', return_info=True)
         
-        artist_album_displayed = artist_album_info['displayed']
-        truncation_info['artist_album'] = artist_album_info
+        # Get full text width for truncation info
+        artist_album_bbox = self.fonts['medium'].getbbox(artist_album_text)
+        artist_album_full_width = artist_album_bbox[2] - artist_album_bbox[0]
+        artist_album_truncated = artist_album_full_width > content_width
+        
+        # Prepare artist/album rendering (pixel-scrolling or static)
+        artist_album_image = None
+        artist_album_displayed = None
+        if artist_album_offset > 0 and artist_album_truncated:
+            # Use pixel-level scrolling
+            artist_album_image = self._render_scrolling_text(artist_album_text, content_width, self.fonts['medium'], artist_album_offset, fill=255)
+        else:
+            # Static text (no scroll or fits)
+            if artist_album_truncated:
+                artist_album_displayed = self._format_text(artist_album_text, content_width, self.fonts['medium'], 0, 'medium', return_info=False)
+            else:
+                artist_album_displayed = artist_album_text
+        
+        truncation_info['artist_album'] = {
+            'displayed': artist_album_displayed or '',
+            'truncated': artist_album_truncated,
+            'original_width': artist_album_full_width,
+            'max_width': content_width,
+            'scroll_offset': artist_album_offset,
+            'font_size': 'medium'
+        }
         
         # Pre-calculate volume bar dimensions
         volume_number = int(volume)
@@ -714,6 +799,9 @@ class DisplayFormatter:
         icon_y = self.height - icon_size + 2
         
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
+            # Get the underlying image from the draw object
+            img = draw._image
+            
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
@@ -724,9 +812,16 @@ class DisplayFormatter:
             if fill_height > 0:
                 draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
             
-            # Draw pre-processed text
-            draw.text((content_x, 5), title_displayed, font=self.fonts['xlarge'], fill=255)
-            if artist_album_displayed:
+            # Draw title (pixel-scroll image or static text)
+            if title_image:
+                img.paste(title_image, (content_x, 5))
+            elif title_displayed:
+                draw.text((content_x, 5), title_displayed, font=self.fonts['xlarge'], fill=255)
+            
+            # Draw artist/album (pixel-scroll image or static text)
+            if artist_album_image:
+                img.paste(artist_album_image, (content_x, 28))
+            elif artist_album_displayed:
                 draw.text((content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
             
             # Draw source at bottom left (before play icon)

@@ -96,7 +96,7 @@ class DisplayController:
         self.selected_index = 0
         self.on_menu_selected: None
 
-        self.scroll_step = 3  # pixels per update (3 pixels * 20 Hz = 60 pixels/second)
+        self.scroll_step = 4  # pixels per update (4 pixels * 20 Hz = 80 pixels/second, true pixel scrolling)
 
         # Threading for updates
         self.update_thread = None
