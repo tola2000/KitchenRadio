@@ -31,7 +31,7 @@ class DisplayController:
     
     def __init__(self, 
                  kitchen_radio: 'KitchenRadio' = None,
-                 refresh_rate: float = 20,
+                 refresh_rate: float = 80,
                  display_interface = None,
                  use_hardware_display: bool = False):
         """
@@ -41,7 +41,7 @@ class DisplayController:
             kitchen_radio: KitchenRadio instance for status updates
             i2c_port: I2C port number (ignored if display_interface provided)
             i2c_address: I2C address of the SSD1322 display (ignored if display_interface provided)
-            refresh_rate: Display refresh rate in Hz (default: 20 Hz for smooth scrolling)
+            refresh_rate: Display refresh rate in Hz (default: 80 Hz for ultra-smooth pixel scrolling)
             display_interface: Optional external I2C interface (for emulation or custom interface)
             use_hardware_display: Use hardware display if available (when creating interface automatically)
         """
@@ -96,7 +96,7 @@ class DisplayController:
         self.selected_index = 0
         self.on_menu_selected: None
 
-        self.scroll_step = 4  # pixels per update (4 pixels * 20 Hz = 80 pixels/second, true pixel scrolling)
+        self.scroll_step = 1  # pixels per update (1 pixel * 80 Hz = 80 pixels/second, ultra-smooth pixel scrolling)
 
         # Threading for updates
         self.update_thread = None

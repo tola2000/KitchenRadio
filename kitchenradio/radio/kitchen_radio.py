@@ -1070,7 +1070,12 @@ class KitchenRadio:
         if self.source == BackendType.MPD:
             return self._get_mpd_menu_options()
         elif self.source == BackendType.LIBRESPOT:
-            return self._get_spotify_menu_options()
+            # Spotify menu disabled
+            return {
+                'has_menu': False,
+                'options': [],
+                'message': 'Spotify menu disabled'
+            }
         else:
             return {
                 'has_menu': False,
