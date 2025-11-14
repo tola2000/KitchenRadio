@@ -23,9 +23,11 @@ try:
     from adafruit_mcp230xx.mcp23017 import MCP23017
     from digitalio import Pull
     HARDWARE_AVAILABLE = True
-except ImportError:
+    logger.info("✓ Hardware libraries loaded successfully (board, busio, MCP23017, Pull)")
+except ImportError as e:
     HARDWARE_AVAILABLE = False
-    logger.info("Hardware libraries not available, running in software mode")
+    logger.info(f"✗ Hardware libraries not available: {e}")
+    logger.info("   To enable hardware buttons: pip install adafruit-circuitpython-mcp230xx")
 
 
 class ButtonType(Enum):
@@ -111,11 +113,12 @@ class ButtonController:
     """
     
     def __init__(self, 
-                 kitchen_radio: 'KitchenRadio',
+                 kitchen_radio: 'KitchenRadio' = None,
                  debounce_time: float = 0.05,
                  long_press_time: float = 1.0,
                  display_controller = None,
                  use_hardware: bool = True,
+                 simulation_mode: bool = False,
                  i2c_address: int = 0x27):
         """
         Initialize button controller with MCP23017 hardware support.
@@ -126,6 +129,7 @@ class ButtonController:
             long_press_time: Time threshold for long press detection
             display_controller: Optional display controller for volume screen
             use_hardware: Enable MCP23017 hardware buttons (auto-disabled if not available)
+            simulation_mode: Legacy parameter - disables hardware (opposite of use_hardware)
             i2c_address: I2C address of MCP23017 (default 0x27)
         """
         # Store KitchenRadio reference
@@ -138,7 +142,10 @@ class ButtonController:
         self.debounce_time = debounce_time
         self.long_press_time = long_press_time
         
-        # Hardware configuration
+        # Hardware configuration (support both use_hardware and simulation_mode)
+        # simulation_mode=True means use_hardware=False
+        if simulation_mode:
+            use_hardware = False
         self.use_hardware = use_hardware and HARDWARE_AVAILABLE
         self.i2c_address = i2c_address
         self.mcp = None
@@ -206,16 +213,22 @@ class ButtonController:
             True if initialization successful
         """
         try:
+            logger.info(f"ButtonController initialization: use_hardware={self.use_hardware}, HARDWARE_AVAILABLE={HARDWARE_AVAILABLE}")
+            
             if self.use_hardware:
-                logger.info("Initializing MCP23017 button hardware...")
+                logger.info("Attempting to initialize MCP23017 button hardware...")
                 success = self._initialize_hardware()
                 if success:
-                    logger.info(f"ButtonController initialized with hardware support ({len(BUTTON_PIN_MAP)} buttons)")
+                    logger.info(f"✓ ButtonController initialized with hardware support ({len(BUTTON_PIN_MAP)} buttons)")
                 else:
-                    logger.warning("Hardware initialization failed, falling back to software mode")
+                    logger.warning("✗ Hardware initialization failed, falling back to software mode")
                     self.use_hardware = False
             else:
-                logger.info("ButtonController initialized in software mode")
+                if not HARDWARE_AVAILABLE:
+                    logger.info("GPIO buttons disabled: Hardware libraries not available (install adafruit-circuitpython-mcp230xx)")
+                else:
+                    logger.info("GPIO buttons disabled: use_hardware=False (set to True to enable)")
+                logger.info("ButtonController initialized in software mode (programmatic control only)")
             
             self.initialized = True
             self.running = True
