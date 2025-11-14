@@ -278,6 +278,9 @@ class DisplayController:
                 
             # Handle status updates from KitchenRadio
             if self.kitchen_radio:
+                # Double-check we're not shutting down before calling get_status
+                if self._shutting_down:
+                    return
 
                 current_status = self.kitchen_radio.get_status()
                 # Update last volume for tracking
