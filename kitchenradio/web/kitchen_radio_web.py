@@ -786,6 +786,14 @@ class KitchenRadioWeb:
         
         self.running = False
         
+        # Cleanup display controller FIRST (this stops the update thread)
+        if self.display_controller:
+            try:
+                logger.info("Cleaning up display controller...")
+                self.display_controller.cleanup()
+            except Exception as e:
+                logger.warning(f"Error cleaning up display controller: {e}")
+        
         # Cleanup display interface
         if self.display_interface:
             try:
