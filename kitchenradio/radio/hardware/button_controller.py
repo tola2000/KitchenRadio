@@ -35,14 +35,20 @@ class ButtonType(Enum):
     # Source buttons (top row)
     SOURCE_MPD = "source_mpd"
     SOURCE_SPOTIFY = "source_spotify"
-    
+    SOURCE_CD = "source_cd"
     # Menu buttons (around display)
     MENU_UP = "menu_up"
     MENU_DOWN = "menu_down"
+    
     MENU_TOGGLE = "menu_toggle"
     MENU_SET = "menu_set"
     MENU_OK = "menu_ok"
     MENU_EXIT = "menu_exit"
+
+    SLEEP = "sleep"              
+    REPEAT = "repeat"           
+    SHUFFLE = "shuffle"          
+    DISPLAY = "display" 
     
     # Transport buttons (middle)
     TRANSPORT_PREVIOUS = "transport_previous"
@@ -65,30 +71,34 @@ class ButtonType(Enum):
 # Pins 0-7 are on Port A (GPA0-GPA7)
 # Pins 8-15 are on Port B (GPB0-GPB7)
 BUTTON_PIN_MAP = {
-    # Source buttons (Port A, pins 0-1)
-    ButtonType.SOURCE_MPD: 0,        # GPA0
-    ButtonType.SOURCE_SPOTIFY: 1,     # GPA1
+    # Source buttons 
+    ButtonType.SOURCE_MPD: 7,         # TUNER
+    ButtonType.SOURCE_SPOTIFY: 6,     # AUX
+    ButtonType.SOURCE_CD: 5,          # CD Player (if applicable)
     
-    # Menu buttons (Port A, pins 2-7)
-    ButtonType.MENU_UP: 2,            # GPA2
-    ButtonType.MENU_DOWN: 3,          # GPA3
-    ButtonType.MENU_TOGGLE: 4,        # GPA4
-    ButtonType.MENU_SET: 5,           # GPA5
-    ButtonType.MENU_OK: 6,            # GPA6
-    ButtonType.MENU_EXIT: 7,          # GPA7
+    # Menu buttons 
+    ButtonType.MENU_UP: 9,            # 
+    ButtonType.MENU_DOWN: 8,          # 
+
+
+    ButtonType.SLEEP: 2,              # 
+    ButtonType.REPEAT: 3,             # 
+    ButtonType.SHUFFLE: 4,            # 
+    ButtonType.DISPLAY: 11,            # 
+
     
-    # Transport buttons (Port B, pins 8-11)
-    ButtonType.TRANSPORT_PREVIOUS: 8,     # GPB0
-    ButtonType.TRANSPORT_PLAY_PAUSE: 9,   # GPB1
-    ButtonType.TRANSPORT_STOP: 10,        # GPB2
-    ButtonType.TRANSPORT_NEXT: 11,        # GPB3
+    # Transport buttons 
+    ButtonType.TRANSPORT_PREVIOUS: 1,     # 
+    ButtonType.TRANSPORT_PLAY_PAUSE: 14,   # 
+    ButtonType.TRANSPORT_STOP: 13,        # 
+    ButtonType.TRANSPORT_NEXT: 15,        # 
     
-    # Volume buttons (Port B, pins 12-13)
-    ButtonType.VOLUME_DOWN: 12,       # GPB4
-    ButtonType.VOLUME_UP: 13,         # GPB5
+    # Volume buttons 
+    ButtonType.VOLUME_DOWN: 10,       # 
+    ButtonType.VOLUME_UP: 12,         # 
     
-    # Power button (Port B, pin 14)
-    ButtonType.POWER: 14,             # GPB6
+    # Power button 
+    ButtonType.POWER: 0,             # 
 }
 
 
@@ -559,50 +569,50 @@ class ButtonController:
             logger.error(f"Error in menu down navigation: {e}")
             return False
     
-    def _menu_toggle(self) -> bool:
-        """Toggle menu display"""
-        logger.info("Menu toggle")
-        try:
-            menu_items = self._get_menu_items()
-            if menu_items and self.display_controller:
-                self.display_controller.show_menu_overlay(
-                    menu_items,
-                    selected_index=self._current_menu_index,
-                    timeout=self._menu_timeout_seconds,
-                    on_selected=self._on_menu_item_selected
-                )
-                return True
-            return False
-        except Exception as e:
-            logger.error(f"Error toggling menu: {e}")
-            return False
+    # def _menu_toggle(self) -> bool:
+    #     """Toggle menu display"""
+    #     logger.info("Menu toggle")
+    #     try:
+    #         menu_items = self._get_menu_items()
+    #         if menu_items and self.display_controller:
+    #             self.display_controller.show_menu_overlay(
+    #                 menu_items,
+    #                 selected_index=self._current_menu_index,
+    #                 timeout=self._menu_timeout_seconds,
+    #                 on_selected=self._on_menu_item_selected
+    #             )
+    #             return True
+    #         return False
+    #     except Exception as e:
+    #         logger.error(f"Error toggling menu: {e}")
+    #         return False
     
-    def _menu_set(self) -> bool:
-        """Set/confirm current menu selection"""
-        logger.info("Menu set/confirm")
-        return self._menu_ok()  # Same as OK for now
+    # def _menu_set(self) -> bool:
+    #     """Set/confirm current menu selection"""
+    #     logger.info("Menu set/confirm")
+    #     return self._menu_ok()  # Same as OK for now
     
-    def _menu_ok(self) -> bool:
-        """Confirm menu selection"""
-        logger.info("Menu OK - selecting current item")
-        try:
-            return self._on_menu_item_selected(self._current_menu_index)
-        except Exception as e:
-            logger.error(f"Error confirming menu selection: {e}")
-            return False
+    # def _menu_ok(self) -> bool:
+    #     """Confirm menu selection"""
+    #     logger.info("Menu OK - selecting current item")
+    #     try:
+    #         return self._on_menu_item_selected(self._current_menu_index)
+    #     except Exception as e:
+    #         logger.error(f"Error confirming menu selection: {e}")
+    #         return False
     
-    def _menu_exit(self) -> bool:
-        """Exit menu and return to main display"""
-        logger.info("Menu exit")
-        try:
-            if self.display_controller:
-                # Close menu overlay
-                self.display_controller.hide_overlay()
-                return True
-            return False
-        except Exception as e:
-            logger.error(f"Error exiting menu: {e}")
-            return False
+    # def _menu_exit(self) -> bool:
+    #     """Exit menu and return to main display"""
+    #     logger.info("Menu exit")
+    #     try:
+    #         if self.display_controller:
+    #             # Close menu overlay
+    #             self.display_controller.hide_overlay()
+    #             return True
+    #         return False
+    #     except Exception as e:
+    #         logger.error(f"Error exiting menu: {e}")
+    #         return False
 
     def _on_menu_item_selected(self, index: int) -> None:
         """Handle selection of a menu item by index"""
