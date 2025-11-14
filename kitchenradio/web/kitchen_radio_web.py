@@ -680,10 +680,10 @@ class KitchenRadioWeb:
             ButtonType.VOLUME_DOWN: "Decrease volume",
             ButtonType.MENU_UP: "Navigate menu up",
             ButtonType.MENU_DOWN: "Navigate menu down",
-            ButtonType.MENU_OK: "Select menu item",
-            ButtonType.MENU_EXIT: "Exit menu",
-            ButtonType.MENU_TOGGLE: "Toggle menu display",
-            ButtonType.MENU_SET: "Confirm menu selection",
+            ButtonType.SLEEP: "Sleep",              
+            ButtonType.REPEAT: "Repeat",           
+            ButtonType.SHUFFLE: "Shuffle",          
+            ButtonType.DISPLAY: "Display", 
             ButtonType.POWER: "Power button - stop all playback"
         }
         return descriptions.get(button_type, "Unknown button")

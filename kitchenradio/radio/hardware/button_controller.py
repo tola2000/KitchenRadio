@@ -39,11 +39,6 @@ class ButtonType(Enum):
     # Menu buttons (around display)
     MENU_UP = "menu_up"
     MENU_DOWN = "menu_down"
-    
-    MENU_TOGGLE = "menu_toggle"
-    MENU_SET = "menu_set"
-    MENU_OK = "menu_ok"
-    MENU_EXIT = "menu_exit"
 
     SLEEP = "sleep"              
     REPEAT = "repeat"           
@@ -197,10 +192,6 @@ class ButtonController:
             # Menu buttons
             ButtonType.MENU_UP: self._menu_up,
             ButtonType.MENU_DOWN: self._menu_down,
-            ButtonType.MENU_TOGGLE: self._menu_toggle,
-            ButtonType.MENU_SET: self._menu_set,
-            ButtonType.MENU_OK: self._menu_ok,
-            ButtonType.MENU_EXIT: self._menu_exit,
             
             # Power button
             ButtonType.POWER: self._power,
