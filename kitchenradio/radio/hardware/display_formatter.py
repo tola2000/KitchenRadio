@@ -249,6 +249,32 @@ class DisplayFormatter:
                 }
             return "..."
     
+    def _render_static_text(self, text: str, font: ImageFont.ImageFont, fill: int = 255) -> Image.Image:
+        """
+        Render static text to an image buffer for consistent brightness.
+        
+        Args:
+            text: Text to render
+            font: Font to use
+            fill: Fill color (0-255)
+            
+        Returns:
+            PIL Image of the rendered text
+        """
+        # Get dimensions
+        bbox = font.getbbox(text)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Create grayscale image
+        img = Image.new('L', (text_width, text_height), color=0)
+        draw = ImageDraw.Draw(img)
+        
+        # Draw text at full brightness
+        draw.text((0, -bbox[1]), text, font=font, fill=fill)
+        
+        return img
+    
     def _render_scrolling_text(self, text: str, max_width: int, font: ImageFont.ImageFont, 
                                scroll_offset: int, fill: int = 255) -> Image.Image:
         """
@@ -814,24 +840,30 @@ class DisplayFormatter:
             
             # Draw title (pixel-scroll image or static text)
             if title_image:
-                # Simple paste - just replace the pixels directly
+                # Paste scrolling text image
                 img.paste(title_image, (content_x, 5))
             elif title_displayed:
-                draw.text((content_x, 5), title_displayed, font=self.fonts['xlarge'], fill=255)
+                # Render static text to image buffer for consistent brightness
+                title_static_img = self._render_static_text(title_displayed, self.fonts['xlarge'], fill=255)
+                img.paste(title_static_img, (content_x, 5))
             
             # Draw artist/album (pixel-scroll image or static text)
             if artist_album_image:
-                # Simple paste - just replace the pixels directly
+                # Paste scrolling text image
                 img.paste(artist_album_image, (content_x, 28))
             elif artist_album_displayed:
-                draw.text((content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
+                # Render static text to image buffer for consistent brightness
+                artist_static_img = self._render_static_text(artist_album_displayed, self.fonts['medium'], fill=255)
+                img.paste(artist_static_img, (content_x, 28))
             
-            # Draw source at bottom left (before play icon)
+            # Draw source at bottom left (before play icon) - render to image buffer
+            source_img = self._render_static_text(source.upper(), self.fonts['medium'], fill=180)
             source_y = self.height - 16  # Position at bottom
-            draw.text((content_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
+            img.paste(source_img, (content_x, source_y))
             
-            # Draw play icon
-            draw.text((icon_x, icon_y), play_icon, font=self.fonts['xxlarge'], fill=255)
+            # Draw play icon - render to image buffer for consistent brightness
+            icon_img = self._render_static_text(play_icon, self.fonts['xxlarge'], fill=255)
+            img.paste(icon_img, (icon_x, icon_y))
         
         return draw_track_info_with_progress, truncation_info
     
