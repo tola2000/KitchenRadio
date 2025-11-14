@@ -450,7 +450,7 @@ class DisplayController:
                 'time_position': current_song.get('time_position', 0),
                 'playing': playing,
                 'volume': volume,
-                'source': 'MPD',
+                'source': 'Radio',
                 'scroll_offsets': self.current_scroll_offsets
             }
             
