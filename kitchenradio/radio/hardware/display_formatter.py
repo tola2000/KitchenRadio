@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 # SSD1322 Display specifications
 DISPLAY_WIDTH = 256  
 DISPLAY_HEIGHT = 64
-DISPLAY_WIDTH_MARGIN = 5  # Reduce usable width by 5 pixels
-USABLE_WIDTH = DISPLAY_WIDTH - DISPLAY_WIDTH_MARGIN  # 251 pixels
+DISPLAY_WIDTH_MARGIN = 10  # Reduce usable width by 10 pixels
+USABLE_WIDTH = DISPLAY_WIDTH - DISPLAY_WIDTH_MARGIN  # 246 pixels
 
 # Font sizes optimized for SSD1322
 FONT_SMALL = 12
