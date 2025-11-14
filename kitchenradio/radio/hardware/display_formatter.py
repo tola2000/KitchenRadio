@@ -932,11 +932,11 @@ class DisplayFormatter:
                         item_displayed = self._format_text(item, max_item_width, self.fonts['medium'], scroll_offset, 'medium')
                         
                         if i == selected_index:
-                            # Selected item (drawn on white background) - 5 pixels higher
-                            draw.text((35, y_pos + 6 ), item_displayed, font=self.fonts['medium'], fill=0)
+                            # Selected item (drawn on white background) - 3 pixels down
+                            draw.text((35, y_pos + 3 ), item_displayed, font=self.fonts['medium'], fill=0)
                         else:
-                            # Regular item - 5 pixels higher
-                            draw.text((35, y_pos + 6), item_displayed, font=self.fonts['medium'], fill=255)
+                            # Regular item - 3 pixels down
+                            draw.text((35, y_pos + 3), item_displayed, font=self.fonts['medium'], fill=255)
             else:
                 # Need scrolling - show items around selected with selection fixed at center
                 visible_above = half_visible
@@ -968,11 +968,11 @@ class DisplayFormatter:
                         item_displayed = self._format_text(item, max_item_width, self.fonts['medium'], scroll_offset, 'medium')
                         
                         if item_idx == selected_index:
-                            # Selected item (drawn on white background) - 5 pixels higher
-                            draw.text((15, y_pos + 6), item_displayed, font=self.fonts['medium'], fill=0)
+                            # Selected item (drawn on white background) - 3 pixels down
+                            draw.text((15, y_pos + 3), item_displayed, font=self.fonts['medium'], fill=0)
                         else:
-                            # Regular item - 5 pixels higher
-                            draw.text((15, y_pos + 6), item_displayed, font=self.fonts['medium'], fill=255)
+                            # Regular item - 3 pixels down
+                            draw.text((15, y_pos + 3), item_displayed, font=self.fonts['medium'], fill=255)
             
             # Draw scroll position indicator bar (volume bar style)
             if total_items > 1:
