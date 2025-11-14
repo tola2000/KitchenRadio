@@ -81,7 +81,7 @@ class DisplayController:
         self.scroll_timer = None
         self.scroll_update_interval = 0.2  # Update every 500ms
           # Pause before starting scroll (seconds)
-        self.scroll_pause_duration = 30
+        self.scroll_pause_duration = 15
         # Per-key timestamp (epoch) until which scrolling is paused for that key
         self.scroll_pause_until: Dict[str, float] = {}
       
@@ -449,6 +449,7 @@ class DisplayController:
                 'time_position': current_song.get('time_position', 0),
                 'playing': playing,
                 'volume': volume,
+                'source': 'MPD',
                 'scroll_offsets': self.current_scroll_offsets
             }
             
@@ -487,6 +488,7 @@ class DisplayController:
                 'album': current_track.get('album', 'Unknown'),
                 'playing': librespot_status.get('state') == 'playing',
                 'volume': librespot_status.get('volume', 50),
+                'source': 'Spotify',
                 'scroll_offsets': self.current_scroll_offsets
             }
             

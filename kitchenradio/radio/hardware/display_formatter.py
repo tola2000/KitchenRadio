@@ -730,8 +730,8 @@ class DisplayFormatter:
                 draw.text((content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
             
             # Draw source at bottom left (before play icon)
-            source_y = self.height - 14  # Position at bottom
-            draw.text((content_x, source_y), source.upper(), font=self.fonts['small'], fill=180)
+            source_y = self.height - 16  # Position at bottom
+            draw.text((content_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
             
             # Draw play icon
             draw.text((icon_x, icon_y), play_icon, font=self.fonts['xxlarge'], fill=255)
