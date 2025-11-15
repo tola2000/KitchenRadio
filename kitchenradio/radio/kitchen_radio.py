@@ -447,16 +447,32 @@ class KitchenRadio:
         """Power on the KitchenRadio daemon, restore previous source, and start playback"""
         if not self.powered_on:
             self.powered_on = True
-            # Restore previous source if available
+            
+            # Determine which source to use
+            source_to_use = None
             if self.previous_source and self.previous_source != BackendType.NONE:
-                self.logger.info(f"Restoring previous source: {self.previous_source.value}")
-                self._set_source(self.previous_source)
-                # Start playback after restoring source
+                # Restore previous source if available
+                source_to_use = self.previous_source
+                self.logger.info(f"Restoring previous source: {source_to_use.value}")
+            else:
+                # No previous source - select first available backend
+                available_sources = self.get_available_sources()
+                if available_sources:
+                    source_to_use = available_sources[0]
+                    self.logger.info(f"No previous source, selecting first available: {source_to_use.value}")
+            
+            # Set source and start playback if we have one
+            if source_to_use:
+                self._set_source(source_to_use)
+                # Start playback after setting source
                 try:
                     self.logger.info(f"Auto-starting playback on power on")
                     self.play()
                 except Exception as e:
                     self.logger.warning(f"Could not auto-start playback on power on: {e}")
+            else:
+                self.logger.warning("No sources available to power on")
+                
         return True
     
     def _power_off(self) -> bool:
