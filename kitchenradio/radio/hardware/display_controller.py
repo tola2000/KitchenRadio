@@ -101,7 +101,7 @@ class DisplayController:
         self.selected_index = 0
         self.on_menu_selected: None
 
-        self.scroll_step = 1  # pixels per update (1 pixel * 80 Hz = 80 pixels/second, ultra-smooth pixel scrolling)
+        self.scroll_step = 2  # pixels per update (2 pixels * 80 Hz = 160 pixels/second, 2x faster scrolling)
 
         # Threading for updates
         self.update_thread = None
@@ -450,28 +450,31 @@ class DisplayController:
                 continue
 
             pause_until = self.scroll_pause_until.get(key, 0)
-            if now < pause_until:
-                # Still in pause (either at start or end); don't advance offset
-                continue
-
             max_scroll = info['original_width'] - info['max_width']
-            new_offset = offset + scroll_step
-            if new_offset > max_scroll:
-                # Reached the end - pause here before looping back
-                new_offset = max_scroll  # Stay at end position
-                self.scroll_pause_until[key] = now + self.scroll_pause_duration
-                self.current_scroll_offsets[key] = new_offset
-                advanced = True
-            elif offset >= max_scroll and now >= pause_until:
-                # End pause is over - loop back to start
+            
+            # Check if we're at the end position and pause has expired
+            if offset >= max_scroll and now >= pause_until:
+                # End pause is over - loop back to start and set start pause
                 new_offset = 0
                 self.scroll_pause_until[key] = now + self.scroll_pause_duration
                 self.current_scroll_offsets[key] = new_offset
                 advanced = True
+            elif now < pause_until:
+                # Still in pause (either at start or end); don't advance offset
+                continue
             else:
-                # Normal scrolling
-                self.current_scroll_offsets[key] = new_offset
-                advanced = True
+                # Normal scrolling - advance by scroll_step
+                new_offset = offset + scroll_step
+                if new_offset >= max_scroll:
+                    # Reached the end - stay at end position and set end pause
+                    new_offset = max_scroll
+                    self.scroll_pause_until[key] = now + self.scroll_pause_duration
+                    self.current_scroll_offsets[key] = new_offset
+                    advanced = True
+                else:
+                    # Continue scrolling
+                    self.current_scroll_offsets[key] = new_offset
+                    advanced = True
 
         return advanced
 
