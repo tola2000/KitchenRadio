@@ -890,9 +890,9 @@ class DisplayFormatter:
             fill_height = int((volume_number / 100.0) * bar_height)
             fill_y = bar_y + bar_height - fill_height
         
-        # Pre-calculate play icon using same font as source (medium)
+        # Pre-calculate play icon using large font (one size larger than source)
         play_icon = "▶" if playing else "⏸"
-        icon_font = self.fonts['medium']  # Use medium font to match source
+        icon_font = self.fonts['large']  # Use large font (one size larger than medium source)
         icon_bbox = icon_font.getbbox(play_icon)
         icon_width = icon_bbox[2] - icon_bbox[0]
         icon_height = icon_bbox[3] - icon_bbox[1]
@@ -904,10 +904,10 @@ class DisplayFormatter:
         source_height = source_bbox[3] - source_bbox[1]
         source_y = self.height - 16
         
-        # Position both source and icon aligned to the right with 5px margin
+        # Position both source and icon aligned to the right with 10px margin
         # Icon is on the far right, source is to its left with 8px spacing
         # Both aligned at the bottom
-        icon_x = self.width - icon_width - 5
+        icon_x = self.width - icon_width - 10
         icon_y = source_y  # Same baseline as source for bottom alignment
         source_x = icon_x - source_width - 8
         
@@ -946,8 +946,8 @@ class DisplayFormatter:
             # Draw source aligned to the right (before play icon)
             self._draw_text_mono(draw, img, (source_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
             
-            # Draw play icon aligned to the far right (same font size as source)
-            self._draw_text_mono(draw, img, (icon_x, icon_y), play_icon, font=self.fonts['medium'], fill=255)
+            # Draw play icon aligned to the far right (one size larger than source)
+            self._draw_text_mono(draw, img, (icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)
         
         return draw_track_info_with_progress, truncation_info
     
