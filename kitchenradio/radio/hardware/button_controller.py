@@ -72,8 +72,8 @@ BUTTON_PIN_MAP = {
     ButtonType.SOURCE_CD: 5,          # CD Player (if applicable)
     
     # Menu buttons 
-    ButtonType.MENU_UP: 9,            # 
-    ButtonType.MENU_DOWN: 8,          # 
+    ButtonType.MENU_UP: 8,            # 
+    ButtonType.MENU_DOWN: 9,          # 
 
 
     ButtonType.SLEEP: 15,              # 
