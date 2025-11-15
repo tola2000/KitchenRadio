@@ -381,12 +381,15 @@ class DisplayController:
                     self.last_powered_on = current_powered_on
 
                     if current_source == 'mpd' and current_status.get('mpd', {}).get('connected'):
+                        logger.info(f"Rendering MPD display after status/power change")
                         self._render_mpd_display(current_status['mpd'])
                         return
                     elif current_source == 'librespot' and current_status.get('librespot', {}).get('connected'):
+                        logger.info(f"Rendering Spotify display after status/power change")
                         self._render_librespot_display(current_status['librespot'])
                         return
                     else:
+                        logger.info(f"Rendering no source display after status/power change")
                         self._render_no_source_display(current_status)
                         return
                 # Handle scroll updates - refresh current display with updated scroll offsets
