@@ -69,6 +69,9 @@ class DisplayController:
         self.last_status = None
         self.refresh_rate = refresh_rate
         
+        # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
+        self._kitchen_radio_was_running = False
+        
         # Current display tracking
         self.current_display_type = None  # 'track_info', 'status_message', 'menu', 'volume', etc.
         self.current_display_data = None  # Last data used to render current display
@@ -144,50 +147,37 @@ class DisplayController:
 
     def cleanup(self):
         """Clean up display resources"""
-        logger.info("=== Starting DisplayController cleanup ===")
+        logger.info("Display controller cleanup initiated")
         
-        # Set shutdown flag FIRST to prevent any new status calls and callbacks
-        logger.info("Setting shutdown flags...")
+        # Set shutdown flags
         self._shutting_down = True
         self.running = False
-        logger.info(f"Flags set: _shutting_down={self._shutting_down}, running={self.running}")
         
-        # Try to remove callback if kitchen_radio still exists
+        # Remove callback from kitchen_radio
         if self.kitchen_radio:
-            logger.info("Removing kitchen_radio callback...")
             try:
-                # Remove our callback from the list
                 if 'any' in self.kitchen_radio.callbacks:
                     if self._on_client_changed in self.kitchen_radio.callbacks['any']:
                         self.kitchen_radio.callbacks['any'].remove(self._on_client_changed)
-                        logger.info("Removed display controller callback")
             except Exception as e:
                 logger.warning(f"Error removing callback: {e}")
         
-        # Clear kitchen_radio reference to prevent any further status calls
-        logger.info("Clearing kitchen_radio reference...")
+        # Clear kitchen_radio reference
         self.kitchen_radio = None
         
-        # Wake the thread so it can check the running flag
-        logger.info("Waking update thread...")
+        # Wake the thread so it can exit
         self._wake_event.set()
-        logger.info("Wake event set")
         
+        # Wait for update thread to stop
         if self.update_thread and self.update_thread.is_alive():
-            logger.info(f"Update thread is alive, waiting for it to stop (timeout=2.0s)...")
             self.update_thread.join(timeout=2.0)
             if self.update_thread.is_alive():
-                logger.warning("⚠️ Display update thread did not stop cleanly within timeout!")
-                logger.warning(f"Thread state: running={self.running}, _shutting_down={self._shutting_down}")
-            else:
-                logger.info("✓ Update thread stopped successfully")
-        else:
-            logger.info("Update thread not running or already stopped")
+                logger.warning("Display update thread did not stop within timeout")
         
-        logger.info("Cleaning up display interface...")
+        # Cleanup display interface
         self.display_interface.cleanup()
         
-        logger.info("=== DisplayController cleanup completed ===")
+        logger.info("Display controller cleanup completed")
     
     def clear(self):
         """Clear the display"""
@@ -273,16 +263,14 @@ class DisplayController:
                 logger.debug(f"Woke from wait at iteration {loop_count}: running={self.running}, _shutting_down={self._shutting_down}")
                 logger.debug(f"Display update loop cycle time: {elapsed:.3f}s, slept for {sleep_time:.3f}s")
             except Exception as e:
-                logger.error(f"Error in display update loop at iteration {loop_count}: {e}")
-                logger.error(f"Exception state: running={self.running}, _shutting_down={self._shutting_down}")
-                # Check if we're shutting down - exit immediately on error during shutdown
+                logger.error(f"Error in display update loop: {e}")
+                # Exit loop if shutting down, otherwise continue
                 if self._shutting_down or not self.running:
-                    logger.info(f"Exiting update loop due to shutdown after exception at iteration {loop_count}")
+                    logger.info("Exiting update loop due to shutdown after exception")
                     break
-                logger.warning(f"Continuing loop after error (not shutting down)")
-                time.sleep(1.0)  # Wait longer on error only if still running
+                time.sleep(1.0)  # Wait before continuing after error
         
-        logger.info(f"Display update loop exited after {loop_count} iterations")
+        logger.info("Display update loop exited")
     
     def _update_display(self, force_refresh: bool = False, scroll_update: bool = False):
         """
@@ -293,34 +281,23 @@ class DisplayController:
             scroll_update: Update is for scrolling (don't fetch new status)
         """
         try:
-            logger.debug(f"_update_display called: _shutting_down={self._shutting_down}, running={self.running}")
-            
             # Check if we're shutting down - abort immediately
-            if self._shutting_down:
-                logger.debug("_update_display: Aborting due to _shutting_down flag")
-                return
-                
-            # Check if we're still running before updating
-            if not self.running:
-                logger.debug("_update_display: Aborting due to running=False")
+            if self._shutting_down or not self.running:
                 return
                 
             # Handle status updates from KitchenRadio
             if self.kitchen_radio:
-                logger.debug("_update_display: kitchen_radio is available")
-                # Double-check we're not shutting down before calling get_status
-                if self._shutting_down:
-                    logger.debug("_update_display: Aborting before get_status due to _shutting_down flag")
-                    return
+                # Track if kitchen_radio has been running (to distinguish startup from shutdown)
+                if hasattr(self.kitchen_radio, 'running') and self.kitchen_radio.running:
+                    self._kitchen_radio_was_running = True
                 
-                # Check if kitchen_radio is still running (only trigger cleanup if we were running before)
-                # This prevents false positives during startup when kitchen_radio.running might not be set yet
-                if hasattr(self.kitchen_radio, 'running') and not self.kitchen_radio.running:
-                    logger.info("_update_display: kitchen_radio has stopped, initiating cleanup")
+                # Auto-cleanup: kitchen_radio stopped after being running -> initiate shutdown
+                if (hasattr(self.kitchen_radio, 'running') and 
+                    not self.kitchen_radio.running and 
+                    self._kitchen_radio_was_running):
+                    logger.info("Display controller: kitchen_radio stopped, initiating cleanup")
                     self.cleanup()
                     return
-
-                logger.debug("_update_display: Calling kitchen_radio.get_status()")
                 current_status = self.kitchen_radio.get_status()
                 logger.debug("_update_display: get_status() completed")
                 # Update last volume for tracking
