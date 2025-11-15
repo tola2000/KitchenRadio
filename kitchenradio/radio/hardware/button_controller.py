@@ -488,7 +488,18 @@ class ButtonController:
         
         # Show volume screen if display controller is available
         try:
-            self.display_controller.show_volume_overlay()
+            # Get the new volume after the change
+            status = self.kitchen_radio.get_status()
+            current_source = status.get('current_source')
+            new_volume = None
+            
+            if current_source == 'mpd' and status.get('mpd', {}).get('connected'):
+                new_volume = status['mpd'].get('volume')
+            elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
+                new_volume = status['librespot'].get('volume')
+            
+            # Pass the new volume explicitly to prevent flickering
+            self.display_controller.show_volume_overlay(volume=new_volume)
         except Exception as e:
             logger.warning(f"Failed to show volume screen: {e}")
         
@@ -500,9 +511,19 @@ class ButtonController:
         result = self.kitchen_radio.volume_down(step=5)
         
         # Show volume screen if display controller is available
-        
         try:
-            self.display_controller.show_volume_overlay()
+            # Get the new volume after the change
+            status = self.kitchen_radio.get_status()
+            current_source = status.get('current_source')
+            new_volume = None
+            
+            if current_source == 'mpd' and status.get('mpd', {}).get('connected'):
+                new_volume = status['mpd'].get('volume')
+            elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
+                new_volume = status['librespot'].get('volume')
+            
+            # Pass the new volume explicitly to prevent flickering
+            self.display_controller.show_volume_overlay(volume=new_volume)
         except Exception as e:
             logger.warning(f"Failed to show volume screen: {e}")
         
