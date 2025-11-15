@@ -497,7 +497,9 @@ class ButtonController:
                 current_volume = status['librespot'].get('volume')
             
             # Calculate expected new volume (clamped to 100)
+            # Ensure current_volume is an integer
             if current_volume is not None:
+                current_volume = int(current_volume)
                 new_volume = min(current_volume + 5, 100)
             else:
                 new_volume = None
@@ -532,7 +534,9 @@ class ButtonController:
                 current_volume = status['librespot'].get('volume')
             
             # Calculate expected new volume (clamped to 0)
+            # Ensure current_volume is an integer
             if current_volume is not None:
+                current_volume = int(current_volume)
                 new_volume = max(current_volume - 5, 0)
             else:
                 new_volume = None
