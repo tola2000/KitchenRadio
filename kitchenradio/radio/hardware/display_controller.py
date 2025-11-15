@@ -452,21 +452,30 @@ class DisplayController:
             pause_until = self.scroll_pause_until.get(key, 0)
             max_scroll = info['original_width'] - info['max_width']
             
-            # Check if we're at the end position and pause has expired
-            if offset >= max_scroll and now >= pause_until:
-                # End pause is over - loop back to start and set start pause
+            # Check if we're in a pause period
+            if now < pause_until:
+                # Still in pause - check if we should transition after pause expires
+                # This happens on the frame where pause just expired
+                if offset >= max_scroll:
+                    # We're at the end, waiting for pause to expire to loop back
+                    # Don't do anything yet, wait for next frame when now >= pause_until
+                    continue
+                else:
+                    # We're at the start, waiting for pause to expire to start scrolling
+                    continue
+            
+            # Pause has expired, now check position
+            if offset >= max_scroll:
+                # At the end position, pause has expired - loop back to start
                 new_offset = 0
                 self.scroll_pause_until[key] = now + self.scroll_pause_duration
                 self.current_scroll_offsets[key] = new_offset
                 advanced = True
-            elif now < pause_until:
-                # Still in pause (either at start or end); don't advance offset
-                continue
             else:
-                # Normal scrolling - advance by scroll_step
+                # Not at end - normal scrolling
                 new_offset = offset + scroll_step
                 if new_offset >= max_scroll:
-                    # Reached the end - stay at end position and set end pause
+                    # Just reached the end - stay at end position and set end pause
                     new_offset = max_scroll
                     self.scroll_pause_until[key] = now + self.scroll_pause_duration
                     self.current_scroll_offsets[key] = new_offset
