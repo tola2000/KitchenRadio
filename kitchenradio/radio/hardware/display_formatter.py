@@ -266,12 +266,18 @@ class DisplayFormatter:
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        # Create grayscale image
-        img = Image.new('L', (text_width, text_height), color=0)
-        draw = ImageDraw.Draw(img)
+        # Create monochrome (1-bit) image for crisp, anti-aliasing-free text
+        # This ensures maximum brightness on OLED displays
+        img_mono = Image.new('1', (text_width, text_height), color=0)
+        draw_mono = ImageDraw.Draw(img_mono)
         
-        # Draw text at full brightness
-        draw.text((0, -bbox[1]), text, font=font, fill=fill)
+        # Draw text in monochrome (no anti-aliasing) - fill=1 means white
+        draw_mono.text((0, -bbox[1]), text, font=font, fill=1)
+        
+        # Convert to grayscale with the requested fill value
+        img = Image.new('L', (text_width, text_height), color=0)
+        # Copy monochrome pixels to grayscale with full brightness
+        img.paste(fill, (0, 0), mask=img_mono)
         
         return img
     
@@ -299,14 +305,18 @@ class DisplayFormatter:
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        # Create image for full scrolling text (double width for seamless loop)
+        # Create monochrome image for crisp, anti-aliasing-free scrolling text
         buffer_width = text_width * 2
-        img = Image.new('L', (buffer_width, text_height), color=0)
-        draw = ImageDraw.Draw(img)
+        img_mono = Image.new('1', (buffer_width, text_height), color=0)
+        draw_mono = ImageDraw.Draw(img_mono)
         
-        # Draw text twice for seamless scrolling at full brightness
-        draw.text((0, -bbox[1]), scrolling_text, font=font, fill=fill)
-        draw.text((text_width, -bbox[1]), scrolling_text, font=font, fill=fill)
+        # Draw text twice in monochrome (no anti-aliasing)
+        draw_mono.text((0, -bbox[1]), scrolling_text, font=font, fill=1)
+        draw_mono.text((text_width, -bbox[1]), scrolling_text, font=font, fill=1)
+        
+        # Convert to grayscale with the requested fill value
+        img = Image.new('L', (buffer_width, text_height), color=0)
+        img.paste(fill, (0, 0), mask=img_mono)
         
         # Calculate scroll position with wraparound
         scroll_pos = scroll_offset % text_width
@@ -315,6 +325,31 @@ class DisplayFormatter:
         cropped = img.crop((scroll_pos, 0, scroll_pos + max_width, text_height))
         
         return cropped
+    
+    def _draw_text_bright(self, draw: ImageDraw.Draw, xy: tuple, text: str, font: ImageFont.ImageFont, fill: int = 255):
+        """
+        Draw text with consistent brightness using paste method instead of draw.text().
+        
+        This is a replacement for draw.text() that ensures consistent brightness across all text
+        by rendering to a buffer first and then pasting. This avoids the brightness inconsistency
+        issue where draw.text() produces dimmer text than pasted text on SSD1322 hardware.
+        
+        Args:
+            draw: ImageDraw object
+            xy: Tuple of (x, y) coordinates
+            text: Text to render
+            font: Font to use
+            fill: Fill color (0-255)
+        """
+        if not text:
+            return
+            
+        # Render text to buffer
+        text_img = self._render_static_text(text, font, fill)
+        
+        # Paste onto main image
+        img = draw._image
+        img.paste(text_img, xy)
     
     def format_simple_text(self, text_data: Dict[str, Any]) -> Callable:
         """
@@ -650,10 +685,10 @@ class DisplayFormatter:
             bar_x = bar_margin
             bar_y = 25
             
-            # Draw title text at top center
+            # Draw title text at top center - using bright text method
             text_width = len(title) * 12  # Estimate width
             text_x = (self.width - text_width) // 2
-            draw.text((text_x, 5), title, font=self.fonts['large'], fill=255)
+            self._draw_text_bright(draw, (text_x, 5), title, self.fonts['large'], fill=255)
             
             # Draw outer border of volume bar
             draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=3)
@@ -669,18 +704,18 @@ class DisplayFormatter:
                         (bar_x + 3 + fill_width, bar_y + bar_height - 3)
                     ], fill=255)
             
-            # Add percentage or numeric display if requested
+            # Add percentage or numeric display if requested - using bright text method
             if show_percentage or show_numeric:
                 info_y = bar_y + bar_height + 5
                 if show_percentage:
                     percentage = int((volume / max_volume) * 100)
                     percentage_text = f"{percentage}%"
                     info_x = (self.width - len(percentage_text) * 8) // 2
-                    draw.text((info_x, info_y), percentage_text, font=self.fonts['medium'], fill=255)
+                    self._draw_text_bright(draw, (info_x, info_y), percentage_text, self.fonts['medium'], fill=255)
                 elif show_numeric:
                     numeric_text = f"{volume}/{max_volume}"
                     info_x = (self.width - len(numeric_text) * 8) // 2
-                    draw.text((info_x, info_y), numeric_text, font=self.fonts['medium'], fill=255)
+                    self._draw_text_bright(draw, (info_x, info_y), numeric_text, self.fonts['medium'], fill=255)
             
 
  
@@ -1108,31 +1143,31 @@ class DisplayFormatter:
             
             # Optional retro shadow: draw slightly offset dark shadow then bright text
             shadow_offset = 1
-            # shadow
-            draw.text((hour_x + shadow_offset, hour_y + shadow_offset), hour_text, font=font_hour, fill=40)
-            draw.text((colon_x + shadow_offset, hour_y + shadow_offset), colon, font=font_hour, fill=40)
-            draw.text((min_x + shadow_offset, min_y + shadow_offset), minute_text, font=font_min, fill=40)
+            # shadow - using bright text method for consistent rendering
+            self._draw_text_bright(draw, (hour_x + shadow_offset, hour_y + shadow_offset), hour_text, font=font_hour, fill=40)
+            self._draw_text_bright(draw, (colon_x + shadow_offset, hour_y + shadow_offset), colon, font=font_hour, fill=40)
+            self._draw_text_bright(draw, (min_x + shadow_offset, min_y + shadow_offset), minute_text, font=font_min, fill=40)
             
-            # main text (bright)
-            draw.text((hour_x, hour_y), hour_text, font=font_hour, fill=255)
-            draw.text((colon_x, hour_y), colon, font=font_hour, fill=255)
-            draw.text((min_x, min_y), minute_text, font=font_min, fill=255)
+            # main text (bright) - using bright text method
+            self._draw_text_bright(draw, (hour_x, hour_y), hour_text, font=font_hour, fill=255)
+            self._draw_text_bright(draw, (colon_x, hour_y), colon, font=font_hour, fill=255)
+            self._draw_text_bright(draw, (min_x, min_y), minute_text, font=font_min, fill=255)
             
-            # AM/PM if requested
+            # AM/PM if requested - using bright text method
             if ampm_text:
                 ampm_bbox = font_ampm.getbbox(ampm_text)
                 ampm_w = ampm_bbox[2] - ampm_bbox[0]
                 # place AM/PM to the right of minutes
                 ampm_x = min(self.width - ampm_w - 6, min_x + min_w + 6)
                 ampm_y = hour_y + (hour_h - (ampm_bbox[3] - ampm_bbox[1])) // 2
-                draw.text((ampm_x, ampm_y), ampm_text, font=font_ampm, fill=200)
+                self._draw_text_bright(draw, (ampm_x, ampm_y), ampm_text, font=font_ampm, fill=200)
             
-            # Date line centered below clock
+            # Date line centered below clock - using bright text method
             if date_str:
                 date_bbox = font_date.getbbox(date_str)
                 date_w = date_bbox[2] - date_bbox[0]
                 date_x = max(0, (self.width - date_w) // 2)
-                draw.text((date_x, date_y), date_str, font=font_date, fill=180)
+                self._draw_text_bright(draw, (date_x, date_y), date_str, font=font_date, fill=180)
             
             # Small decorative retro line below date
             draw.line([(20, date_y + 18), (self.width - 20, date_y + 18)], fill=60, width=1)
