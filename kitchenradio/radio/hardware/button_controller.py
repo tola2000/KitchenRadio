@@ -484,21 +484,32 @@ class ButtonController:
     def _volume_up(self) -> bool:
         """Increase volume and show volume screen"""
         logger.debug("Volume up")
-        result = self.kitchen_radio.volume_up(step=5)
         
-        # Show volume screen if display controller is available
+        # Get current volume BEFORE changing it
         try:
-            # Get the new volume after the change
             status = self.kitchen_radio.get_status()
             current_source = status.get('current_source')
-            new_volume = None
+            current_volume = None
             
             if current_source == 'mpd' and status.get('mpd', {}).get('connected'):
-                new_volume = status['mpd'].get('volume')
+                current_volume = status['mpd'].get('volume')
             elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
-                new_volume = status['librespot'].get('volume')
+                current_volume = status['librespot'].get('volume')
             
-            # Pass the new volume explicitly to prevent flickering
+            # Calculate expected new volume (clamped to 100)
+            if current_volume is not None:
+                new_volume = min(current_volume + 5, 100)
+            else:
+                new_volume = None
+        except Exception as e:
+            logger.warning(f"Failed to get current volume: {e}")
+            new_volume = None
+        
+        # Change the volume
+        result = self.kitchen_radio.volume_up(step=5)
+        
+        # Show volume screen immediately with calculated new volume
+        try:
             self.display_controller.show_volume_overlay(volume=new_volume)
         except Exception as e:
             logger.warning(f"Failed to show volume screen: {e}")
@@ -508,21 +519,32 @@ class ButtonController:
     def _volume_down(self) -> bool:
         """Decrease volume and show volume screen"""
         logger.debug("Volume down")
-        result = self.kitchen_radio.volume_down(step=5)
         
-        # Show volume screen if display controller is available
+        # Get current volume BEFORE changing it
         try:
-            # Get the new volume after the change
             status = self.kitchen_radio.get_status()
             current_source = status.get('current_source')
-            new_volume = None
+            current_volume = None
             
             if current_source == 'mpd' and status.get('mpd', {}).get('connected'):
-                new_volume = status['mpd'].get('volume')
+                current_volume = status['mpd'].get('volume')
             elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
-                new_volume = status['librespot'].get('volume')
+                current_volume = status['librespot'].get('volume')
             
-            # Pass the new volume explicitly to prevent flickering
+            # Calculate expected new volume (clamped to 0)
+            if current_volume is not None:
+                new_volume = max(current_volume - 5, 0)
+            else:
+                new_volume = None
+        except Exception as e:
+            logger.warning(f"Failed to get current volume: {e}")
+            new_volume = None
+        
+        # Change the volume
+        result = self.kitchen_radio.volume_down(step=5)
+        
+        # Show volume screen immediately with calculated new volume
+        try:
             self.display_controller.show_volume_overlay(volume=new_volume)
         except Exception as e:
             logger.warning(f"Failed to show volume screen: {e}")
