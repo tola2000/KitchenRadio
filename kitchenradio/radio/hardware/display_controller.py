@@ -247,17 +247,12 @@ class DisplayController:
         
         logger.info("Display update loop started")
         
-        loop_count = 0
         while self.running:
-            loop_count += 1
             try:
                 start_time = time.time()
                 
-                logger.debug(f"Loop iteration {loop_count}: running={self.running}, _shutting_down={self._shutting_down}")
-
                 # Check running flag before doing any work
                 if not self.running or self._shutting_down:
-                    logger.info(f"Exiting loop at iteration {loop_count}: running={self.running}, _shutting_down={self._shutting_down}")
                     break
 
                 # Update display if KitchenRadio is available
@@ -271,7 +266,6 @@ class DisplayController:
                 
                 # Check running flag before sleeping
                 if not self.running or self._shutting_down:
-                    logger.info(f"Exiting loop before sleep at iteration {loop_count}: running={self.running}, _shutting_down={self._shutting_down}")
                     break
 
                 # Calculate sleep time
@@ -280,13 +274,9 @@ class DisplayController:
 
                 # Wait either for wake_event (set by callback) or timeout
                 # This will wake immediately if cleanup() sets the event
-                logger.debug(f"Entering wait for {sleep_time:.3f}s at iteration {loop_count}")
                 self._wake_event.wait(timeout=sleep_time)
                 # Clear wake flag so next wait will block again until next callback
                 self._wake_event.clear()
-                
-                logger.debug(f"Woke from wait at iteration {loop_count}: running={self.running}, _shutting_down={self._shutting_down}")
-                logger.debug(f"Display update loop cycle time: {elapsed:.3f}s, slept for {sleep_time:.3f}s")
             except Exception as e:
                 logger.error(f"Error in display update loop: {e}")
                 # Exit loop if shutting down, otherwise continue
