@@ -356,6 +356,8 @@ class DisplayController:
                     if not ignore_volume_updates:
                         logger.info(f"   ✅ Accepting volume update from status: {current_volume}")
                         self._render_volume_overlay(current_volume)
+                        # Update last_volume to prevent continuous re-rendering
+                        self.last_volume = current_volume
                         return
                     else:
                         # Ignore this volume update - keep showing user-set volume
@@ -888,7 +890,10 @@ class DisplayController:
             # Render the overlay content
             self._render_display_content('volume', volume_data)
             
-            logger.info(f"   Successfully rendered volume overlay: {volume}%")
+            # Update last_volume after successful rendering to prevent re-renders
+            self.last_volume = volume
+            
+            logger.info(f"   Successfully rendered volume overlay: {volume}% (last_volume updated to {volume})")
             
         except Exception as e:
             logger.error(f"Error showing volume overlay: {e}")
