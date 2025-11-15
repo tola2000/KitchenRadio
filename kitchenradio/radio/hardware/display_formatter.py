@@ -824,8 +824,10 @@ class DisplayFormatter:
         icon_bbox = icon_font.getbbox(play_icon)
         icon_width = icon_bbox[2] - icon_bbox[0]
         icon_height = icon_bbox[3] - icon_bbox[1]
-        icon_x = self.width - icon_width - 2  # 2px margin from right edge
-        icon_y = self.height - icon_height - 2  # 2px margin from bottom edge
+        # Align with volume bar: right margin = 5px (matching left), bottom aligns with volume bar bottom
+        icon_x = self.width - icon_width - 5  # 5px right margin to match left side
+        volume_bar_bottom = bar_y + bar_height  # Bottom of volume bar = 5 + (height - 10) = height - 5
+        icon_y = volume_bar_bottom - icon_height  # Align icon bottom with volume bar bottom
         
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Get the underlying image from the draw object
