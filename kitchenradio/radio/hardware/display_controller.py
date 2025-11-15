@@ -97,6 +97,8 @@ class DisplayController:
         self.overlay_end_time = 0
         self.overlay_timeout = 3.0  # 3 seconds default
         self.last_volume = None
+        self.last_volume_change_time = 0  # Track when volume was last changed
+        self.volume_change_ignore_duration = 1.0  # Ignore status updates for 1 second after volume change
 
         self.selected_index = 0
         self.on_menu_selected: None
@@ -341,12 +343,20 @@ class DisplayController:
                 
                 overlay_dismissed = self._dismiss_overlay()
            
-
+                # Check if we should ignore volume updates (recently changed by user)
+                time_since_volume_change = time.time() - self.last_volume_change_time
+                ignore_volume_updates = time_since_volume_change < self.volume_change_ignore_duration
                 
                 # Check for external update of the volume
                 if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
-                    self._render_volume_overlay(current_volume)
-                    return
+                    # Only update if we're not ignoring volume updates
+                    if not ignore_volume_updates:
+                        self._render_volume_overlay(current_volume)
+                        return
+                    else:
+                        # Ignore this volume update - keep showing user-set volume
+                        logger.debug(f"Ignoring volume update from status (user changed volume {time_since_volume_change:.2f}s ago)")
+                        return
                 elif self.overlay_active:
                     return
             
@@ -939,11 +949,19 @@ class DisplayController:
             return True
         return False
 
-    def show_volume_overlay(self, timeout: float = 3):
-        volume = self._get_current_volume(self.last_status)
+    def show_volume_overlay(self, timeout: float = 3, volume: int = None):
         """Show volume overlay using the generic overlay system"""
+        # If volume is provided explicitly, use it and track the change time
+        if volume is not None:
+            display_volume = volume
+            self.last_volume_change_time = time.time()
+            self.last_volume = volume
+        else:
+            # Otherwise get from current status
+            display_volume = self._get_current_volume(self.last_status)
+        
         volume_data = {
-            'volume': volume,
+            'volume': display_volume,
             'max_volume': 100,
             'title': 'VOLUME',
             'show_percentage': True
