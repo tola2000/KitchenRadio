@@ -931,19 +931,17 @@ class KitchenRadio:
         else:
             self.logger.info(f"✅ Active source set to: {source.value} (backend connected)")
             
-            # Auto-play if source is paused or stopped
+            # Auto-play when switching sources
             try:
                 if source == BackendType.MPD and self.mpd_monitor:
                     mpd_status = self.mpd_monitor.get_status()
                     if mpd_status and mpd_status.get('state') in ['pause', 'stop']:
                         self.logger.info(f"Auto-starting playback on {source.value} (was {mpd_status.get('state')})")
                         self.play()
-                elif source == BackendType.LIBRESPOT and self.librespot_monitor:
-                    librespot_status = self.librespot_monitor.get_status()
-                    if librespot_status and (librespot_status.get('paused') or librespot_status.get('stopped')):
-                        state = 'paused' if librespot_status.get('paused') else 'stopped'
-                        self.logger.info(f"Auto-starting playback on {source.value} (was {state})")
-                        self.play()
+                elif source == BackendType.LIBRESPOT:
+                    # Always try to start Spotify playback when switching to it
+                    self.logger.info(f"Auto-starting playback on {source.value}")
+                    self.play()
             except Exception as e:
                 self.logger.warning(f"Could not auto-start playback on {source.value}: {e}")
         
