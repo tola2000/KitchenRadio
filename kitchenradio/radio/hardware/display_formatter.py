@@ -890,9 +890,9 @@ class DisplayFormatter:
             fill_height = int((volume_number / 100.0) * bar_height)
             fill_y = bar_y + bar_height - fill_height
         
-        # Pre-calculate play icon with dynamic sizing based on font
+        # Pre-calculate play icon using same font as source (medium)
         play_icon = "▶" if playing else "⏸"
-        icon_font = self.fonts['xlarge']
+        icon_font = self.fonts['medium']  # Use medium font to match source
         icon_bbox = icon_font.getbbox(play_icon)
         icon_width = icon_bbox[2] - icon_bbox[0]
         icon_height = icon_bbox[3] - icon_bbox[1]
@@ -901,12 +901,14 @@ class DisplayFormatter:
         source_font = self.fonts['medium']
         source_bbox = source_font.getbbox(source.upper())
         source_width = source_bbox[2] - source_bbox[0]
+        source_height = source_bbox[3] - source_bbox[1]
         source_y = self.height - 16
         
         # Position both source and icon aligned to the right with 5px margin
         # Icon is on the far right, source is to its left with 8px spacing
+        # Both aligned at the bottom
         icon_x = self.width - icon_width - 5
-        icon_y = source_y  # Align with source text baseline
+        icon_y = source_y  # Same baseline as source for bottom alignment
         source_x = icon_x - source_width - 8
         
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
@@ -944,8 +946,8 @@ class DisplayFormatter:
             # Draw source aligned to the right (before play icon)
             self._draw_text_mono(draw, img, (source_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
             
-            # Draw play icon aligned to the far right
-            self._draw_text_mono(draw, img, (icon_x, icon_y), play_icon, font=self.fonts['xlarge'], fill=255)
+            # Draw play icon aligned to the far right (same font size as source)
+            self._draw_text_mono(draw, img, (icon_x, icon_y), play_icon, font=self.fonts['medium'], fill=255)
         
         return draw_track_info_with_progress, truncation_info
     
