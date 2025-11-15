@@ -334,6 +334,9 @@ class DisplayController:
                 power_state_changed = (self.last_powered_on is not None and 
                                       current_powered_on != self.last_powered_on)
                 
+                if power_state_changed:
+                    logger.info(f"Power state transition detected: {self.last_powered_on} -> {current_powered_on}, source: {current_source}")
+                
                 scroll_update = self._is_scroll_update_needed()
                 
                 overlay_dismissed = self._dismiss_overlay()
@@ -348,8 +351,16 @@ class DisplayController:
                     return
             
                 elif not current_powered_on:
-                    # Powered off - show clock
+                    # Powered off - show clock and clear display state
                     self.last_powered_on = current_powered_on
+                    # Clear display state so next power on shows fresh content
+                    self.last_status = None
+                    self.current_display_type = None
+                    self.current_display_data = None
+                    self.last_truncation_info = {}
+                    self.current_scroll_offsets = {}
+                    self.scroll_pause_until = {}
+                    logger.debug("Power OFF - cleared display state")
                     self._render_clock_display()
                     return
                 elif current_source == 'none' or current_source is None:
@@ -525,6 +536,7 @@ class DisplayController:
     def _render_mpd_display(self, mpd_status: Dict[str, Any]):
         """Update display for MPD source"""
         current_song = mpd_status.get('current_track', {})
+        logger.debug(f"MPD render - current_song: {current_song}, has_content: {bool(current_song)}")
         if current_song:
             title = current_song.get('title', 'Unknown')
             artist = current_song.get('artist', 'Unknown')
