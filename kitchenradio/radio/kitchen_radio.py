@@ -53,6 +53,7 @@ class KitchenRadio:
         self.librespot_connected = False
 
         self.source = None  # Current active source backend
+        self.previous_source = None  # Store source before power off
         
         # Monitor threads
         self.mpd_monitor_thread = None
@@ -443,14 +444,23 @@ class KitchenRadio:
     
     
     def _power_on(self) -> bool:
-        """Power on the KitchenRadio daemon"""
+        """Power on the KitchenRadio daemon and restore previous source"""
         if not self.powered_on:
             self.powered_on = True
+            # Restore previous source if available
+            if self.previous_source and self.previous_source != BackendType.NONE:
+                self.logger.info(f"Restoring previous source: {self.previous_source.value}")
+                self._set_source(self.previous_source)
         return True
     
     def _power_off(self) -> bool:
-        """Power off the KitchenRadio daemon"""
+        """Power off the KitchenRadio daemon and save current source"""
         if self.powered_on:
+            # Save current source before powering off (but not NONE)
+            if self.source and self.source != BackendType.NONE:
+                self.previous_source = self.source
+                self.logger.info(f"Saving current source for next power on: {self.previous_source.value}")
+            
             self.powered_on = False
             self._stop_source(BackendType.MPD)
             self._stop_source(BackendType.LIBRESPOT)
@@ -898,6 +908,22 @@ class KitchenRadio:
             self.logger.warning(f"Source set to {source.value} but backend is not connected")
         else:
             self.logger.info(f"✅ Active source set to: {source.value} (backend connected)")
+            
+            # Auto-play if source is paused or stopped
+            try:
+                if source == BackendType.MPD and self.mpd_monitor:
+                    mpd_status = self.mpd_monitor.get_status()
+                    if mpd_status and mpd_status.get('state') in ['pause', 'stop']:
+                        self.logger.info(f"Auto-starting playback on {source.value} (was {mpd_status.get('state')})")
+                        self.play()
+                elif source == BackendType.LIBRESPOT and self.librespot_monitor:
+                    librespot_status = self.librespot_monitor.get_status()
+                    if librespot_status and (librespot_status.get('paused') or librespot_status.get('stopped')):
+                        state = 'paused' if librespot_status.get('paused') else 'stopped'
+                        self.logger.info(f"Auto-starting playback on {source.value} (was {state})")
+                        self.play()
+            except Exception as e:
+                self.logger.warning(f"Could not auto-start playback on {source.value}: {e}")
         
         # Always return True so the display updates
         self.logger.info(f"✅ Source selection set to: {source.value}")
