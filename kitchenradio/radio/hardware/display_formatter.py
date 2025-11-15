@@ -340,11 +340,11 @@ class DisplayFormatter:
         mono_draw.text((0, -bbox[1]), text, font=font, fill=1)
         
         # Create grayscale image at target brightness
-        text_img = Image.new('L', (text_width, text_height), color=0)
-        text_img.paste(fill, mask=mono_img)
+        text_img = Image.new('L', (text_width, text_height), color=fill)
         
-        # Paste onto target image
-        target_img.paste(text_img, (x, y), mask=text_img)
+        # Use monochrome as mask - where mono is 1 (white), use fill color; where 0 (black), use transparent
+        # This works for both light text on dark (fill=255) and dark text on light (fill=0)
+        target_img.paste(text_img, (x, y), mask=mono_img)
     
     def _draw_rectangle_mono(self, target_draw: ImageDraw.ImageDraw, target_img: Image.Image, 
                             coords: list, fill: int = None, outline: int = None, width: int = 1) -> None:
