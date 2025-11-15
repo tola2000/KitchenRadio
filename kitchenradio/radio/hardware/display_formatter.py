@@ -830,7 +830,7 @@ class DisplayFormatter:
         icon_y = volume_bar_bottom - icon_height  # Align icon bottom with volume bar bottom
         
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
-            # Get the underlying image from the draw object
+            # Get the underlying image for paste operations (brighter rendering)
             img = draw._image
             
             # Clear background
@@ -843,30 +843,30 @@ class DisplayFormatter:
             if fill_height > 0:
                 draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
             
-            # Draw title (pixel-scroll image or static text)
+            # Draw title - always use paste for consistent brightness
             if title_image:
                 # Paste scrolling text image
                 img.paste(title_image, (content_x, 5))
             elif title_displayed:
-                # Render static text to image buffer for consistent brightness
+                # Render static text to buffer and paste for same brightness as scrolling
                 title_static_img = self._render_static_text(title_displayed, self.fonts['xlarge'], fill=255)
                 img.paste(title_static_img, (content_x, 5))
             
-            # Draw artist/album (pixel-scroll image or static text)
+            # Draw artist/album - always use paste for consistent brightness
             if artist_album_image:
                 # Paste scrolling text image
                 img.paste(artist_album_image, (content_x, 28))
             elif artist_album_displayed:
-                # Render static text to image buffer for consistent brightness
+                # Render static text to buffer and paste for same brightness as scrolling
                 artist_static_img = self._render_static_text(artist_album_displayed, self.fonts['medium'], fill=255)
                 img.paste(artist_static_img, (content_x, 28))
             
-            # Draw source at bottom left (before play icon) - render to image buffer
+            # Draw source at bottom left - use paste for consistent brightness
             source_img = self._render_static_text(source.upper(), self.fonts['medium'], fill=180)
             source_y = self.height - 16  # Position at bottom
             img.paste(source_img, (content_x, source_y))
             
-            # Draw play icon - render to image buffer for consistent brightness
+            # Draw play icon - use paste for consistent brightness
             icon_img = self._render_static_text(play_icon, self.fonts['xlarge'], fill=255)
             img.paste(icon_img, (icon_x, icon_y))
         
