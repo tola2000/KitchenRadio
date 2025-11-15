@@ -174,6 +174,21 @@ class DisplayController:
             if self.update_thread.is_alive():
                 logger.warning("Display update thread did not stop within timeout")
         
+        # Reset all display state so next initialization starts fresh
+        self.last_status = None
+        self.current_display_type = None
+        self.current_display_data = None
+        self.last_truncation_info = {}
+        self.current_scroll_offsets = {}
+        self.scroll_pause_until = {}
+        self.overlay_active = False
+        self.overlay_type = None
+        self.overlay_end_time = 0
+        self.last_volume = None
+        self.selected_index = 0
+        self._kitchen_radio_was_running = False
+        logger.debug("Display state reset to initial values")
+        
         # Cleanup display interface
         self.display_interface.cleanup()
         
@@ -398,18 +413,28 @@ class DisplayController:
                 continue
 
             pause_until = self.scroll_pause_until.get(key, 0)
-            if offset == 0 and now < pause_until:
-                # Still in initial pause; don't advance offset
+            if now < pause_until:
+                # Still in pause (either at start or end); don't advance offset
                 continue
 
             max_scroll = info['original_width'] - info['max_width']
             new_offset = offset + scroll_step
             if new_offset > max_scroll:
-                new_offset = 0
-                # restart pause when looped back to start
+                # Reached the end - pause here before looping back
+                new_offset = max_scroll  # Stay at end position
                 self.scroll_pause_until[key] = now + self.scroll_pause_duration
-            self.current_scroll_offsets[key] = new_offset
-            advanced = True
+                self.current_scroll_offsets[key] = new_offset
+                advanced = True
+            elif offset >= max_scroll and now >= pause_until:
+                # End pause is over - loop back to start
+                new_offset = 0
+                self.scroll_pause_until[key] = now + self.scroll_pause_duration
+                self.current_scroll_offsets[key] = new_offset
+                advanced = True
+            else:
+                # Normal scrolling
+                self.current_scroll_offsets[key] = new_offset
+                advanced = True
 
         return advanced
 
