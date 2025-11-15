@@ -1095,7 +1095,7 @@ class DisplayFormatter:
         hour_y = clock_top
         # align minute baseline a bit lower for visual balance
         min_y = hour_y + (hour_h - min_h)
-        date_y = hour_y + max(hour_h, min_h) + 6
+        date_y = hour_y + max(hour_h, min_h) + 10  # Increased margin between time and date
         
         def draw_clock(draw: ImageDraw.Draw):
             # Clear background
