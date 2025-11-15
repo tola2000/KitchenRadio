@@ -834,6 +834,7 @@ class KitchenRadioWeb:
 if __name__ == "__main__":
     import sys
     import os
+    import signal
     from pathlib import Path
     
     # Add project root to path
@@ -851,6 +852,15 @@ if __name__ == "__main__":
         enable_gpio=True,  # Enable GPIO hardware buttons (MCP23017)
         use_hardware_display=True  # Use hardware SPI display
     )
+    
+    # Signal handler to stop both kitchen_radio and API
+    def signal_handler(signum, frame):
+        logger.info(f"Web API received signal {signum}, initiating shutdown...")
+        api.running = False  # Stop the main loop
+    
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     
     if api.start():
         print("KitchenRadio Web API started successfully")
