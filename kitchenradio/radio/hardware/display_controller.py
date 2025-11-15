@@ -987,6 +987,9 @@ class DisplayController:
         self._render_display_content('volume', volume_data)
         self._activate_overlay('volume', timeout)
         logger.info(f"   Volume overlay activated until {self.overlay_end_time}")
+        
+        # Wake up the display loop to render immediately (no delay)
+        self._wake_event.set()
 
     def show_Notification_overlay(self, title: str, description:str,  timeout: float = 3):
         """Show volume overlay using the generic overlay system"""
