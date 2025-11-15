@@ -862,7 +862,7 @@ class DisplayFormatter:
             img.paste(source_img, (content_x, source_y))
             
             # Draw play icon - render to image buffer for consistent brightness
-            icon_img = self._render_static_text(play_icon, self.fonts['xxlarge'], fill=255)
+            icon_img = self._render_static_text(play_icon, self.fonts['xlarge'], fill=255)
             img.paste(icon_img, (icon_x, icon_y))
         
         return draw_track_info_with_progress, truncation_info

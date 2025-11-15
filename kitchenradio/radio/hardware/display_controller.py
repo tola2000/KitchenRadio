@@ -67,7 +67,9 @@ class DisplayController:
         
         # Display state
         self.last_status = None
+        self.last_powered_on = None  # Track power state separately
         self.refresh_rate = refresh_rate
+        self._first_update = True  # Flag to force first display update after initialization
         
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
         self._kitchen_radio_was_running = False
@@ -128,9 +130,13 @@ class DisplayController:
         # Start update thread if KitchenRadio is provided
         if self.kitchen_radio:
             self.running = True
+            self._shutting_down = False  # Clear shutdown flag on initialization
             self.update_thread = threading.Thread(target=self._update_loop, daemon=True)
             self.update_thread.start()
             logger.info("Display update thread started")
+            
+            # Trigger initial display update to show current status
+            self._wake_event.set()
         
         self.kitchen_radio.add_callback('any', self._on_client_changed)
         logger.info("Simplified DisplayController initialized successfully")
@@ -176,6 +182,7 @@ class DisplayController:
         
         # Reset all display state so next initialization starts fresh
         self.last_status = None
+        self.last_powered_on = None
         self.current_display_type = None
         self.current_display_data = None
         self.last_truncation_info = {}
@@ -187,6 +194,7 @@ class DisplayController:
         self.last_volume = None
         self.selected_index = 0
         self._kitchen_radio_was_running = False
+        self._first_update = True  # Force first update after cleanup
         logger.debug("Display state reset to initial values")
         
         # Cleanup display interface
@@ -320,6 +328,11 @@ class DisplayController:
 
                 # Determine display content based on current source
                 current_source = current_status.get('current_source')
+                current_powered_on = current_status.get('powered_on', False)
+                
+                # Detect power state change
+                power_state_changed = (self.last_powered_on is not None and 
+                                      current_powered_on != self.last_powered_on)
                 
                 scroll_update = self._is_scroll_update_needed()
                 
@@ -334,17 +347,27 @@ class DisplayController:
                 elif self.overlay_active:
                     return
             
-                elif(current_status.get('powered_on', False) == False):
+                elif not current_powered_on:
+                    # Powered off - show clock
+                    self.last_powered_on = current_powered_on
                     self._render_clock_display()
                     return
                 elif current_source == 'none' or current_source is None:
+                    self.last_powered_on = current_powered_on
                     self._render_no_source_display(current_status)
                     return
                 
-                # Check if status has changed or force refresh
-                if not self.overlay_active and ( (current_volume != self.last_volume ) or current_status != self.last_status or overlay_dismissed or  force_refresh ):
+                # Check if status has changed or force refresh or first update after initialization or power state changed
+                if not self.overlay_active and ( (current_volume != self.last_volume ) or current_status != self.last_status or overlay_dismissed or force_refresh or self._first_update or power_state_changed ):
+                    if self._first_update:
+                        logger.info("First display update after initialization - forcing render")
+                        self._first_update = False
+                    if power_state_changed:
+                        logger.info(f"Power state changed: {self.last_powered_on} -> {current_powered_on} - forcing render")
+                    
                     self.last_status = current_status
                     self.last_volume = current_volume
+                    self.last_powered_on = current_powered_on
 
                     if current_source == 'mpd' and current_status.get('mpd', {}).get('connected'):
                         self._render_mpd_display(current_status['mpd'])
