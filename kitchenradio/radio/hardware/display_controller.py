@@ -439,7 +439,6 @@ class DisplayController:
         if not any_truncated:
             return False
 
-        scroll_step = self.scroll_step  # pixels per update
         advanced = False
         for key, offset in list(self.current_scroll_offsets.items()):
             info = self.last_truncation_info.get(key)
@@ -449,6 +448,15 @@ class DisplayController:
                 self.scroll_pause_until.pop(key, None)
                 continue
 
+            # Adjust scroll speed based on font size (larger fonts scroll faster for same visual speed)
+            font_size = info.get('font_size', 'small')
+            if font_size == 'xlarge' or font_size == 'xxlarge':
+                scroll_step = 3  # Faster for large text (240 px/s at 80 Hz)
+            elif font_size == 'large':
+                scroll_step = 2  # Medium speed (160 px/s at 80 Hz)
+            else:
+                scroll_step = 2  # Default speed for small/medium (160 px/s at 80 Hz)
+            
             pause_until = self.scroll_pause_until.get(key, 0)
             max_scroll = info['original_width'] - info['max_width']
             
