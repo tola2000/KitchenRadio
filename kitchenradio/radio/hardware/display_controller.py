@@ -349,13 +349,18 @@ class DisplayController:
                 
                 # Check for external update of the volume
                 if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
+                    logger.info(f"🔄 Volume change detected in _update_display: current={current_volume}, last={self.last_volume}")
+                    logger.info(f"   Time since user change: {time_since_volume_change:.3f}s, ignore_updates={ignore_volume_updates}")
+                    
                     # Only update if we're not ignoring volume updates
                     if not ignore_volume_updates:
+                        logger.info(f"   ✅ Accepting volume update from status: {current_volume}")
                         self._render_volume_overlay(current_volume)
                         return
                     else:
                         # Ignore this volume update - keep showing user-set volume
-                        logger.debug(f"Ignoring volume update from status (user changed volume {time_since_volume_change:.2f}s ago)")
+                        logger.info(f"   ❌ IGNORING volume update from status (user changed volume {time_since_volume_change:.2f}s ago)")
+                        logger.info(f"      Keeping user-set volume: {self.last_volume}")
                         return
                 elif self.overlay_active:
                     return
@@ -870,6 +875,10 @@ class DisplayController:
     
     def _render_volume_overlay(self, volume: int):
         try: 
+            logger.info(f"🔊 _render_volume_overlay called with volume={volume}, last_volume={self.last_volume}")
+            time_since_change = time.time() - self.last_volume_change_time
+            logger.info(f"   Time since last volume change: {time_since_change:.3f}s (ignore duration: {self.volume_change_ignore_duration}s)")
+            
             volume_data = {
                 'volume': volume,
                 'max_volume': 100,
@@ -879,7 +888,7 @@ class DisplayController:
             # Render the overlay content
             self._render_display_content('volume', volume_data)
             
-            logger.debug(f"Render volume overlay for volume: {volume}%")
+            logger.info(f"   Successfully rendered volume overlay: {volume}%")
             
         except Exception as e:
             logger.error(f"Error showing volume overlay: {e}")
@@ -951,14 +960,18 @@ class DisplayController:
 
     def show_volume_overlay(self, timeout: float = 3, volume: int = None):
         """Show volume overlay using the generic overlay system"""
+        logger.info(f"📢 show_volume_overlay called with volume={volume}, timeout={timeout}")
+        
         # If volume is provided explicitly, use it and track the change time
         if volume is not None:
             display_volume = volume
             self.last_volume_change_time = time.time()
             self.last_volume = volume
+            logger.info(f"   User-initiated volume change: set last_volume={volume}, last_volume_change_time={self.last_volume_change_time}")
         else:
             # Otherwise get from current status
             display_volume = self._get_current_volume(self.last_status)
+            logger.info(f"   Volume from status: {display_volume}")
         
         volume_data = {
             'volume': display_volume,
@@ -968,6 +981,7 @@ class DisplayController:
         }
         self._render_display_content('volume', volume_data)
         self._activate_overlay('volume', timeout)
+        logger.info(f"   Volume overlay activated until {self.overlay_end_time}")
 
     def show_Notification_overlay(self, title: str, description:str,  timeout: float = 3):
         """Show volume overlay using the generic overlay system"""
