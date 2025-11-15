@@ -339,20 +339,14 @@ class DisplayController:
                 
                 # Check for external update of the volume
                 if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
-                    logger.info(f"🔄 Volume change detected in _update_display: current={current_volume}, last={self.last_volume}")
-                    logger.info(f"   Time since user change: {time_since_volume_change:.3f}s, ignore_updates={ignore_volume_updates}")
-                    
                     # Only update if we're not ignoring volume updates
                     if not ignore_volume_updates:
-                        logger.info(f"   ✅ Accepting volume update from status: {current_volume}")
                         self._render_volume_overlay(current_volume)
                         # Update last_volume to prevent continuous re-rendering
                         self.last_volume = current_volume
                         return
                     else:
                         # Ignore this volume update - keep showing user-set volume
-                        logger.info(f"   ❌ IGNORING volume update from status (user changed volume {time_since_volume_change:.2f}s ago)")
-                        logger.info(f"      Keeping user-set volume: {self.last_volume}")
                         return
                 elif self.overlay_active:
                     return
@@ -867,10 +861,6 @@ class DisplayController:
     
     def _render_volume_overlay(self, volume: int):
         try: 
-            logger.info(f"🔊 _render_volume_overlay called with volume={volume}, last_volume={self.last_volume}")
-            time_since_change = time.time() - self.last_volume_change_time
-            logger.info(f"   Time since last volume change: {time_since_change:.3f}s (ignore duration: {self.volume_change_ignore_duration}s)")
-            
             volume_data = {
                 'volume': volume,
                 'max_volume': 100,
