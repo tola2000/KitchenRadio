@@ -251,33 +251,16 @@ class DisplayFormatter:
     
     def _render_static_text(self, text: str, font: ImageFont.ImageFont, fill: int = 255) -> Image.Image:
         """
-        Render static text to an image buffer for consistent brightness.
-        
-        Args:
-            text: Text to render
-            font: Font to use
-            fill: Fill color (0-255)
-            
-        Returns:
-            PIL Image of the rendered text
+        DEPRECATED: No longer used. Text is rendered directly with draw.text().
+        Kept for backward compatibility with scrolling text.
         """
-        # Get dimensions
         bbox = font.getbbox(text)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        # Create monochrome (1-bit) image for crisp, anti-aliasing-free text
-        # This ensures maximum brightness on OLED displays
-        img_mono = Image.new('1', (text_width, text_height), color=0)
-        draw_mono = ImageDraw.Draw(img_mono)
-        
-        # Draw text in monochrome (no anti-aliasing) - fill=1 means white
-        draw_mono.text((0, -bbox[1]), text, font=font, fill=1)
-        
-        # Convert to grayscale with the requested fill value
         img = Image.new('L', (text_width, text_height), color=0)
-        # Copy monochrome pixels to grayscale with full brightness
-        img.paste(fill, (0, 0), mask=img_mono)
+        draw = ImageDraw.Draw(img)
+        draw.text((0, -bbox[1]), text, font=font, fill=fill)
         
         return img
     
@@ -305,18 +288,14 @@ class DisplayFormatter:
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        # Create monochrome image for crisp, anti-aliasing-free scrolling text
+        # Create image for full scrolling text (double width for seamless loop)
         buffer_width = text_width * 2
-        img_mono = Image.new('1', (buffer_width, text_height), color=0)
-        draw_mono = ImageDraw.Draw(img_mono)
-        
-        # Draw text twice in monochrome (no anti-aliasing)
-        draw_mono.text((0, -bbox[1]), scrolling_text, font=font, fill=1)
-        draw_mono.text((text_width, -bbox[1]), scrolling_text, font=font, fill=1)
-        
-        # Convert to grayscale with the requested fill value
         img = Image.new('L', (buffer_width, text_height), color=0)
-        img.paste(fill, (0, 0), mask=img_mono)
+        draw = ImageDraw.Draw(img)
+        
+        # Draw text twice for seamless scrolling
+        draw.text((0, -bbox[1]), scrolling_text, font=font, fill=fill)
+        draw.text((text_width, -bbox[1]), scrolling_text, font=font, fill=fill)
         
         # Calculate scroll position with wraparound
         scroll_pos = scroll_offset % text_width
@@ -326,30 +305,43 @@ class DisplayFormatter:
         
         return cropped
     
-    def _draw_text_bright(self, draw: ImageDraw.Draw, xy: tuple, text: str, font: ImageFont.ImageFont, fill: int = 255):
+    def _draw_rectangle_mono(self, target_draw: ImageDraw.ImageDraw, target_img: Image.Image, 
+                            coords: list, fill: int = None, outline: int = None, width: int = 1) -> None:
         """
-        Draw text with consistent brightness using paste method instead of draw.text().
-        
-        This is a replacement for draw.text() that ensures consistent brightness across all text
-        by rendering to a buffer first and then pasting. This avoids the brightness inconsistency
-        issue where draw.text() produces dimmer text than pasted text on SSD1322 hardware.
+        Draw a rectangle using monochrome rendering for crisp, bright edges.
+        This method renders shapes in 1-bit mode to avoid antialiasing, 
+        then pastes the result onto the target image at the specified fill/outline value.
         
         Args:
-            draw: ImageDraw object
-            xy: Tuple of (x, y) coordinates
-            text: Text to render
-            font: Font to use
-            fill: Fill color (0-255)
+            target_draw: The ImageDraw object of the target image
+            target_img: The target image to draw on
+            coords: Rectangle coordinates as [(x1, y1), (x2, y2)]
+            fill: Fill color (0-255), or None for no fill
+            outline: Outline color (0-255), or None for no outline
+            width: Outline width in pixels
         """
-        if not text:
-            return
-            
-        # Render text to buffer
-        text_img = self._render_static_text(text, font, fill)
+        x1, y1 = coords[0]
+        x2, y2 = coords[1]
+        rect_width = abs(x2 - x1)
+        rect_height = abs(y2 - y1)
         
-        # Paste onto main image
-        img = draw._image
-        img.paste(text_img, xy)
+        # Create monochrome temporary image
+        mono_img = Image.new('1', (rect_width, rect_height), color=0)
+        mono_draw = ImageDraw.Draw(mono_img)
+        
+        # Draw rectangle on monochrome image
+        mono_coords = [(0, 0), (rect_width - 1, rect_height - 1)]
+        mono_draw.rectangle(mono_coords, fill=1 if fill else None, outline=1 if outline else None, width=width)
+        
+        # Create grayscale version for pasting
+        if fill:
+            gray_img = Image.new('L', (rect_width, rect_height), color=fill)
+            target_img.paste(gray_img, (min(x1, x2), min(y1, y2)), mask=mono_img)
+        
+        if outline and not fill:
+            # If outline only, create with outline color
+            gray_img = Image.new('L', (rect_width, rect_height), color=outline)
+            target_img.paste(gray_img, (min(x1, x2), min(y1, y2)), mask=mono_img)
     
     def format_simple_text(self, text_data: Dict[str, Any]) -> Callable:
         """
@@ -668,6 +660,9 @@ class DisplayFormatter:
             Drawing function for full screen volume display
         """
         def draw_volume(draw):
+            # Get the underlying image for monochrome shape operations
+            img = draw._image
+            
             # Extract data from JSON structure
             volume = int(volume_data.get('volume', 0))
             max_volume = volume_data.get('max_volume', 100)
@@ -685,37 +680,38 @@ class DisplayFormatter:
             bar_x = bar_margin
             bar_y = 25
             
-            # Draw title text at top center - using bright text method
+            # Draw title text at top center
             text_width = len(title) * 12  # Estimate width
             text_x = (self.width - text_width) // 2
-            self._draw_text_bright(draw, (text_x, 5), title, self.fonts['large'], fill=255)
+            draw.text((text_x, 5), title, font=self.fonts['large'], fill=255)
             
-            # Draw outer border of volume bar
-            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=3)
+            # Draw outer border of volume bar (monochrome for crisp edges)
+            self._draw_rectangle_mono(draw, img, [(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], 
+                                     outline=255, width=3)
             
             # Calculate fill area
             volume_integer = int(volume)
             if volume_integer and volume_integer > 0:
                 fill_width = int((volume_integer / max_volume) * (bar_width - 6))
                 if fill_width > 0:
-                    # Draw filled portion from left
-                    draw.rectangle([
+                    # Draw filled portion from left (monochrome for crisp edges)
+                    self._draw_rectangle_mono(draw, img, [
                         (bar_x + 3, bar_y + 3), 
                         (bar_x + 3 + fill_width, bar_y + bar_height - 3)
                     ], fill=255)
             
-            # Add percentage or numeric display if requested - using bright text method
+            # Add percentage or numeric display if requested
             if show_percentage or show_numeric:
                 info_y = bar_y + bar_height + 5
                 if show_percentage:
                     percentage = int((volume / max_volume) * 100)
                     percentage_text = f"{percentage}%"
                     info_x = (self.width - len(percentage_text) * 8) // 2
-                    self._draw_text_bright(draw, (info_x, info_y), percentage_text, self.fonts['medium'], fill=255)
+                    draw.text((info_x, info_y), percentage_text, font=self.fonts['medium'], fill=255)
                 elif show_numeric:
                     numeric_text = f"{volume}/{max_volume}"
                     info_x = (self.width - len(numeric_text) * 8) // 2
-                    self._draw_text_bright(draw, (info_x, info_y), numeric_text, self.fonts['medium'], fill=255)
+                    draw.text((info_x, info_y), numeric_text, font=self.fonts['medium'], fill=255)
             
 
  
@@ -871,39 +867,37 @@ class DisplayFormatter:
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Draw volume bar background (empty bar)
-            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255)
+            # Draw volume bar background (empty bar) - monochrome for crisp edges
+            self._draw_rectangle_mono(draw, img, [(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], 
+                                     outline=255)
             
-            # Draw volume bar fill (filled portion based on volume)
+            # Draw volume bar fill (filled portion based on volume) - monochrome for crisp edges
             if fill_height > 0:
-                draw.rectangle([(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], fill=255)
+                self._draw_rectangle_mono(draw, img, [(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], 
+                                         fill=255)
             
-            # Draw title - always use paste for consistent brightness
+            # Draw title - use direct draw.text() for normal rendering
             if title_image:
-                # Paste scrolling text image
+                # Paste scrolling text image (still needs paste for pixel-perfect scrolling)
                 img.paste(title_image, (content_x, 5))
             elif title_displayed:
-                # Render static text to buffer and paste for same brightness as scrolling
-                title_static_img = self._render_static_text(title_displayed, self.fonts['xlarge'], fill=255)
-                img.paste(title_static_img, (content_x, 5))
+                # Direct text rendering
+                draw.text((content_x, 5), title_displayed, font=self.fonts['xlarge'], fill=255)
             
-            # Draw artist/album - always use paste for consistent brightness
+            # Draw artist/album - use direct draw.text()
             if artist_album_image:
                 # Paste scrolling text image
                 img.paste(artist_album_image, (content_x, 28))
             elif artist_album_displayed:
-                # Render static text to buffer and paste for same brightness as scrolling
-                artist_static_img = self._render_static_text(artist_album_displayed, self.fonts['medium'], fill=255)
-                img.paste(artist_static_img, (content_x, 28))
+                # Direct text rendering
+                draw.text((content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
             
-            # Draw source at bottom left - use paste for consistent brightness
-            source_img = self._render_static_text(source.upper(), self.fonts['medium'], fill=180)
-            source_y = self.height - 16  # Position at bottom
-            img.paste(source_img, (content_x, source_y))
+            # Draw source at bottom left
+            source_y = self.height - 16
+            draw.text((content_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
             
-            # Draw play icon - use paste for consistent brightness
-            icon_img = self._render_static_text(play_icon, self.fonts['xlarge'], fill=255)
-            img.paste(icon_img, (icon_x, icon_y))
+            # Draw play icon
+            draw.text((icon_x, icon_y), play_icon, font=self.fonts['xlarge'], fill=255)
         
         return draw_track_info_with_progress, truncation_info
     
@@ -955,6 +949,8 @@ class DisplayFormatter:
         current_item_y = bar_y + 2 + int(selected_index * item_height) if total_items > 0 else 0
         
         def draw_menu(draw: ImageDraw.Draw):
+            # Get the underlying image for monochrome shape operations
+            img = draw._image
                 
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
@@ -964,8 +960,8 @@ class DisplayFormatter:
                 draw.text((15, menu_start_y + 10), "No items", font=self.fonts['medium'], fill=128)
                 return
             
-            # Draw fixed selection background in center (don't extend over scroll bar area)
-            draw.rectangle([
+            # Draw fixed selection background in center (don't extend over scroll bar area) - monochrome for crisp edges
+            self._draw_rectangle_mono(draw, img, [
                 (12, center_y - 2), 
                 (content_right_edge, center_y + line_height + 1)
             ], fill=255)
@@ -1046,14 +1042,15 @@ class DisplayFormatter:
                             # Regular item - 3 pixels down
                             draw.text((15, y_pos + 3), item_displayed, font=self.fonts['medium'], fill=255)
             
-            # Draw scroll position indicator bar (volume bar style)
+            # Draw scroll position indicator bar (volume bar style) - monochrome for crisp edges
             if total_items > 1:
                 # Draw scroll bar background (outline)
-                draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], outline=255, width=2)
+                self._draw_rectangle_mono(draw, img, [(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], 
+                                         outline=255, width=2)
                 
                 # Draw filled area only for the current selected item
                 if item_height > 0:
-                    draw.rectangle([
+                    self._draw_rectangle_mono(draw, img, [
                         (bar_x + 2, current_item_y), 
                         (bar_x + bar_width - 2, current_item_y + int(item_height))
                     ], fill=255)
@@ -1143,31 +1140,31 @@ class DisplayFormatter:
             
             # Optional retro shadow: draw slightly offset dark shadow then bright text
             shadow_offset = 1
-            # shadow - using bright text method for consistent rendering
-            self._draw_text_bright(draw, (hour_x + shadow_offset, hour_y + shadow_offset), hour_text, font=font_hour, fill=40)
-            self._draw_text_bright(draw, (colon_x + shadow_offset, hour_y + shadow_offset), colon, font=font_hour, fill=40)
-            self._draw_text_bright(draw, (min_x + shadow_offset, min_y + shadow_offset), minute_text, font=font_min, fill=40)
+            # shadow
+            draw.text((hour_x + shadow_offset, hour_y + shadow_offset), hour_text, font=font_hour, fill=40)
+            draw.text((colon_x + shadow_offset, hour_y + shadow_offset), colon, font=font_hour, fill=40)
+            draw.text((min_x + shadow_offset, min_y + shadow_offset), minute_text, font=font_min, fill=40)
             
-            # main text (bright) - using bright text method
-            self._draw_text_bright(draw, (hour_x, hour_y), hour_text, font=font_hour, fill=255)
-            self._draw_text_bright(draw, (colon_x, hour_y), colon, font=font_hour, fill=255)
-            self._draw_text_bright(draw, (min_x, min_y), minute_text, font=font_min, fill=255)
+            # main text (bright)
+            draw.text((hour_x, hour_y), hour_text, font=font_hour, fill=255)
+            draw.text((colon_x, hour_y), colon, font=font_hour, fill=255)
+            draw.text((min_x, min_y), minute_text, font=font_min, fill=255)
             
-            # AM/PM if requested - using bright text method
+            # AM/PM if requested
             if ampm_text:
                 ampm_bbox = font_ampm.getbbox(ampm_text)
                 ampm_w = ampm_bbox[2] - ampm_bbox[0]
                 # place AM/PM to the right of minutes
                 ampm_x = min(self.width - ampm_w - 6, min_x + min_w + 6)
                 ampm_y = hour_y + (hour_h - (ampm_bbox[3] - ampm_bbox[1])) // 2
-                self._draw_text_bright(draw, (ampm_x, ampm_y), ampm_text, font=font_ampm, fill=200)
+                draw.text((ampm_x, ampm_y), ampm_text, font=font_ampm, fill=200)
             
-            # Date line centered below clock - using bright text method
+            # Date line centered below clock
             if date_str:
                 date_bbox = font_date.getbbox(date_str)
                 date_w = date_bbox[2] - date_bbox[0]
                 date_x = max(0, (self.width - date_w) // 2)
-                self._draw_text_bright(draw, (date_x, date_y), date_str, font=font_date, fill=180)
+                draw.text((date_x, date_y), date_str, font=font_date, fill=180)
             
             # Small decorative retro line below date
             draw.line([(20, date_y + 18), (self.width - 20, date_y + 18)], fill=60, width=1)

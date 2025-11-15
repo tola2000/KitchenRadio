@@ -119,7 +119,7 @@ class ButtonController:
     
     def __init__(self, 
                  kitchen_radio: 'KitchenRadio' = None,
-                 debounce_time: float = 0.05,
+                 debounce_time: float = 0.02,
                  long_press_time: float = 1.0,
                  display_controller = None,
                  use_hardware: bool = True,
