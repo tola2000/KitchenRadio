@@ -414,8 +414,10 @@ class DisplayController:
         return advanced
 
     def _render_clock_display(self):
-        """Update display to show clock"""
-        now = datetime.now()
+        """Update display to show clock in Belgium/Brussels timezone"""
+        from zoneinfo import ZoneInfo
+        # Get current time in Belgium/Brussels timezone (CET/CEST)
+        now = datetime.now(ZoneInfo('Europe/Brussels'))
         clock_data = {
             'time': now.strftime("%H:%M"),
             'date': now.strftime("%Y-%m-%d"),

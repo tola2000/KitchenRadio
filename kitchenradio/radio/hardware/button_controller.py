@@ -514,6 +514,18 @@ class ButtonController:
         """Menu up navigation"""
         logger.info("Menu up navigation")
         try:
+            # Check if menu is available for current source
+            status = self.kitchen_radio.get_status()
+            current_source = status.get('current_source')
+            
+            if current_source:
+                menu_options = self.kitchen_radio.get_menu_options()
+                if not menu_options.get('has_menu', False):
+                    logger.info(f"Menu not available for source: {current_source}")
+                    if self.display_controller:
+                        self.display_controller.show_status_message("Function not available", "⚠", "warning")
+                    return False
+            
             menu_items = self._get_menu_items()
             if menu_items:
                 # Scroll up (previous item)
@@ -539,6 +551,18 @@ class ButtonController:
         """Menu down navigation"""
         logger.info("Menu down navigation")
         try:
+            # Check if menu is available for current source
+            status = self.kitchen_radio.get_status()
+            current_source = status.get('current_source')
+            
+            if current_source:
+                menu_options = self.kitchen_radio.get_menu_options()
+                if not menu_options.get('has_menu', False):
+                    logger.info(f"Menu not available for source: {current_source}")
+                    if self.display_controller:
+                        self.display_controller.show_status_message("Function not available", "⚠", "warning")
+                    return False
+            
             menu_items = self._get_menu_items()
             if menu_items:
                 # Scroll down (next item)

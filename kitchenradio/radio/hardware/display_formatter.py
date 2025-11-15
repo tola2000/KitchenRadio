@@ -1066,7 +1066,7 @@ class DisplayFormatter:
         # Choose fonts
         font_hour = self.fonts.get('xxlarge', self.fonts['default'])
         font_min = self.fonts.get('xxlarge', self.fonts['default'])
-        font_date = self.fonts.get('medium', self.fonts['default'])
+        font_date = self.fonts.get('large', self.fonts['default'])
         font_ampm = self.fonts.get('small', self.fonts['default'])
         
         # Pre-calc widths/heights
