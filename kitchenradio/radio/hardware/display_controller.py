@@ -451,9 +451,9 @@ class DisplayController:
             # Adjust scroll speed based on font size (larger fonts scroll faster for same visual speed)
             font_size = info.get('font_size', 'small')
             if font_size == 'xlarge' or font_size == 'xxlarge':
-                scroll_step = 4  # Fast for large text (320 px/s at 80 Hz) - compensates for longer titles
+                scroll_step = 6  # Very fast for large text (480 px/s at 80 Hz) - needed for long titles
             elif font_size == 'large':
-                scroll_step = 3  # Medium-fast speed (240 px/s at 80 Hz)
+                scroll_step = 4  # Fast speed (320 px/s at 80 Hz)
             else:
                 scroll_step = 2  # Default speed for small/medium (160 px/s at 80 Hz)
             
