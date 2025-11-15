@@ -818,11 +818,14 @@ class DisplayFormatter:
             fill_height = int((volume_number / 100.0) * bar_height)
             fill_y = bar_y + bar_height - fill_height
         
-        # Pre-calculate play icon
+        # Pre-calculate play icon with dynamic sizing based on font
         play_icon = "▶" if playing else "⏸"
-        icon_size = 28
-        icon_x = self.width - icon_size + 2
-        icon_y = self.height - icon_size + 2
+        icon_font = self.fonts['xlarge']
+        icon_bbox = icon_font.getbbox(play_icon)
+        icon_width = icon_bbox[2] - icon_bbox[0]
+        icon_height = icon_bbox[3] - icon_bbox[1]
+        icon_x = self.width - icon_width - 2  # 2px margin from right edge
+        icon_y = self.height - icon_height - 2  # 2px margin from bottom edge
         
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Get the underlying image from the draw object
