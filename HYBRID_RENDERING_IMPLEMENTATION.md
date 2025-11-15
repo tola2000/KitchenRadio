@@ -1,19 +1,36 @@
-# Hybrid Rendering Implementation
+# Full Monochrome Rendering Implementation
 
 ## Overview
-Implemented a hybrid rendering approach for the OLED display:
-- **TEXT**: Normal antialiased rendering using PIL's `draw.text()` for smooth appearance
+Implemented **full monochrome rendering** for the OLED display:
+- **TEXT**: Monochrome (1-bit) rendering for crisp, bright text
 - **SHAPES**: Monochrome (1-bit) rendering for crisp, bright edges on UI elements
 
 ## Motivation
-Testing revealed that PIL's `draw.text()` antialiasing produces dimmer text (avg 171.77 brightness vs 255 max) but provides smooth, professional-looking text. While monochrome rendering gives 100% pixels at full brightness (+48.5% brighter), it makes text look too pixelated. The solution is to use each approach where it works best:
-- Accept slightly dimmed antialiased text for readability
-- Use monochrome for geometric shapes to get crisp, bright edges
+Testing revealed that PIL's `draw.text()` antialiasing produces dimmer text (avg 171.77 brightness vs 255 max) with gray antialiased pixels. Monochrome rendering eliminates antialiasing completely, giving 100% pixels at full brightness (+48.5% brighter) for maximum visibility on OLED displays. All text and shapes now use monochrome rendering for consistent, crisp, bright appearance.
 
 ## Technical Implementation
 
-### New Helper Method: `_draw_rectangle_mono()`
-Location: `display_formatter.py` lines 308-346
+### New Helper Method 1: `_draw_text_mono()`
+Location: `display_formatter.py` lines 318-346
+
+```python
+def _draw_text_mono(self, target_draw: ImageDraw.ImageDraw, target_img: Image.Image,
+                   position: tuple, text: str, font: ImageFont.ImageFont, fill: int = 255) -> None:
+    """
+    Draw text using monochrome rendering for crisp, bright text.
+    This eliminates antialiasing gray pixels for maximum brightness on OLED.
+    """
+```
+
+**How it works:**
+1. Creates temporary 1-bit monochrome image (mode '1')
+2. Draws text on monochrome image (pure black/white, no antialiasing)
+3. Creates grayscale image at target brightness (fill value)
+4. Pastes grayscale using monochrome as mask
+5. Result: Sharp text with full brightness pixels (255), no gray antialiased pixels
+
+### New Helper Method 2: `_draw_rectangle_mono()`
+Location: `display_formatter.py` lines 348-380
 
 ```python
 def _draw_rectangle_mono(self, target_draw: ImageDraw.ImageDraw, target_img: Image.Image, 
@@ -34,13 +51,18 @@ def _draw_rectangle_mono(self, target_draw: ImageDraw.ImageDraw, target_img: Ima
 
 ### Changes Made
 
-#### 1. Reverted All Text Rendering to Normal `draw.text()`
-- `format_track_info()`: Title, artist, album text use direct `draw.text()`
-- `format_volume_display()`: Title and percentage text use `draw.text()`
-- `format_clock_display()`: Hour, minute, AM/PM, date use `draw.text()`
-- Removed `_draw_text_bright()` helper method completely
+#### 1. Updated Text Rendering Helpers
+- `_render_static_text()`: Now renders to monochrome (mode '1'), then converts to grayscale
+- `_render_scrolling_text()`: Now renders to monochrome, then converts to grayscale
+- All scrolling text images are now monochrome-based for consistency
 
-#### 2. Applied Monochrome to Shape Elements
+#### 2. Applied Monochrome to Direct Text Drawing
+- `format_track_info()`: Static title, artist, album, source, play icon use `_draw_text_mono()`
+- `format_volume_display()`: Title and percentage/numeric text use `_draw_text_mono()`
+- `format_clock_display()`: Hour, minute, colon, AM/PM, date, shadow text use `_draw_text_mono()`
+- `format_menu_list()`: All menu item text uses `_draw_text_mono()`
+
+#### 3. Applied Monochrome to Shape Elements
 
 **Volume Display** (`format_volume_display()` lines 689-700):
 - Outer border rectangle: `_draw_rectangle_mono()` with outline=255, width=3
@@ -57,16 +79,17 @@ def _draw_rectangle_mono(self, target_draw: ImageDraw.ImageDraw, target_img: Ima
 
 ## Expected Results
 
-### Text Elements
-- Smooth antialiased appearance (professional look)
-- Slightly dimmed but readable (avg 171.77 brightness)
-- No pixelation or jagged edges
+### All Elements (Text and Shapes)
+- **Maximum brightness**: 100% pixels at full brightness (255)
+- **Crisp, sharp edges**: No antialiasing blur or gray pixels
+- **48.5% brighter**: Compared to antialiased rendering (255 vs 171.77 avg)
+- **Clean appearance**: No smoothing artifacts, pure black/white transitions
+- **Consistent**: All UI elements use same monochrome rendering technique
 
-### Shape Elements (Bars, Backgrounds, Borders)
-- Crisp, sharp edges with no blur
-- 100% pixels at full brightness (255)
-- 48.5% brighter than antialiased equivalent
-- Clean, defined appearance
+### Comparison
+- **Before (antialiased)**: Max 252, Avg 171.77, 0% pixels at full brightness
+- **After (monochrome)**: Max 255, Avg 255.00, 100% pixels at full brightness
+- **Brightness gain**: +83.23 (48.5% improvement)
 
 ## Testing
 Test the display with:
