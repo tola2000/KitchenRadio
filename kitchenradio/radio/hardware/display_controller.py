@@ -313,8 +313,9 @@ class DisplayController:
                     logger.debug("_update_display: Aborting before get_status due to _shutting_down flag")
                     return
                 
-                # Check if kitchen_radio is still running
-                if not getattr(self.kitchen_radio, 'running', True):
+                # Check if kitchen_radio is still running (only trigger cleanup if we were running before)
+                # This prevents false positives during startup when kitchen_radio.running might not be set yet
+                if hasattr(self.kitchen_radio, 'running') and not self.kitchen_radio.running:
                     logger.info("_update_display: kitchen_radio has stopped, initiating cleanup")
                     self.cleanup()
                     return
