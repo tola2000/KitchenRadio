@@ -312,6 +312,12 @@ class DisplayController:
                 if self._shutting_down:
                     logger.debug("_update_display: Aborting before get_status due to _shutting_down flag")
                     return
+                
+                # Check if kitchen_radio is still running
+                if not getattr(self.kitchen_radio, 'running', True):
+                    logger.info("_update_display: kitchen_radio has stopped, initiating cleanup")
+                    self.cleanup()
+                    return
 
                 logger.debug("_update_display: Calling kitchen_radio.get_status()")
                 current_status = self.kitchen_radio.get_status()
