@@ -897,15 +897,17 @@ class DisplayFormatter:
         icon_width = icon_bbox[2] - icon_bbox[0]
         icon_height = icon_bbox[3] - icon_bbox[1]
         
-        # Calculate source text width to position icon after it
+        # Calculate source text width
         source_font = self.fonts['medium']
         source_bbox = source_font.getbbox(source.upper())
         source_width = source_bbox[2] - source_bbox[0]
         source_y = self.height - 16
         
-        # Position icon right after source text with 8px spacing
-        icon_x = content_x + source_width + 8
+        # Position both source and icon aligned to the right with 5px margin
+        # Icon is on the far right, source is to its left with 8px spacing
+        icon_x = self.width - icon_width - 5
         icon_y = source_y  # Align with source text baseline
+        source_x = icon_x - source_width - 8
         
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Get the underlying image for paste operations (brighter rendering)
@@ -939,10 +941,10 @@ class DisplayFormatter:
                 # Monochrome text rendering
                 self._draw_text_mono(draw, img, (content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
             
-            # Draw source at bottom left
-            self._draw_text_mono(draw, img, (content_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
+            # Draw source aligned to the right (before play icon)
+            self._draw_text_mono(draw, img, (source_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
             
-            # Draw play icon (positioned after source text)
+            # Draw play icon aligned to the far right
             self._draw_text_mono(draw, img, (icon_x, icon_y), play_icon, font=self.fonts['xlarge'], fill=255)
         
         return draw_track_info_with_progress, truncation_info
