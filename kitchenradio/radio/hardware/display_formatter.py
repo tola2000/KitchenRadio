@@ -22,7 +22,7 @@ FONT_SMALL = 12
 FONT_MEDIUM = 14
 FONT_LARGE = 16
 FONT_XLARGE = 24
-FONT_XXLARGE = 34
+FONT_XXLARGE = 40
 
 class DisplayFormatter:
     """
