@@ -939,11 +939,9 @@ class KitchenRadio:
                         self.logger.info(f"Auto-starting playback on {source.value} (was {mpd_status.get('state')})")
                         self.play()
                 elif source == BackendType.LIBRESPOT:
-                    # Use playpause for Spotify - more reliable for starting playback
+                    # Always try to start Spotify playback when switching to it
                     self.logger.info(f"Auto-starting playback on {source.value}")
-                    controller, _, _ = self._get_active_controller()
-                    if controller:
-                        controller.playpause()
+                    self.play()
             except Exception as e:
                 self.logger.warning(f"Could not auto-start playback on {source.value}: {e}")
         
