@@ -1,5 +1,18 @@
 # Bluetooth Setup for KitchenRadio
 
+## TL;DR - Quickest Install
+
+**Recreate venv with system packages** (easiest method):
+```bash
+cd /home/tola2000/KitchenRadio
+sudo apt-get update && sudo apt-get install -y python3-dbus python3-gi python3-gi-cairo gir1.2-glib-2.0 bluez pulseaudio pulseaudio-module-bluetooth
+rm -rf venv && python3 -m venv venv --system-site-packages
+source venv/bin/activate && pip install -r requirements.txt
+# Restart KitchenRadio
+```
+
+---
+
 ## Quick Installation (Raspberry Pi)
 
 ### 1. Install System Dependencies
@@ -16,9 +29,52 @@ sudo apt-get install -y \
 ```
 
 ### 2. Install Python Dependencies
+
+> **💡 Which option to choose?**
+> - **Option C** (recreate venv) - Easiest, recommended if you don't mind recreating venv
+> - **Option A** (symlinks) - Good if you want to keep existing venv
+> - **Option B** (pip install) - Use if you need specific versions or Option A doesn't work
+
+#### Option A: Use System Python Packages (Recommended for existing venv)
+Link system packages into your virtual environment:
 ```bash
 cd /home/tola2000/KitchenRadio
-source venv/bin/activate  # If using virtual environment
+source venv/bin/activate
+
+# Link system packages to venv
+ln -sf /usr/lib/python3/dist-packages/dbus venv/lib/python3.*/site-packages/
+ln -sf /usr/lib/python3/dist-packages/_dbus* venv/lib/python3.*/site-packages/
+ln -sf /usr/lib/python3/dist-packages/gi venv/lib/python3.*/site-packages/
+ln -sf /usr/lib/python3/dist-packages/*gi* venv/lib/python3.*/site-packages/
+
+# Install other dependencies
+pip install -r requirements.txt
+```
+
+#### Option B: Install via pip (May require build tools)
+```bash
+cd /home/tola2000/KitchenRadio
+source venv/bin/activate
+
+# Install build dependencies first
+sudo apt-get install -y libdbus-1-dev libgirepository1.0-dev libcairo2-dev pkg-config
+
+# Install via pip
+pip install dbus-python PyGObject
+pip install -r requirements.txt
+```
+
+#### Option C: Create venv with system packages access
+```bash
+cd /home/tola2000/KitchenRadio
+# Remove old venv if exists
+rm -rf venv
+
+# Create new venv with --system-site-packages flag
+python3 -m venv venv --system-site-packages
+source venv/bin/activate
+
+# Install project dependencies
 pip install -r requirements.txt
 ```
 
@@ -73,10 +129,28 @@ pactl load-module module-bluetooth-policy
 ```
 
 ## One-Line Install (All Steps)
+
+### With Existing venv (Option A - System Package Links)
 ```bash
 sudo apt-get update && \
 sudo apt-get install -y python3-dbus python3-gi python3-gi-cairo gir1.2-glib-2.0 bluez pulseaudio pulseaudio-module-bluetooth && \
 cd /home/tola2000/KitchenRadio && \
+source venv/bin/activate && \
+ln -sf /usr/lib/python3/dist-packages/dbus venv/lib/python3.*/site-packages/ && \
+ln -sf /usr/lib/python3/dist-packages/_dbus* venv/lib/python3.*/site-packages/ && \
+ln -sf /usr/lib/python3/dist-packages/gi venv/lib/python3.*/site-packages/ && \
+ln -sf /usr/lib/python3/dist-packages/*gi* venv/lib/python3.*/site-packages/ && \
+pip install -r requirements.txt && \
+echo "✅ Bluetooth dependencies installed! Restart KitchenRadio now."
+```
+
+### Recreate venv with System Packages (Option C - Easiest)
+```bash
+sudo apt-get update && \
+sudo apt-get install -y python3-dbus python3-gi python3-gi-cairo gir1.2-glib-2.0 bluez pulseaudio pulseaudio-module-bluetooth && \
+cd /home/tola2000/KitchenRadio && \
+rm -rf venv && \
+python3 -m venv venv --system-site-packages && \
 source venv/bin/activate && \
 pip install -r requirements.txt && \
 echo "✅ Bluetooth dependencies installed! Restart KitchenRadio now."
