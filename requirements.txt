@@ -22,6 +22,10 @@ RPi.GPIO>=0.7.1
 adafruit-circuitpython-mcp230xx>=2.5.0
 adafruit-blinka>=8.0.0
 
+# BlueZ Bluetooth audio stream detection (Linux only)
+dbus-python>=1.2.0
+PyGObject>=3.42.0
+
 # Optional dependencies
 # colorama>=0.4.0  # For colored console output on Windows
 # click>=8.0.0     # For CLI interfaces
