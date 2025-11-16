@@ -35,6 +35,7 @@ class ButtonType(Enum):
     # Source buttons (top row)
     SOURCE_MPD = "source_mpd"
     SOURCE_SPOTIFY = "source_spotify"
+    SOURCE_BLUETOOTH = "source_bluetooth"
     SOURCE_CD = "source_cd"
     # Menu buttons (around display)
     MENU_UP = "menu_up"
@@ -69,7 +70,8 @@ BUTTON_PIN_MAP = {
     # Source buttons 
     ButtonType.SOURCE_MPD: 7,         # TUNER
     ButtonType.SOURCE_SPOTIFY: 6,     # AUX
-    ButtonType.SOURCE_CD: 5,          # CD Player (if applicable)
+    ButtonType.SOURCE_BLUETOOTH: 5,   # Bluetooth
+    ButtonType.SOURCE_CD: None,       # CD Player (if applicable, not mapped)
     
     # Menu buttons 
     ButtonType.MENU_UP: 8,            # 
@@ -178,6 +180,7 @@ class ButtonController:
             # Source buttons
             ButtonType.SOURCE_MPD: self._select_mpd,
             ButtonType.SOURCE_SPOTIFY: self._select_spotify,
+            ButtonType.SOURCE_BLUETOOTH: self._select_bluetooth,
             
             # Transport buttons
             ButtonType.TRANSPORT_PLAY_PAUSE: self._play_pause,
@@ -460,6 +463,12 @@ class ButtonController:
         from ..kitchen_radio import BackendType
         logger.info("Switching to Spotify source")
         return self.kitchen_radio.set_source(BackendType.LIBRESPOT)
+    
+    def _select_bluetooth(self) -> bool:
+        """Switch to Bluetooth source and enter pairing mode"""
+        from ..kitchen_radio import BackendType
+        logger.info("Switching to Bluetooth source")
+        return self.kitchen_radio.set_source(BackendType.BLUETOOTH)
     
     def _play_pause(self) -> bool:
         """Toggle play/pause"""

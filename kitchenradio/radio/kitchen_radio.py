@@ -24,6 +24,7 @@ class BackendType(Enum):
     """Supported backend types"""
     MPD = "mpd"
     LIBRESPOT = "librespot"
+    BLUETOOTH = "bluetooth"
     NONE = "none"
 
 
@@ -51,6 +52,9 @@ class KitchenRadio:
         self.librespot_controller = None
         self.librespot_monitor = None
         self.librespot_connected = False
+        
+        self.bluetooth_controller = None
+        self.bluetooth_connected = False
 
         self.source = None  # Current active source backend
         self.previous_source = None  # Store source before power off
@@ -119,15 +123,16 @@ class KitchenRadio:
     
     def _initialize_backends(self) -> bool:
         """
-        Initialize both backends.
+        Initialize all backends.
         
         Returns:
             Always True - daemon can start even if backends are unavailable
         """
         mpd_success = self._initialize_mpd()
         librespot_success = self._initialize_librespot()
+        bluetooth_success = self._initialize_bluetooth()
         
-        if not mpd_success and not librespot_success:
+        if not mpd_success and not librespot_success and not bluetooth_success:
             self.logger.warning("⚠️  No backends available - daemon starting in offline mode")
             self.logger.info("   Backends can be connected later when services are available")
         
@@ -140,6 +145,11 @@ class KitchenRadio:
             self.logger.info("✅ Librespot backend available")
         else:
             self.logger.warning("❌ Librespot backend unavailable")
+        
+        if bluetooth_success:
+            self.logger.info("✅ Bluetooth backend available")
+        else:
+            self.logger.warning("❌ Bluetooth backend unavailable")
         
         # Always return True - daemon can start without backends
         return True
@@ -200,6 +210,53 @@ class KitchenRadio:
         except Exception as e:
             self.logger.warning(f"Librespot initialization failed: {e}")
             return False
+    
+    def _initialize_bluetooth(self) -> bool:
+        """Initialize Bluetooth backend"""
+        self.logger.info("Initializing Bluetooth backend...")
+        
+        try:
+            from kitchenradio.bluetooth import BluetoothController
+            
+            self.bluetooth_controller = BluetoothController()
+            
+            # Set up callbacks
+            self.bluetooth_controller.on_device_connected = self._on_bluetooth_connected
+            self.bluetooth_controller.on_device_disconnected = self._on_bluetooth_disconnected
+            
+            # Give it time to initialize
+            import time
+            time.sleep(1)
+            
+            if not self.bluetooth_controller.running:
+                self.logger.warning("Bluetooth controller failed to start")
+                return False
+            
+            self.bluetooth_connected = True
+            self.logger.info("Bluetooth backend initialized successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"Bluetooth initialization failed: {e}")
+            return False
+    
+    def _on_bluetooth_connected(self, name: str, mac: str):
+        """Handle Bluetooth device connection"""
+        self.logger.info(f"🔵 Bluetooth device connected: {name} ({mac})")
+        
+        # Auto-switch to Bluetooth source if not already
+        if self.source != BackendType.BLUETOOTH:
+            self.logger.info("Auto-switching to Bluetooth source")
+            self.set_source(BackendType.BLUETOOTH)
+    
+    def _on_bluetooth_disconnected(self, name: str, mac: str):
+        """Handle Bluetooth device disconnection"""
+        self.logger.info(f"🔴 Bluetooth device disconnected: {name} ({mac})")
+        
+        # Switch to previous source if we were on Bluetooth
+        if self.source == BackendType.BLUETOOTH:
+            self.logger.info("Bluetooth disconnected, switching to MPD source")
+            self.set_source(BackendType.MPD)
 
     def add_callback(self, event: str, callback: Callable):
         """
@@ -882,6 +939,14 @@ class KitchenRadio:
             except Exception as e:
                 self.logger.warning(f"Error disconnecting from librespot: {e}")
         
+        # Cleanup Bluetooth
+        if self.bluetooth_controller and self.bluetooth_connected:
+            try:
+                self.bluetooth_controller.cleanup()
+                self.logger.info("Bluetooth controller cleaned up")
+            except Exception as e:
+                self.logger.warning(f"Error cleaning up Bluetooth: {e}")
+        
         self.logger.info("KitchenRadio daemon stopped")
     
 
@@ -907,7 +972,7 @@ class KitchenRadio:
         self.logger.info(f"Setting audio source to: {source.value}")
         
         # Validate source
-        if source not in [BackendType.MPD, BackendType.LIBRESPOT, BackendType.NONE]:
+        if source not in [BackendType.MPD, BackendType.LIBRESPOT, BackendType.BLUETOOTH, BackendType.NONE]:
             self.logger.error(f"Invalid source: {source}")
             return False
         
@@ -928,6 +993,17 @@ class KitchenRadio:
             self.logger.warning(f"Source set to {source.value} but backend is not connected")
         elif source == BackendType.LIBRESPOT and not self.librespot_connected:
             self.logger.warning(f"Source set to {source.value} but backend is not connected")
+        elif source == BackendType.BLUETOOTH:
+            # Handle Bluetooth source selection
+            if not self.bluetooth_connected:
+                self.logger.warning(f"Source set to {source.value} but backend is not available")
+            elif self.bluetooth_controller and self.bluetooth_controller.is_connected():
+                self.logger.info(f"✅ Active source set to: {source.value} (device connected)")
+            else:
+                # Enter pairing mode when selecting Bluetooth with no device connected
+                self.logger.info(f"✅ Source set to {source.value} - entering pairing mode")
+                if self.bluetooth_controller:
+                    self.bluetooth_controller.enter_pairing_mode(timeout_seconds=60)
         else:
             self.logger.info(f"✅ Active source set to: {source.value} (backend connected)")
             
