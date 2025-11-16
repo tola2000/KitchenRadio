@@ -224,6 +224,11 @@ class KitchenRadio:
             self.bluetooth_controller.on_device_connected = self._on_bluetooth_connected
             self.bluetooth_controller.on_device_disconnected = self._on_bluetooth_disconnected
             
+            # Set up monitor callbacks for track/status changes
+            if self.bluetooth_controller.monitor:
+                self.bluetooth_controller.monitor.register_callback('track_changed', self._on_bluetooth_track_changed)
+                self.bluetooth_controller.monitor.register_callback('status_changed', self._on_bluetooth_status_changed)
+            
             # Give it time to initialize
             import time
             time.sleep(1)
@@ -257,6 +262,20 @@ class KitchenRadio:
         if self.source == BackendType.BLUETOOTH:
             self.logger.info("Bluetooth disconnected, switching to MPD source")
             self.set_source(BackendType.MPD)
+    
+    def _on_bluetooth_track_changed(self, track):
+        """Handle Bluetooth track change"""
+        self.logger.info(f"🎵 Bluetooth track changed: {track.get('title', 'Unknown')}")
+        # Trigger display update
+        if self.source == BackendType.BLUETOOTH:
+            self._trigger_callbacks('track_changed', track=track)
+    
+    def _on_bluetooth_status_changed(self, old_status, new_status):
+        """Handle Bluetooth playback status change"""
+        self.logger.info(f"▶️ Bluetooth status changed: {old_status} → {new_status}")
+        # Trigger display update
+        if self.source == BackendType.BLUETOOTH:
+            self._trigger_callbacks('status_changed', old_status=old_status, new_status=new_status)
 
     def add_callback(self, event: str, callback: Callable):
         """

@@ -457,6 +457,7 @@ class AVRCPClient:
         """
         if not self.player_path or not self.bus:
             if not self._find_media_player():
+                logger.debug("No media player for volume query")
                 return None
         
         try:
@@ -469,18 +470,25 @@ class AVRCPClient:
                 self.PROPERTIES_INTERFACE
             )
             
-            volume = player_props.Get(
-                self.MEDIA_PLAYER_INTERFACE,
-                'Volume'
-            )
+            # Check if Volume property exists
+            try:
+                volume = player_props.Get(
+                    self.MEDIA_PLAYER_INTERFACE,
+                    'Volume'
+                )
+                
+                volume_level = int(volume)
+                logger.debug(f"📡 AVRCP Volume: {volume_level}")
+                return volume_level
+                
+            except dbus.exceptions.DBusException as e:
+                # Volume property not supported - this is common on iOS devices
+                if "Unknown property" in str(e) or "does not exist" in str(e):
+                    logger.debug(f"📡 AVRCP Volume property not supported by {self.state.device_name}")
+                else:
+                    logger.debug(f"Could not get AVRCP volume: {e}")
+                return None
             
-            volume_level = int(volume)
-            logger.debug(f"📡 AVRCP Volume: {volume_level}")
-            return volume_level
-            
-        except dbus.exceptions.DBusException as e:
-            logger.debug(f"Could not get AVRCP volume: {e}")
-            return None
         except Exception as e:
             logger.error(f"Error getting AVRCP volume: {e}")
             return None
@@ -535,6 +543,9 @@ class AVRCPClient:
         """
         Increase volume on the Bluetooth device via AVRCP.
         
+        Note: Many devices (especially iOS) don't support absolute volume control.
+        For such devices, this command may not work or may be ignored.
+        
         Args:
             step: Volume increase step (default 10, AVRCP uses 0-127 range)
             
@@ -542,17 +553,27 @@ class AVRCPClient:
             True if successful
         """
         logger.info(f"📡 AVRCP: Increasing volume on {self.state.device_name}")
-        current = self.get_volume()
-        if current is None:
-            logger.warning("Cannot get current AVRCP volume")
-            return False
         
-        new_volume = min(127, current + step)
-        return self.set_volume(new_volume)
+        # Try to get current volume
+        current = self.get_volume()
+        if current is not None:
+            # Device supports absolute volume - use it
+            new_volume = min(127, current + step)
+            logger.debug(f"Using absolute volume: {current} → {new_volume}")
+            return self.set_volume(new_volume)
+        else:
+            # Device doesn't support absolute volume
+            # iOS and some Android devices don't expose volume control via AVRCP
+            logger.info(f"📡 AVRCP Volume control not supported by {self.state.device_name}")
+            logger.info(f"   Use device's physical volume buttons or control from device")
+            return False
     
     def volume_down(self, step: int = 10) -> bool:
         """
         Decrease volume on the Bluetooth device via AVRCP.
+        
+        Note: Many devices (especially iOS) don't support absolute volume control.
+        For such devices, this command may not work or may be ignored.
         
         Args:
             step: Volume decrease step (default 10, AVRCP uses 0-127 range)
@@ -561,13 +582,20 @@ class AVRCPClient:
             True if successful
         """
         logger.info(f"📡 AVRCP: Decreasing volume on {self.state.device_name}")
-        current = self.get_volume()
-        if current is None:
-            logger.warning("Cannot get current AVRCP volume")
-            return False
         
-        new_volume = max(0, current - step)
-        return self.set_volume(new_volume)
+        # Try to get current volume
+        current = self.get_volume()
+        if current is not None:
+            # Device supports absolute volume - use it
+            new_volume = max(0, current - step)
+            logger.debug(f"Using absolute volume: {current} → {new_volume}")
+            return self.set_volume(new_volume)
+        else:
+            # Device doesn't support absolute volume
+            # iOS and some Android devices don't expose volume control via AVRCP
+            logger.info(f"📡 AVRCP Volume control not supported by {self.state.device_name}")
+            logger.info(f"   Use device's physical volume buttons or control from device")
+            return False
     
     def _send_control_command(self, command: str) -> bool:
         """
