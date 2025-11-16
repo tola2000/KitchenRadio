@@ -192,11 +192,38 @@ class BlueZStreamDetector:
             logger.info(f"Volume: {volume}")
             logger.info("=" * 60)
             
-            # You can add custom actions here when a new stream is detected
-            # For example: switch audio source, display notification, etc.
+            # Custom actions when a new stream is detected
+            self.on_bluetooth_stream_detected(device_info)
             
         except Exception as e:
             logger.error(f"Error handling stream start: {e}")
+    
+    def on_bluetooth_stream_detected(self, device_info):
+        """
+        Custom callback when Bluetooth streaming starts.
+        Override this method or modify it to integrate with KitchenRadio.
+        
+        Example integration:
+            # Import your KitchenRadio daemon
+            from kitchenradio.radio.kitchen_radio import KitchenRadio, BackendType
+            
+            # Switch to Bluetooth source (if you add a BLUETOOTH backend)
+            # kitchen_radio.set_source(BackendType.BLUETOOTH)
+            
+            # Or just log for now
+            logger.info(f"📲 Ready to play audio from {device_info.get('name', 'Unknown')}")
+        """
+        logger.info(f"📲 Bluetooth device {device_info.get('name', 'Unknown')} is now streaming")
+        logger.info(f"💡 TIP: You can integrate this with KitchenRadio to auto-switch sources")
+        
+        # TODO: Add KitchenRadio integration here
+        # Example:
+        # try:
+        #     from kitchenradio.radio.kitchen_radio import kitchen_radio_instance
+        #     if kitchen_radio_instance:
+        #         kitchen_radio_instance.set_source(BackendType.BLUETOOTH)
+        # except Exception as e:
+        #     logger.error(f"Could not switch KitchenRadio source: {e}")
     
     def on_stream_stopped(self, path):
         """Handle when a device stops streaming audio"""
