@@ -725,7 +725,7 @@ class DisplayController:
                 display_data = {
                     'title': device.get('name', 'Unknown Device'),
                     'artist': 'Bluetooth Connected',
-                    'album': f'MAC: {device.get('mac', 'Unknown')}',
+                    'album': f"MAC: {device.get('mac', 'Unknown')}",
                     'playing': True,
                     'volume': 0,
                     'scroll_offsets': self.current_scroll_offsets
