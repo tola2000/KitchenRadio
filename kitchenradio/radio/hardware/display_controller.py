@@ -385,9 +385,10 @@ class DisplayController:
                         logger.info(f"Rendering MPD display after status/power change")
                         self._render_mpd_display(current_status['mpd'])
                         return
-                    elif current_source == 'librespot' and current_status.get('librespot', {}).get('connected'):
+                    elif current_source == 'librespot':
+                        # Render Spotify display regardless of connection status - will show "Niet Actief" if not connected
                         logger.info(f"Rendering Spotify display after status/power change")
-                        self._render_librespot_display(current_status['librespot'])
+                        self._render_librespot_display(current_status.get('librespot', {'connected': False, 'volume': 50, 'current_track': None}))
                         return
                     elif current_source == 'bluetooth':
                         logger.info(f"Rendering Bluetooth display after status/power change")

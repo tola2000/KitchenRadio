@@ -1168,6 +1168,14 @@ class KitchenRadio:
             except Exception as e:
                 self.logger.error(f"Error getting librespot status: {e}")
                 status['librespot']['error'] = str(e)
+        elif self.source == BackendType.LIBRESPOT:
+            # Librespot is selected as source but not connected - return minimal status for display
+            status['librespot'] = {
+                'connected': False,
+                'state': 'stopped',
+                'volume': 50,
+                'current_track': None
+            }
         
         # Get Bluetooth status
         if self.bluetooth_connected and self.bluetooth_controller:
