@@ -846,8 +846,15 @@ class DisplayFormatter:
         }
         
         # Process artist/album
+        # Check if in pairing mode to adjust formatting
+        pairing_mode = track_data.get('pairing_mode', False)
+        
         if not artist == 'Unknown' and not album == 'Unknown':
-            artist_album_text = f"{artist} : {album}"
+            # Remove colon if in pairing mode
+            if pairing_mode:
+                artist_album_text = f"{artist} {album}"
+            else:
+                artist_album_text = f"{artist} : {album}"
         elif not album == 'Unknown':
             artist_album_text = album
         else:
@@ -896,6 +903,9 @@ class DisplayFormatter:
             play_icon = "🔗"  # Pairing icon for Bluetooth pairing mode
         else:
             play_icon = "▶" if playing else "⏸"
+        
+        # Set volume bar brightness based on pairing mode
+        volume_bar_brightness = 80 if pairing_mode else 255  # Grey out when pairing
         icon_font = self.fonts['large']  # Use large font (one size larger than medium source)
         icon_bbox = icon_font.getbbox(play_icon)
         icon_width = icon_bbox[2] - icon_bbox[0]
@@ -923,13 +933,14 @@ class DisplayFormatter:
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
             # Draw volume bar background (empty bar) - monochrome for crisp edges
+            # Use volume_bar_brightness to grey out when in pairing mode
             self._draw_rectangle_mono(draw, img, [(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)], 
-                                     outline=255)
+                                     outline=volume_bar_brightness)
             
             # Draw volume bar fill (filled portion based on volume) - monochrome for crisp edges
             if fill_height > 0:
                 self._draw_rectangle_mono(draw, img, [(bar_x + 1, fill_y), (bar_x + bar_width - 1, bar_y + bar_height - 1)], 
-                                         fill=255)
+                                         fill=volume_bar_brightness)
             
             # Draw title - monochrome for brightness
             if title_image:
