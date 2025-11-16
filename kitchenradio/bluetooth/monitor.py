@@ -691,6 +691,34 @@ class BluetoothMonitor:
             'avrcp_available': self.avrcp_client is not None and self.avrcp_client.is_available()
         }
     
+    def next(self) -> bool:
+        """
+        Skip to next track via AVRCP.
+        
+        Returns:
+            True if command was sent successfully, False otherwise
+        """
+        if self.avrcp_client and self.avrcp_client.is_available():
+            logger.info("⏭️  Skipping to next track")
+            return self.avrcp_client.next()
+        else:
+            logger.warning("Cannot skip to next track: AVRCP not available")
+            return False
+    
+    def previous(self) -> bool:
+        """
+        Skip to previous track via AVRCP.
+        
+        Returns:
+            True if command was sent successfully, False otherwise
+        """
+        if self.avrcp_client and self.avrcp_client.is_available():
+            logger.info("⏮️  Skipping to previous track")
+            return self.avrcp_client.previous()
+        else:
+            logger.warning("Cannot skip to previous track: AVRCP not available")
+            return False
+    
     def print_current_track(self):
         """Print current track to console"""
         track = self.get_current_track()

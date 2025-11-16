@@ -849,15 +849,25 @@ class DisplayFormatter:
         # Check if in pairing mode to adjust formatting
         pairing_mode = track_data.get('pairing_mode', False)
         
-        if not artist == 'Unknown' and not album == 'Unknown':
-            # Remove colon if in pairing mode
+        # Helper to check if value is valid (not Unknown and not empty)
+        def is_valid(value):
+            return value and value != 'Unknown' and value.strip() != ''
+        
+        if is_valid(artist) and is_valid(album):
+            # Both artist and album are valid - show with separator
+            # Remove colon if in pairing mode or use space only
             if pairing_mode:
                 artist_album_text = f"{artist} {album}"
             else:
                 artist_album_text = f"{artist} : {album}"
-        elif not album == 'Unknown':
+        elif is_valid(album):
+            # Only album is valid
             artist_album_text = album
+        elif is_valid(artist):
+            # Only artist is valid
+            artist_album_text = artist
         else:
+            # Neither is valid - fallback to artist (which might be 'Unknown')
             artist_album_text = artist
         
         artist_album_offset = scroll_offsets.get('artist_album', 0)

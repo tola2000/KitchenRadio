@@ -647,6 +647,28 @@ class BluetoothController:
                 return status.get('state', 'stopped')
         return None
     
+    def next(self) -> bool:
+        """
+        Skip to next track via AVRCP.
+        
+        Returns:
+            True if command was sent successfully, False otherwise
+        """
+        if self.monitor:
+            return self.monitor.next()
+        return False
+    
+    def previous(self) -> bool:
+        """
+        Skip to previous track via AVRCP.
+        
+        Returns:
+            True if command was sent successfully, False otherwise
+        """
+        if self.monitor:
+            return self.monitor.previous()
+        return False
+    
     def cleanup(self):
         """Cleanup resources"""
         logger.info("🧹 Cleaning up BluetoothController...")
