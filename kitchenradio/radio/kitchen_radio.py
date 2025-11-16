@@ -431,6 +431,11 @@ class KitchenRadio:
             elif source == BackendType.LIBRESPOT and self.librespot_connected:
                 self.librespot_controller.stop()
                 self.logger.info("🛑 Stopped Spotify playback")
+            
+            elif source == BackendType.BLUETOOTH and self.bluetooth_connected:
+                if self.bluetooth_controller and self.bluetooth_controller.is_connected():
+                    self.bluetooth_controller.disconnect_current()
+                    self.logger.info("🛑 Disconnected Bluetooth device")
                 
         except Exception as e:
             self.logger.warning(f"Error stopping {source.value}: {e}")
@@ -543,6 +548,12 @@ class KitchenRadio:
             self.powered_on = False
             self._stop_source(BackendType.MPD)
             self._stop_source(BackendType.LIBRESPOT)
+            
+            # Disconnect Bluetooth if connected
+            if self.bluetooth_controller and self.bluetooth_controller.is_connected():
+                self.logger.info("Disconnecting Bluetooth device (power off)")
+                self.bluetooth_controller.disconnect_current()
+            
             self._set_source(BackendType.NONE)
         return True    
 
@@ -986,6 +997,11 @@ class KitchenRadio:
             if ((self.source == BackendType.MPD and self.mpd_connected) or 
                 (self.source == BackendType.LIBRESPOT and self.librespot_connected)):
                 self._stop_source(self.source)
+            elif self.source == BackendType.BLUETOOTH and self.bluetooth_connected:
+                # Disconnect Bluetooth device when switching away
+                if self.bluetooth_controller and self.bluetooth_controller.is_connected():
+                    self.logger.info("Disconnecting Bluetooth device (switching sources)")
+                    self.bluetooth_controller.disconnect_current()
         
         # Set new source (always successful for display purposes)
         self.source = source
@@ -1049,27 +1065,6 @@ class KitchenRadio:
         if self.librespot_connected:
             sources.append(BackendType.LIBRESPOT)
         return sources
-    
-    def _stop_source(self, source: BackendType):
-        """
-        Stop playback on the specified source.
-        
-        Args:
-            source: Backend type to stop
-        """
-        self.logger.info(f"Stopping playback on: {source.value}")
-        
-        try:
-            if source == BackendType.MPD and self.mpd_connected:
-                self.mpd_controller.stop()
-                self.logger.info("🛑 Stopped MPD playback")
-                
-            elif source == BackendType.LIBRESPOT and self.librespot_connected:
-                self.librespot_controller.pause()
-                self.logger.info("🛑 Stopped Spotify playback")
-                
-        except Exception as e:
-            self.logger.warning(f"Error stopping {source.value}: {e}")
     
     def switch_to_mpd(self) -> bool:
         """
