@@ -448,25 +448,126 @@ class AVRCPClient:
         """
         return self._send_control_command('Rewind')
     
-    def volume_up(self) -> bool:
+    def get_volume(self) -> Optional[int]:
+        """
+        Get current volume from AVRCP MediaPlayer.
+        
+        Returns:
+            Volume level (0-127) or None if not available
+        """
+        if not self.player_path or not self.bus:
+            if not self._find_media_player():
+                return None
+        
+        try:
+            player_obj = self.bus.get_object(
+                self.BLUEZ_SERVICE,
+                self.player_path
+            )
+            player_props = dbus.Interface(
+                player_obj,
+                self.PROPERTIES_INTERFACE
+            )
+            
+            volume = player_props.Get(
+                self.MEDIA_PLAYER_INTERFACE,
+                'Volume'
+            )
+            
+            volume_level = int(volume)
+            logger.debug(f"📡 AVRCP Volume: {volume_level}")
+            return volume_level
+            
+        except dbus.exceptions.DBusException as e:
+            logger.debug(f"Could not get AVRCP volume: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting AVRCP volume: {e}")
+            return None
+    
+    def set_volume(self, volume: int) -> bool:
+        """
+        Set volume via AVRCP MediaPlayer.
+        
+        Args:
+            volume: Volume level (0-127)
+            
+        Returns:
+            True if successful
+        """
+        if not self.player_path or not self.bus:
+            if not self._find_media_player():
+                logger.warning(f"Cannot set volume: no media player")
+                return False
+        
+        try:
+            # Clamp volume to valid range
+            volume = max(0, min(127, volume))
+            
+            player_obj = self.bus.get_object(
+                self.BLUEZ_SERVICE,
+                self.player_path
+            )
+            player_props = dbus.Interface(
+                player_obj,
+                self.PROPERTIES_INTERFACE
+            )
+            
+            logger.info(f"📡 AVRCP: Setting volume to {volume} on {self.state.device_name}")
+            
+            player_props.Set(
+                self.MEDIA_PLAYER_INTERFACE,
+                'Volume',
+                dbus.UInt16(volume)
+            )
+            
+            logger.info(f"🔊 AVRCP volume set to {volume}")
+            return True
+            
+        except dbus.exceptions.DBusException as e:
+            logger.warning(f"📡 AVRCP set volume failed (DBus): {e}")
+            return False
+        except Exception as e:
+            logger.error(f"📡 AVRCP error setting volume: {e}")
+            return False
+    
+    def volume_up(self, step: int = 10) -> bool:
         """
         Increase volume on the Bluetooth device via AVRCP.
         
+        Args:
+            step: Volume increase step (default 10, AVRCP uses 0-127 range)
+            
         Returns:
             True if successful
         """
-        logger.info(f"📡 AVRCP: Sending VolumeUp command to {self.state.device_name}")
-        return self._send_control_command('VolumeUp')
+        logger.info(f"📡 AVRCP: Increasing volume on {self.state.device_name}")
+        current = self.get_volume()
+        if current is None:
+            logger.warning("Cannot get current AVRCP volume")
+            return False
+        
+        new_volume = min(127, current + step)
+        return self.set_volume(new_volume)
     
-    def volume_down(self) -> bool:
+    def volume_down(self, step: int = 10) -> bool:
         """
         Decrease volume on the Bluetooth device via AVRCP.
         
+        Args:
+            step: Volume decrease step (default 10, AVRCP uses 0-127 range)
+            
         Returns:
             True if successful
         """
-        logger.info(f"📡 AVRCP: Sending VolumeDown command to {self.state.device_name}")
-        return self._send_control_command('VolumeDown')
+        logger.info(f"📡 AVRCP: Decreasing volume on {self.state.device_name}")
+        current = self.get_volume()
+        if current is None:
+            logger.warning("Cannot get current AVRCP volume")
+            return False
+        
+        new_volume = max(0, current - step)
+        return self.set_volume(new_volume)
     
     def _send_control_command(self, command: str) -> bool:
         """

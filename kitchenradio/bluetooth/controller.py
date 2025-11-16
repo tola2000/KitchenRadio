@@ -405,22 +405,26 @@ class BluetoothController:
     
     def get_volume(self) -> Optional[int]:
         """
-        Get current volume of Bluetooth audio sink (cached to avoid PulseAudio polling).
-        Call refresh_volume() to update the cache.
+        Get current volume via AVRCP (0-100 scale).
         
         Returns:
-            Cached volume level (0-100) or default 50 if no cache available
+            Volume level (0-100) or None if not available
         """
         # Skip if no device connected
         if not self.connected_devices:
             return None
         
-        # Return cached value if available
-        if self._volume_cache_valid and self._cached_volume is not None:
-            return self._cached_volume
+        # Get volume from AVRCP client
+        if self.monitor and self.monitor.avrcp_client:
+            if self.monitor.avrcp_client.is_available():
+                avrcp_volume = self.monitor.avrcp_client.get_volume()
+                if avrcp_volume is not None:
+                    # Convert from AVRCP scale (0-127) to percentage (0-100)
+                    volume_pct = int(avrcp_volume * 100 / 127)
+                    logger.debug(f"AVRCP volume: {avrcp_volume}/127 = {volume_pct}%")
+                    return volume_pct
         
-        # No cache - return default and refresh in background
-        logger.debug("No volume cache, using default 50")
+        logger.debug("AVRCP volume not available, returning default 50")
         return 50
     
     def refresh_volume(self) -> Optional[int]:
@@ -550,65 +554,43 @@ class BluetoothController:
     
     def volume_up(self, step: int = 5) -> bool:
         """
-        Increase Bluetooth volume via AVRCP (controls device volume).
+        Increase Bluetooth volume via AVRCP.
         
         Args:
-            step: Volume increase step (ignored for AVRCP, kept for API compatibility)
+            step: Volume increase step (default 5, converted to AVRCP 0-127 scale)
             
         Returns:
             True if successful
         """
-        # Try AVRCP volume control first (controls device volume)
         if self.monitor and self.monitor.avrcp_client:
             if self.monitor.avrcp_client.is_available():
-                logger.info("🔊 Sending volume up command to Bluetooth device via AVRCP")
-                # AVRCP uses single-step volume changes, so repeat for the step amount
-                success = True
-                for _ in range(max(1, step // 5)):  # Default step is 5, so divide to get number of AVRCP steps
-                    if not self.monitor.avrcp_client.volume_up():
-                        success = False
-                        break
-                return success
-        
-        # Fallback to PulseAudio volume control (controls sink volume)
-        logger.debug("AVRCP not available, using PulseAudio volume control")
-        current = self.get_volume()
-        if current is None:
-            return False
-        
-        new_volume = min(100, current + step)
-        return self.set_volume(new_volume)
+                logger.info("🔊 Sending volume up command to Bluetooth device")
+                # Convert step from 0-100 scale to 0-127 AVRCP scale
+                avrcp_step = int(step * 127 / 100)
+                return self.monitor.avrcp_client.volume_up(avrcp_step)
+            else:
+                logger.warning("Cannot increase volume: AVRCP not available")
+        return False
     
     def volume_down(self, step: int = 5) -> bool:
         """
-        Decrease Bluetooth volume via AVRCP (controls device volume).
+        Decrease Bluetooth volume via AVRCP.
         
         Args:
-            step: Volume decrease step (ignored for AVRCP, kept for API compatibility)
+            step: Volume decrease step (default 5, converted to AVRCP 0-127 scale)
             
         Returns:
             True if successful
         """
-        # Try AVRCP volume control first (controls device volume)
         if self.monitor and self.monitor.avrcp_client:
             if self.monitor.avrcp_client.is_available():
-                logger.info("🔉 Sending volume down command to Bluetooth device via AVRCP")
-                # AVRCP uses single-step volume changes, so repeat for the step amount
-                success = True
-                for _ in range(max(1, step // 5)):  # Default step is 5, so divide to get number of AVRCP steps
-                    if not self.monitor.avrcp_client.volume_down():
-                        success = False
-                        break
-                return success
-        
-        # Fallback to PulseAudio volume control (controls sink volume)
-        logger.debug("AVRCP not available, using PulseAudio volume control")
-        current = self.get_volume()
-        if current is None:
-            return False
-        
-        new_volume = max(0, current - step)
-        return self.set_volume(new_volume)
+                logger.info("🔉 Sending volume down command to Bluetooth device")
+                # Convert step from 0-100 scale to 0-127 AVRCP scale
+                avrcp_step = int(step * 127 / 100)
+                return self.monitor.avrcp_client.volume_down(avrcp_step)
+            else:
+                logger.warning("Cannot decrease volume: AVRCP not available")
+        return False
     
     def _unsuspend_bluetooth_sink(self):
         """
