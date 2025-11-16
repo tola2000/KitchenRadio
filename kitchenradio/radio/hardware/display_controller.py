@@ -706,6 +706,7 @@ class DisplayController:
         """Update display for Bluetooth source"""
         is_discoverable = bluetooth_status.get('discoverable', False)
         connected_devices = bluetooth_status.get('connected_devices', [])
+        volume = bluetooth_status.get('volume', 50)  # Get Bluetooth volume
         
         if is_discoverable:
             # Show pairing mode message
@@ -727,7 +728,8 @@ class DisplayController:
                     'artist': 'Bluetooth Connected',
                     'album': f"MAC: {device.get('mac', 'Unknown')}",
                     'playing': True,
-                    'volume': 0,
+                    'volume': volume,
+                    'source': 'Bluetooth',
                     'scroll_offsets': self.current_scroll_offsets
                 }
                 self.current_display_type = 'track_info'
@@ -738,10 +740,11 @@ class DisplayController:
             device = connected_devices[0]
             display_data = {
                 'title': device.get('name', 'Unknown Device'),
-                'artist': 'Bluetooth Audio',
-                'album': 'Ready for streaming',
+                'artist': '',
+                'album': '',
                 'playing': True,
-                'volume': 0,
+                'volume': volume,
+                'source': 'Bluetooth',
                 'scroll_offsets': self.current_scroll_offsets
             }
             self.current_display_type = 'track_info'
