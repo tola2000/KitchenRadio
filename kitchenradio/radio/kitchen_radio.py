@@ -998,6 +998,9 @@ class KitchenRadio:
         # Always allow source selection for display purposes, even if backend is disconnected
         # We'll store the selected source and use it when the backend connects
         
+        # Store the previous source before changing it
+        previous_source = self.source
+        
         # Stop current source if different and connected
         if self.source and self.source != source:
             if ((self.source == BackendType.MPD and self.mpd_connected) or 
@@ -1028,16 +1031,16 @@ class KitchenRadio:
             elif self.bluetooth_controller and self.bluetooth_controller.is_connected():
                 self.logger.info(f"✅ Active source set to: {source.value} (device connected)")
             else:
-                # Only enter pairing mode if BT is already the active source (pressing BT again)
+                # Only enter pairing mode if BT was already the active source (pressing BT again)
                 # Not when first selecting BT from another source
-                if self.source == BackendType.BLUETOOTH:
+                if previous_source == BackendType.BLUETOOTH:
                     # Already on BT source - pressing BT button again triggers pairing
                     self.logger.info(f"BT source button pressed while already on BT - entering pairing mode (60s timeout)")
                     if self.bluetooth_controller:
                         self.bluetooth_controller.enter_pairing_mode(timeout_seconds=60)
                 else:
                     # First time selecting BT - just show "Niet Verbonden" without pairing
-                    self.logger.info(f"✅ Source set to {source.value} - showing disconnected state")
+                    self.logger.info(f"✅ Source set to {source.value} - showing disconnected state (no pairing)")
         else:
             self.logger.info(f"✅ Active source set to: {source.value} (backend connected)")
             
