@@ -237,7 +237,15 @@ class KitchenRadio:
                 self.logger.warning("Bluetooth controller failed to start")
                 return False
             
-            self.bluetooth_connected = True
+            # Check if any device is already connected
+            if self.bluetooth_controller.is_connected():
+                self.bluetooth_connected = True
+                device_name = self.bluetooth_controller.get_connected_device_name()
+                self.logger.info(f"Bluetooth device already connected: {device_name}")
+            else:
+                self.bluetooth_connected = False
+                self.logger.info("Bluetooth initialized but no device connected yet")
+            
             self.logger.info("Bluetooth backend initialized successfully")
             return True
             
