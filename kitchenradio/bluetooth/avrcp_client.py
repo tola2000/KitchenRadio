@@ -448,6 +448,26 @@ class AVRCPClient:
         """
         return self._send_control_command('Rewind')
     
+    def volume_up(self) -> bool:
+        """
+        Increase volume on the Bluetooth device via AVRCP.
+        
+        Returns:
+            True if successful
+        """
+        logger.info(f"📡 AVRCP: Sending VolumeUp command to {self.state.device_name}")
+        return self._send_control_command('VolumeUp')
+    
+    def volume_down(self) -> bool:
+        """
+        Decrease volume on the Bluetooth device via AVRCP.
+        
+        Returns:
+            True if successful
+        """
+        logger.info(f"📡 AVRCP: Sending VolumeDown command to {self.state.device_name}")
+        return self._send_control_command('VolumeDown')
+    
     def _send_control_command(self, command: str) -> bool:
         """
         Send control command to media player.
@@ -494,7 +514,9 @@ class AVRCPClient:
                 "Previous": "⏮️",
                 "Play": "▶️",
                 "Pause": "⏸️",
-                "Stop": "⏹️"
+                "Stop": "⏹️",
+                "VolumeUp": "🔊",
+                "VolumeDown": "🔉"
             }
             emoji = emoji_map.get(command, "✅")
             logger.info(f"{emoji} AVRCP command sent successfully: {command}")
