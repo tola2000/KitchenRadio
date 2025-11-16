@@ -1148,6 +1148,28 @@ class KitchenRadio:
                 self.logger.error(f"Error getting librespot status: {e}")
                 status['librespot']['error'] = str(e)
         
+        # Get Bluetooth status
+        if self.bluetooth_connected and self.bluetooth_controller:
+            try:
+                connected_devices = []
+                if self.bluetooth_controller.current_device_name:
+                    connected_devices.append({
+                        'name': self.bluetooth_controller.current_device_name,
+                        'mac': list(self.bluetooth_controller.connected_devices)[0] if self.bluetooth_controller.connected_devices else 'Unknown'
+                    })
+                
+                status['bluetooth'] = {
+                    'connected': True,
+                    'discoverable': self.bluetooth_controller.pairing_mode,
+                    'connected_devices': connected_devices,
+                    'is_connected': self.bluetooth_controller.is_connected()
+                }
+            except Exception as e:
+                self.logger.error(f"Error getting Bluetooth status: {e}")
+                status['bluetooth'] = {'connected': False, 'error': str(e)}
+        else:
+            status['bluetooth'] = {'connected': False}
+        
         return status
     
     def run(self):

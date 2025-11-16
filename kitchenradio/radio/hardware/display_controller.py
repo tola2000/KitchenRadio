@@ -389,6 +389,10 @@ class DisplayController:
                         logger.info(f"Rendering Spotify display after status/power change")
                         self._render_librespot_display(current_status['librespot'])
                         return
+                    elif current_source == 'bluetooth':
+                        logger.info(f"Rendering Bluetooth display after status/power change")
+                        self._render_bluetooth_display(current_status.get('bluetooth', {}))
+                        return
                     else:
                         logger.info(f"Rendering no source display after status/power change")
                         self._render_no_source_display(current_status)
@@ -698,6 +702,63 @@ class DisplayController:
         # Render the display content
         self._render_display_content('status_message', message_data)
     
+    def _render_bluetooth_display(self, bluetooth_status: Dict[str, Any]):
+        """Update display for Bluetooth source"""
+        is_discoverable = bluetooth_status.get('discoverable', False)
+        connected_devices = bluetooth_status.get('connected_devices', [])
+        
+        if is_discoverable:
+            # Show pairing mode message
+            if not connected_devices:
+                message_data = {
+                    'message': '🔵 PAIRING MODE - Pair your device now!',
+                    'icon': '🔍',
+                    'message_type': 'info',
+                    'scroll_offsets': self.current_scroll_offsets
+                }
+                self.current_display_type = 'status_message'
+                self.current_display_data = message_data
+                self._render_display_content('status_message', message_data)
+            else:
+                # Show connected device during pairing mode
+                device = connected_devices[0]
+                display_data = {
+                    'title': device.get('name', 'Unknown Device'),
+                    'artist': 'Bluetooth Connected',
+                    'album': f'MAC: {device.get('mac', 'Unknown')}',
+                    'playing': True,
+                    'volume': 0,
+                    'scroll_offsets': self.current_scroll_offsets
+                }
+                self.current_display_type = 'track_info'
+                self.current_display_data = display_data
+                self._render_display_content('track_info', display_data)
+        elif connected_devices:
+            # Show connected device info
+            device = connected_devices[0]
+            display_data = {
+                'title': device.get('name', 'Unknown Device'),
+                'artist': 'Bluetooth Audio',
+                'album': 'Ready for streaming',
+                'playing': True,
+                'volume': 0,
+                'scroll_offsets': self.current_scroll_offsets
+            }
+            self.current_display_type = 'track_info'
+            self.current_display_data = display_data
+            self._render_display_content('track_info', display_data)
+        else:
+            # No devices, show waiting message
+            message_data = {
+                'message': 'Bluetooth: No device connected',
+                'icon': '🔵',
+                'message_type': 'info',
+                'scroll_offsets': self.current_scroll_offsets
+            }
+            self.current_display_type = 'status_message'
+            self.current_display_data = message_data
+            self._render_display_content('status_message', message_data)
+    
     # Manual display control methods
     
     def show_track_info(self, track, playing: bool = False, volume: int = None):
@@ -853,6 +914,9 @@ class DisplayController:
                 return status['mpd'].get('volume')
             elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
                 return status['librespot'].get('volume')
+            elif current_source == 'bluetooth':
+                # Bluetooth doesn't have volume control (uses system volume)
+                return None
             
             return None
         except Exception as e:
