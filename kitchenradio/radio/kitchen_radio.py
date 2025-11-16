@@ -249,14 +249,24 @@ class KitchenRadio:
         """Handle Bluetooth device connection"""
         self.logger.info(f"🔵 Bluetooth device connected: {name} ({mac})")
         
+        # Mark Bluetooth as connected (backend available)
+        self.bluetooth_connected = True
+        
         # Auto-switch to Bluetooth source if not already
         if self.source != BackendType.BLUETOOTH:
             self.logger.info("Auto-switching to Bluetooth source")
             self.set_source(BackendType.BLUETOOTH)
+        else:
+            # Already on Bluetooth source, just update display
+            self.logger.info("Already on Bluetooth source, updating display")
+            self._trigger_callbacks('status_changed')
     
     def _on_bluetooth_disconnected(self, name: str, mac: str):
         """Handle Bluetooth device disconnection"""
         self.logger.info(f"🔴 Bluetooth device disconnected: {name} ({mac})")
+        
+        # Mark Bluetooth as disconnected (backend not available)
+        self.bluetooth_connected = False
         
         # Switch to previous source if we were on Bluetooth
         if self.source == BackendType.BLUETOOTH:
