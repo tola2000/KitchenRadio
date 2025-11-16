@@ -112,10 +112,14 @@ class BluetoothController:
         self.current_device_path: Optional[str] = None
         self.current_device_name: Optional[str] = None
         
+        # Volume cache (to avoid constant PulseAudio polling)
+        self._cached_volume: Optional[int] = None
+        self._volume_cache_valid = False
+        
         # Callbacks
         self.on_device_connected: Optional[Callable[[str, str], None]] = None  # (name, mac)
         self.on_device_disconnected: Optional[Callable[[str, str], None]] = None  # (name, mac)
-        self.on_stream_started: Optional[Callable, None] = None
+        self.on_stream_started: Optional[Callable] = None
         
         # Initialize D-Bus in separate thread
         self._setup_dbus_threaded()
@@ -271,6 +275,12 @@ class BluetoothController:
                         self.current_device_name = name
                         logger.info(f"🟢 DEVICE CONNECTED: {name} ({address})")
                         
+                        # Prevent PulseAudio from auto-suspending the Bluetooth sink
+                        self._unsuspend_bluetooth_sink()
+                        
+                        # Refresh volume cache on connection
+                        GLib.timeout_add(2000, self.refresh_volume)  # Delay 2s for sink to be ready
+                        
                         # Trigger callback
                         if self.on_device_connected:
                             self.on_device_connected(name, address)
@@ -281,6 +291,10 @@ class BluetoothController:
                             self.current_device_path = None
                             self.current_device_name = None
                         logger.info(f"🔴 DEVICE DISCONNECTED: {name} ({address})")
+                        
+                        # Invalidate volume cache on disconnection
+                        self._volume_cache_valid = False
+                        self._cached_volume = None
                         
                         # Trigger callback
                         if self.on_device_disconnected:
@@ -432,56 +446,87 @@ class BluetoothController:
     
     def get_volume(self) -> Optional[int]:
         """
-        Get current volume of Bluetooth audio sink from PulseAudio.
+        Get current volume of Bluetooth audio sink (cached to avoid PulseAudio polling).
+        Call refresh_volume() to update the cache.
         
         Returns:
-            Volume level (0-100) or None if unable to get volume
+            Cached volume level (0-100) or default 50 if no cache available
         """
+        # Skip if no device connected
+        if not self.connected_devices:
+            return None
+        
+        # Return cached value if available
+        if self._volume_cache_valid and self._cached_volume is not None:
+            return self._cached_volume
+        
+        # No cache - return default and refresh in background
+        logger.debug("No volume cache, using default 50")
+        return 50
+    
+    def refresh_volume(self) -> Optional[int]:
+        """
+        Refresh the volume cache by querying PulseAudio.
+        This should be called sparingly to avoid performance issues.
+        
+        Returns:
+            Updated volume level (0-100) or None if unable to get volume
+        """
+        # Skip if no device connected
+        if not self.connected_devices:
+            self._volume_cache_valid = False
+            return None
+            
         try:
-            # Get list of sinks with their volumes
+            # Use shorter timeout and only get sink info (faster)
             result = subprocess.run(
-                ['pactl', 'list', 'sinks'],
+                ['pactl', 'list', 'sinks', 'short'],
                 capture_output=True,
                 text=True,
-                timeout=2
+                timeout=1
             )
             
             if result.returncode != 0:
-                logger.debug("pactl command failed")
-                return None
+                return self._cached_volume
             
-            # Parse output to find bluez sink and its volume
-            lines = result.stdout.split('\n')
-            in_bluez_sink = False
-            
-            for i, line in enumerate(lines):
-                # Look for bluez sink
-                if 'Name:' in line and 'bluez' in line.lower():
-                    in_bluez_sink = True
-                    logger.debug(f"Found Bluetooth sink: {line.strip()}")
-                elif in_bluez_sink:
-                    # Look for Volume line after finding bluez sink
-                    if 'Volume:' in line:
-                        # Extract percentage: "Volume: front-left: 65536 / 100% ..."
-                        # Use regex to find percentage
-                        match = re.search(r'(\d+)%', line)
-                        if match:
-                            volume = int(match.group(1))
-                            logger.debug(f"Bluetooth volume: {volume}%")
-                            return volume
-                    # Stop looking if we hit the next sink
-                    elif 'Sink #' in line or 'Name:' in line:
+            # Find bluez sink name
+            sink_name = None
+            for line in result.stdout.split('\n'):
+                if 'bluez' in line.lower():
+                    parts = line.split()
+                    if parts:
+                        sink_name = parts[0]
                         break
             
-            logger.debug("No Bluetooth sink volume found")
-            return None
+            if not sink_name:
+                return self._cached_volume
+            
+            # Get volume for specific sink (much faster than listing all sinks)
+            result = subprocess.run(
+                ['pactl', 'get-sink-volume', sink_name],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+            
+            if result.returncode == 0:
+                # Parse volume: "Volume: front-left: 65536 / 100% ..."
+                match = re.search(r'(\d+)%', result.stdout)
+                if match:
+                    volume = int(match.group(1))
+                    self._cached_volume = volume
+                    self._volume_cache_valid = True
+                    logger.debug(f"Refreshed Bluetooth volume cache: {volume}%")
+                    return volume
+            
+            return self._cached_volume
             
         except subprocess.TimeoutExpired:
-            logger.error("Timeout getting Bluetooth volume")
-            return None
+            logger.debug("Timeout refreshing Bluetooth volume")
+            return self._cached_volume
         except Exception as e:
-            logger.error(f"Error getting Bluetooth volume: {e}")
-            return None
+            logger.debug(f"Could not refresh Bluetooth volume: {e}")
+            return self._cached_volume
     
     def set_volume(self, volume: int) -> bool:
         """
@@ -532,6 +577,9 @@ class BluetoothController:
             
             if result.returncode == 0:
                 logger.info(f"🔊 Bluetooth volume set to {volume}%")
+                # Update cache
+                self._cached_volume = volume
+                self._volume_cache_valid = True
                 return True
             else:
                 logger.error("Failed to set Bluetooth volume")
@@ -574,6 +622,47 @@ class BluetoothController:
         
         new_volume = max(0, current - step)
         return self.set_volume(new_volume)
+    
+    def _unsuspend_bluetooth_sink(self):
+        """
+        Prevent PulseAudio from suspending the Bluetooth sink.
+        This fixes the issue where audio stops after 1 second due to auto-suspend.
+        """
+        try:
+            # Find Bluetooth sink
+            result = subprocess.run(
+                ['pactl', 'list', 'sinks', 'short'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'bluez' in line.lower():
+                        # Extract sink name (first column)
+                        parts = line.split()
+                        if parts:
+                            sink_name = parts[0]
+                            
+                            # Unsuspend the sink
+                            subprocess.run(
+                                ['pactl', 'suspend-sink', sink_name, '0'],
+                                capture_output=True,
+                                timeout=2
+                            )
+                            logger.info(f"🔊 Unsuspended Bluetooth sink: {sink_name}")
+                            
+                            # Set as default sink to ensure audio routes here
+                            subprocess.run(
+                                ['pactl', 'set-default-sink', sink_name],
+                                capture_output=True,
+                                timeout=2
+                            )
+                            logger.info(f"🎯 Set Bluetooth as default sink: {sink_name}")
+                            break
+        except Exception as e:
+            logger.warning(f"Could not unsuspend Bluetooth sink: {e}")
     
     def cleanup(self):
         """Cleanup resources"""

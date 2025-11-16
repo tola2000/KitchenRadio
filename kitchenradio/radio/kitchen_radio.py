@@ -272,7 +272,9 @@ class KitchenRadio:
         self.logger.debug(f"Added callback for {event}")
 
     def _on_client_changed(self, **kwargs):
-        self._trigger_callbacks(event='any', **kwargs)
+        # Remove 'event' from kwargs if present to avoid conflict
+        callback_kwargs = {k: v for k, v in kwargs.items() if k != 'event'}
+        self._trigger_callbacks(event='any', **callback_kwargs)
 
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
@@ -1104,22 +1106,27 @@ class KitchenRadio:
             'librespot': {'connected': False}
         }
         
-        # Get MPD status
+        # Get MPD status (only if it's the active source to avoid unnecessary queries)
         if self.mpd_connected and self.mpd_monitor:
             try:
-                mpd_status = self.mpd_monitor.get_status()
-                current_song = self.mpd_monitor.get_current_track()
-                
-                status['mpd'] = {
-                    'connected': True,
-                    'state': mpd_status.get('state', 'unknown'),
-                    'volume': mpd_status.get('volume', 'unknown'),
-                    'current_track': {
-                        'title': current_song.get('title', current_song.get('title', 'Unknown')) if current_song else None,
-                        'artist': current_song.get('artist', 'Unknown') if current_song else None,
-                        'album': current_song.get('album', 'Unknown') if current_song else None,
-                    } if current_song else None
-                }
+                # Only get detailed status if MPD is the active source
+                if self.source == BackendType.MPD:
+                    mpd_status = self.mpd_monitor.get_status()
+                    current_song = self.mpd_monitor.get_current_track()
+                    
+                    status['mpd'] = {
+                        'connected': True,
+                        'state': mpd_status.get('state', 'unknown'),
+                        'volume': mpd_status.get('volume', 'unknown'),
+                        'current_track': {
+                            'title': current_song.get('title', current_song.get('title', 'Unknown')) if current_song else None,
+                            'artist': current_song.get('artist', 'Unknown') if current_song else None,
+                            'album': current_song.get('album', 'Unknown') if current_song else None,
+                        } if current_song else None
+                    }
+                else:
+                    # Just show connected status
+                    status['mpd'] = {'connected': True, 'state': 'idle'}
             except Exception as e:
                 status['mpd']['error'] = str(e)
         
