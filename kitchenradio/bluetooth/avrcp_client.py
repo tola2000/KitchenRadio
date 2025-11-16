@@ -414,7 +414,7 @@ class AVRCPClient:
         Returns:
             True if successful
         """
-        logger.info(f"📡 AVRCP: Sending Next command to {self.device_name}")
+        logger.info(f"📡 AVRCP: Sending Next command to {self.state.device_name}")
         return self._send_control_command('Next')
     
     def previous(self) -> bool:
@@ -424,7 +424,7 @@ class AVRCPClient:
         Returns:
             True if successful
         """
-        logger.info(f"📡 AVRCP: Sending Previous command to {self.device_name}")
+        logger.info(f"📡 AVRCP: Sending Previous command to {self.state.device_name}")
         return self._send_control_command('Previous')
     
     def fast_forward(self) -> bool:
