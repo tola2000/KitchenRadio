@@ -242,6 +242,12 @@ class BluetoothController:
             if interface != self.DEVICE_INTERFACE:
                 return
             
+            # Debug logging: Show all property changes
+            logger.debug(f"🔍 D-Bus Property Change on {path}")
+            logger.debug(f"   Changed properties: {dict(changed)}")
+            if invalidated:
+                logger.debug(f"   Invalidated: {list(invalidated)}")
+            
             # Get device info
             device_obj = self.bus.get_object(self.BLUEZ_SERVICE, path)
             device_props = dbus.Interface(device_obj, self.PROPERTIES_INTERFACE)
@@ -249,6 +255,12 @@ class BluetoothController:
             
             address = str(all_props.get('Address', ''))
             name = str(all_props.get('Name', 'Unknown'))
+            
+            # Debug logging: Show device state
+            logger.debug(f"   Device: {name} ({address})")
+            logger.debug(f"   Connected: {all_props.get('Connected', False)}")
+            logger.debug(f"   Paired: {all_props.get('Paired', False)}")
+            logger.debug(f"   Trusted: {all_props.get('Trusted', False)}")
             
             # Handle pairing
             if 'Paired' in changed and changed['Paired']:
