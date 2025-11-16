@@ -740,7 +740,7 @@ class DisplayController:
             device = connected_devices[0]
             display_data = {
                 'title': device.get('name', 'Unknown Device'),
-                'artist': '',
+                'artist': 'Ready for streaming',
                 'album': '',
                 'playing': True,
                 'volume': volume,
