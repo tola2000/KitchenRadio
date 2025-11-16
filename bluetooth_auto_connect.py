@@ -44,13 +44,13 @@ class AutoPairAgent(dbus.service.Object):
         logger.info(f"🔑 Passkey requested for {device}, returning 0")
         return dbus.UInt32(0)
     
-    @dbus.service.method(AGENT_INTERFACE, in_signature='ou', out_signature='')
-    def DisplayPasskey(self, device, passkey):
+    @dbus.service.method(AGENT_INTERFACE, in_signature='ouq', out_signature='')
+    def DisplayPasskey(self, device, passkey, entered):
         """Display passkey (for confirmation)"""
         logger.info(f"🔢 Display passkey {passkey:06d} for {device}")
         return
     
-    @dbus.service.method(AGENT_INTERFACE, in_signature='ouq', out_signature='')
+    @dbus.service.method(AGENT_INTERFACE, in_signature='os', out_signature='')
     def DisplayPinCode(self, device, pincode):
         """Display PIN code"""
         logger.info(f"🔢 Display PIN {pincode} for {device}")
