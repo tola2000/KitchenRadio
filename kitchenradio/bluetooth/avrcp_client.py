@@ -414,6 +414,7 @@ class AVRCPClient:
         Returns:
             True if successful
         """
+        logger.info(f"📡 AVRCP: Sending Next command to {self.device_name}")
         return self._send_control_command('Next')
     
     def previous(self) -> bool:
@@ -423,6 +424,7 @@ class AVRCPClient:
         Returns:
             True if successful
         """
+        logger.info(f"📡 AVRCP: Sending Previous command to {self.device_name}")
         return self._send_control_command('Previous')
     
     def fast_forward(self) -> bool:
@@ -472,14 +474,15 @@ class AVRCPClient:
             method = getattr(player_interface, command)
             method()
             
-            logger.info(f"✅ AVRCP command sent: {command}")
+            emoji = "⏭️" if command == "Next" else "⏮️" if command == "Previous" else "✅"
+            logger.info(f"{emoji} AVRCP command sent successfully: {command}")
             return True
             
         except dbus.exceptions.DBusException as e:
-            logger.warning(f"AVRCP {command} failed: {e}")
+            logger.warning(f"📡 AVRCP {command} failed (DBus): {e}")
             return False
         except Exception as e:
-            logger.error(f"Error sending AVRCP {command}: {e}")
+            logger.error(f"📡 AVRCP error sending {command}: {e}")
             return False
     
     def is_available(self) -> bool:
