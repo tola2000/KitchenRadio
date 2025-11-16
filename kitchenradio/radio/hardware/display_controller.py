@@ -707,6 +707,8 @@ class DisplayController:
         is_discoverable = bluetooth_status.get('discoverable', False)
         connected_devices = bluetooth_status.get('connected_devices', [])
         volume = bluetooth_status.get('volume', 50)  # Get Bluetooth volume
+        current_track = bluetooth_status.get('current_track')  # Get track info from monitor
+        playback_state = bluetooth_status.get('state', 'stopped')
         
         if is_discoverable:
             # Show pairing mode message
@@ -736,20 +738,37 @@ class DisplayController:
                 self.current_display_data = display_data
                 self._render_display_content('track_info', display_data)
         elif connected_devices:
-            # Show connected device info
-            device = connected_devices[0]
-            display_data = {
-                'title': device.get('name', 'Unknown Device'),
-                'artist': 'Ready for streaming',
-                'album': '',
-                'playing': True,
-                'volume': volume,
-                'source': 'Bluetooth',
-                'scroll_offsets': self.current_scroll_offsets
-            }
-            self.current_display_type = 'track_info'
-            self.current_display_data = display_data
-            self._render_display_content('track_info', display_data)
+            # Show track info if available from AVRCP monitor
+            if current_track and current_track.get('title') != 'Unknown':
+                # Display actual track information from AVRCP
+                logger.debug(f"📱 Displaying Bluetooth track: {current_track.get('title')} - {current_track.get('artist')}")
+                display_data = {
+                    'title': current_track.get('title', 'Unknown'),
+                    'artist': current_track.get('artist', 'Unknown'),
+                    'album': current_track.get('album', ''),
+                    'playing': playback_state == 'playing',
+                    'volume': volume,
+                    'source': 'Bluetooth',
+                    'scroll_offsets': self.current_scroll_offsets
+                }
+                self.current_display_type = 'track_info'
+                self.current_display_data = display_data
+                self._render_display_content('track_info', display_data)
+            else:
+                # No track info available yet - show device ready
+                device = connected_devices[0]
+                display_data = {
+                    'title': device.get('name', 'Unknown Device'),
+                    'artist': 'Ready for streaming',
+                    'album': '',
+                    'playing': False,
+                    'volume': volume,
+                    'source': 'Bluetooth',
+                    'scroll_offsets': self.current_scroll_offsets
+                }
+                self.current_display_type = 'track_info'
+                self.current_display_data = display_data
+                self._render_display_content('track_info', display_data)
         else:
             # No devices, show waiting message
             message_data = {

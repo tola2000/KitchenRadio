@@ -1172,12 +1172,18 @@ class KitchenRadio:
                 # Get Bluetooth volume
                 bluetooth_volume = self.bluetooth_controller.get_volume()
                 
+                # Get track info from monitor
+                current_track = self.bluetooth_controller.get_current_track()
+                playback_status = self.bluetooth_controller.get_playback_status()
+                
                 status['bluetooth'] = {
                     'connected': True,
                     'discoverable': self.bluetooth_controller.pairing_mode,
                     'connected_devices': connected_devices,
                     'is_connected': self.bluetooth_controller.is_connected(),
-                    'volume': bluetooth_volume if bluetooth_volume is not None else 50
+                    'volume': bluetooth_volume if bluetooth_volume is not None else 50,
+                    'state': playback_status if playback_status else 'stopped',
+                    'current_track': current_track
                 }
             except Exception as e:
                 self.logger.error(f"Error getting Bluetooth status: {e}")

@@ -18,6 +18,7 @@ import re
 from typing import Optional, Callable, Set, Dict, Any
 
 from .bluez_client import BlueZClient
+from .monitor import BluetoothMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class BluetoothController:
         """
         self.adapter_path = adapter_path
         self.client: Optional[BlueZClient] = None
+        self.monitor: Optional[BluetoothMonitor] = None
         self.mainloop: Optional[GLib.MainLoop] = None
         self.mainloop_thread: Optional[threading.Thread] = None
         
@@ -69,7 +71,12 @@ class BluetoothController:
                 # Create BlueZ client
                 self.client = BlueZClient(self.adapter_path)
                 
-                # Set up property change callback
+                # Create and start Bluetooth monitor
+                self.monitor = BluetoothMonitor(self.client)
+                self.monitor.start_monitoring()
+                logger.info("✅ BluetoothController: Monitor started")
+                
+                # Set up property change callback (controller still needs this for pairing)
                 self.client.on_properties_changed = self._on_properties_changed
                 
                 # Register agent
@@ -607,9 +614,38 @@ class BluetoothController:
         except Exception as e:
             logger.warning(f"Could not unsuspend Bluetooth sink: {e}")
     
+    def get_current_track(self) -> Optional[Dict[str, Any]]:
+        """
+        Get current track information from AVRCP.
+        
+        Returns:
+            Dictionary with track info (title, artist, album, duration) or None
+        """
+        if self.monitor:
+            return self.monitor.get_current_track()
+        return None
+    
+    def get_playback_status(self) -> Optional[str]:
+        """
+        Get current playback status.
+        
+        Returns:
+            Status string ('playing', 'paused', 'stopped', etc.) or None
+        """
+        if self.monitor:
+            status = self.monitor.get_status()
+            if status:
+                return status.get('state', 'stopped')
+        return None
+    
     def cleanup(self):
         """Cleanup resources"""
         logger.info("🧹 Cleaning up BluetoothController...")
+        
+        # Stop monitor
+        if self.monitor:
+            self.monitor.stop_monitoring()
+            self.monitor = None
         
         if self.client:
             self.client.unregister_agent()
