@@ -1168,7 +1168,7 @@ class KitchenRadio:
                     'discoverable': self.bluetooth_controller.pairing_mode,
                     'connected_devices': connected_devices,
                     'is_connected': self.bluetooth_controller.is_connected(),
-                    'volume': bluetooth_volume if bluetooth_volume is not None else 'unknown'
+                    'volume': bluetooth_volume if bluetooth_volume is not None else 50
                 }
             except Exception as e:
                 self.logger.error(f"Error getting Bluetooth status: {e}")
