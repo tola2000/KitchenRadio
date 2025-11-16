@@ -10,6 +10,7 @@ from gi.repository import GLib
 import logging
 import sys
 import signal
+import time
 
 # Setup logging
 logging.basicConfig(
@@ -159,6 +160,10 @@ class BluetoothAutoConnect:
                 if self.pair_and_trust_device(path, name, address):
                     self.has_auto_paired = True
                     
+                    # Give time for pairing to complete, then connect
+                    logger.info("⏳ Waiting for pairing to complete...")
+                    GLib.timeout_add(3000, self.connect_device, path, name, address)
+                    
         except Exception as e:
             logger.error(f"Error handling new device: {e}")
     
@@ -275,6 +280,72 @@ class BluetoothAutoConnect:
         except Exception as e:
             logger.error(f"Error trusting device: {e}")
             return False
+    
+    def connect_device(self, device_path, name, address):
+        """
+        Connect to a paired device and wait for audio profile.
+        
+        Args:
+            device_path: D-Bus path to device
+            name: Device name
+            address: Device MAC address
+        """
+        try:
+            logger.info(f"🔌 Connecting to {name}...")
+            
+            device_obj = self.bus.get_object(self.BLUEZ_SERVICE, device_path)
+            device = dbus.Interface(device_obj, self.DEVICE_INTERFACE)
+            device_props = dbus.Interface(device_obj, self.PROPERTIES_INTERFACE)
+            
+            # Check if already connected
+            props = device_props.GetAll(self.DEVICE_INTERFACE)
+            if props.get('Connected', False):
+                logger.info(f"✅ Already connected to {name}")
+                return False  # Don't reschedule
+            
+            # Connect
+            device.Connect()
+            
+            # Wait for audio profile to establish
+            logger.info(f"⏳ Waiting for audio profile to establish...")
+            max_attempts = 10
+            for attempt in range(max_attempts):
+                time.sleep(1)
+                props = device_props.GetAll(self.DEVICE_INTERFACE)
+                
+                # Check if we have audio UUID (A2DP Sink)
+                uuids = props.get('UUIDs', [])
+                audio_uuids = [
+                    '0000110b-0000-1000-8000-00805f9b34fb',  # A2DP Audio Sink
+                    '0000110a-0000-1000-8000-00805f9b34fb',  # A2DP Audio Source
+                ]
+                
+                if any(uuid.lower() in [u.lower() for u in uuids] for uuid in audio_uuids):
+                    logger.info(f"✅ Audio profile established!")
+                    logger.info(f"🎵 {name} is now connected and ready for audio streaming")
+                    return False  # Don't reschedule
+            
+            logger.warning(f"⚠️  Audio profile didn't establish after {max_attempts}s")
+            return False  # Don't reschedule
+            
+        except dbus.exceptions.DBusException as e:
+            error_name = e.get_dbus_name()
+            
+            if "AlreadyConnected" in error_name:
+                logger.info(f"✅ Already connected to {name}")
+            elif "InProgress" in error_name:
+                logger.info(f"⏳ Connection already in progress for {name}")
+            elif "NotReady" in error_name:
+                logger.warning(f"⚠️  Device not ready yet, retrying in 2s...")
+                return True  # Reschedule
+            else:
+                logger.error(f"❌ Error connecting to {name}: {e}")
+            
+            return False  # Don't reschedule
+            
+        except Exception as e:
+            logger.error(f"❌ Error connecting to {name}: {e}")
+            return False  # Don't reschedule
     
     def run(self):
         """Start the auto-connect service"""
