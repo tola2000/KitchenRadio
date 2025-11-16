@@ -699,6 +699,21 @@ class BluetoothController:
                 logger.warning("Cannot toggle play/pause: AVRCP not available")
         return False
     
+    def stop(self) -> bool:
+        """
+        Send stop command via AVRCP.
+        
+        Returns:
+            True if command was sent successfully, False otherwise
+        """
+        if self.monitor and self.monitor.avrcp_client:
+            if self.monitor.avrcp_client.is_available():
+                logger.info("⏹️ Sending stop command to Bluetooth device")
+                return self.monitor.avrcp_client.stop()
+            else:
+                logger.warning("Cannot stop: AVRCP not available")
+        return False
+    
     def next(self) -> bool:
         """
         Skip to next track via AVRCP.
