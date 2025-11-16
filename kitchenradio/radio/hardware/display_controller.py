@@ -610,16 +610,16 @@ class DisplayController:
     def _render_librespot_display(self, librespot_status: Dict[str, Any]):
         """Update display for Spotify/librespot source"""
         current_track = librespot_status.get('current_track', {})
+        volume = librespot_status.get('volume', 50)
+        
         if current_track:
-  
-            
             # Use unified track info formatter with progress bar for Spotify
             track_data = {
                 'title': current_track.get('title', 'Unknown'),  # Spotify uses 'name' instead of 'title'
                 'artist': current_track.get('artist', 'Unknown'),
                 'album': current_track.get('album', 'Unknown'),
                 'playing': librespot_status.get('state') == 'playing',
-                'volume': librespot_status.get('volume', 50),
+                'volume': volume,
                 'source': 'Spotify',
                 'scroll_offsets': self.current_scroll_offsets
             }
@@ -631,20 +631,24 @@ class DisplayController:
             # Render the display content
             self._render_display_content('track_info', track_data)
         else:
-            # No track playing
-            message_data = {
-                'message': 'Spotify Connected',
-                'icon': '♫',
-                'message_type': 'info',
+            # No track playing - show "Niet Actief" screen in track info format
+            display_data = {
+                'title': 'Niet Actief',
+                'artist': 'Start Spotify stream',
+                'album': '',
+                'playing': False,
+                'pairing_mode': True,  # Use dimmed volume bar and no colon
+                'volume': volume,
+                'source': 'Spotify',
                 'scroll_offsets': self.current_scroll_offsets
             }
             
             # Track current display state
-            self.current_display_type = 'status_message'
-            self.current_display_data = message_data
+            self.current_display_type = 'track_info'
+            self.current_display_data = display_data
             
             # Render the display content
-            self._render_display_content('status_message', message_data)
+            self._render_display_content('track_info', display_data)
     
     def _update_scroll_offsets(self, truncation_info: Dict[str, Any]):
         """Update current scroll offsets based on truncation info using fixed keys"""
@@ -774,16 +778,20 @@ class DisplayController:
                 self.current_display_data = display_data
                 self._render_display_content('track_info', display_data)
         else:
-            # No devices, show waiting message
-            message_data = {
-                'message': 'Bluetooth: No device connected',
-                'icon': '🔵',
-                'message_type': 'info',
+            # No devices connected - show "Niet Verbonden" screen in track info format
+            display_data = {
+                'title': 'Niet Verbonden',
+                'artist': 'Koppel of Verbind',
+                'album': '',
+                'playing': False,
+                'pairing_mode': True,  # Use dimmed volume bar and no colon
+                'volume': volume,
+                'source': 'Bluetooth',
                 'scroll_offsets': self.current_scroll_offsets
             }
-            self.current_display_type = 'status_message'
-            self.current_display_data = message_data
-            self._render_display_content('status_message', message_data)
+            self.current_display_type = 'track_info'
+            self.current_display_data = display_data
+            self._render_display_content('track_info', display_data)
     
     # Manual display control methods
     

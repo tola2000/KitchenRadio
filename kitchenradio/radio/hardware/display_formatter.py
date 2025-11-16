@@ -905,7 +905,7 @@ class DisplayFormatter:
             play_icon = "▶" if playing else "⏸"
         
         # Set volume bar brightness based on pairing mode
-        volume_bar_brightness = 80 if pairing_mode else 255  # Grey out when pairing
+        volume_bar_brightness = 40 if pairing_mode else 255  # Grey out when pairing (40 = more dimmed)
         icon_font = self.fonts['large']  # Use large font (one size larger than medium source)
         icon_bbox = icon_font.getbbox(play_icon)
         icon_width = icon_bbox[2] - icon_bbox[0]
