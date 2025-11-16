@@ -718,8 +718,8 @@ class DisplayController:
             # Show pairing mode in track info format (no connected device yet)
             if not connected_devices:
                 display_data = {
-                    'title': 'Koppel of Verbind',
-                    'artist': 'Bluetooth Koppelmodus',
+                    'title': 'Koppelen Actief',
+                    'artist': 'Koppel Nieuw Toestel',
                     'album': '',
                     'playing': False,  # Use pairing icon instead of play icon
                     'pairing_mode': True,  # Flag for pairing icon
@@ -781,7 +781,7 @@ class DisplayController:
             # No devices connected - show "Niet Verbonden" screen in track info format
             display_data = {
                 'title': 'Niet Verbonden',
-                'artist': 'Koppel of Verbind',
+                'artist': 'Verbind Toestel',
                 'album': '',
                 'playing': False,
                 'pairing_mode': True,  # Use dimmed volume bar and no colon
