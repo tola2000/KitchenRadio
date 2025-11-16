@@ -647,6 +647,58 @@ class BluetoothController:
                 return status.get('state', 'stopped')
         return None
     
+    def play(self) -> bool:
+        """
+        Send play command via AVRCP.
+        
+        Returns:
+            True if command was sent successfully, False otherwise
+        """
+        if self.monitor and self.monitor.avrcp_client:
+            if self.monitor.avrcp_client.is_available():
+                logger.info("▶️ Sending play command to Bluetooth device")
+                return self.monitor.avrcp_client.play()
+            else:
+                logger.warning("Cannot play: AVRCP not available")
+        return False
+    
+    def pause(self) -> bool:
+        """
+        Send pause command via AVRCP.
+        
+        Returns:
+            True if command was sent successfully, False otherwise
+        """
+        if self.monitor and self.monitor.avrcp_client:
+            if self.monitor.avrcp_client.is_available():
+                logger.info("⏸️ Sending pause command to Bluetooth device")
+                return self.monitor.avrcp_client.pause()
+            else:
+                logger.warning("Cannot pause: AVRCP not available")
+        return False
+    
+    def playpause(self) -> bool:
+        """
+        Toggle between play and pause via AVRCP.
+        
+        Returns:
+            True if command was sent successfully, False otherwise
+        """
+        if self.monitor and self.monitor.avrcp_client:
+            if self.monitor.avrcp_client.is_available():
+                # Get current status
+                status = self.get_playback_status()
+                
+                if status == 'playing':
+                    logger.info("⏸️ Toggling to pause")
+                    return self.monitor.avrcp_client.pause()
+                else:
+                    logger.info("▶️ Toggling to play")
+                    return self.monitor.avrcp_client.play()
+            else:
+                logger.warning("Cannot toggle play/pause: AVRCP not available")
+        return False
+    
     def next(self) -> bool:
         """
         Skip to next track via AVRCP.

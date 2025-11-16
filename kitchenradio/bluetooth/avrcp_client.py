@@ -387,6 +387,7 @@ class AVRCPClient:
         Returns:
             True if successful
         """
+        logger.info(f"📡 AVRCP: Sending Play command to {self.state.device_name}")
         return self._send_control_command('Play')
     
     def pause(self) -> bool:
@@ -396,6 +397,7 @@ class AVRCPClient:
         Returns:
             True if successful
         """
+        logger.info(f"📡 AVRCP: Sending Pause command to {self.state.device_name}")
         return self._send_control_command('Pause')
     
     def stop(self) -> bool:
@@ -405,6 +407,7 @@ class AVRCPClient:
         Returns:
             True if successful
         """
+        logger.info(f"📡 AVRCP: Sending Stop command to {self.state.device_name}")
         return self._send_control_command('Stop')
     
     def next(self) -> bool:
@@ -470,11 +473,30 @@ class AVRCPClient:
                 self.MEDIA_PLAYER_INTERFACE
             )
             
+            # Log available methods for debugging (only first time)
+            if not hasattr(self, '_logged_methods'):
+                try:
+                    introspection = player_obj.Introspect(dbus_interface='org.freedesktop.DBus.Introspectable')
+                    logger.info(f"📡 AVRCP MediaPlayer methods available:\n{introspection}")
+                    self._logged_methods = True
+                except:
+                    pass
+            
+            logger.info(f"📡 Calling AVRCP method: {command} on path {self.player_path}")
+            
             # Call the method
             method = getattr(player_interface, command)
             method()
             
-            emoji = "⏭️" if command == "Next" else "⏮️" if command == "Previous" else "✅"
+            # Select appropriate emoji based on command
+            emoji_map = {
+                "Next": "⏭️",
+                "Previous": "⏮️",
+                "Play": "▶️",
+                "Pause": "⏸️",
+                "Stop": "⏹️"
+            }
+            emoji = emoji_map.get(command, "✅")
             logger.info(f"{emoji} AVRCP command sent successfully: {command}")
             return True
             
