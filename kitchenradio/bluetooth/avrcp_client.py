@@ -16,19 +16,10 @@ like iPhones, Android phones, etc.
 import dbus
 import logging
 from typing import Optional, Dict, Any, Callable
-from enum import Enum
+
+from .monitor import AVRCPState, TrackInfo, PlaybackStatus
 
 logger = logging.getLogger(__name__)
-
-
-class PlaybackStatus(Enum):
-    """AVRCP playback status"""
-    STOPPED = "stopped"
-    PLAYING = "playing"
-    PAUSED = "paused"
-    FORWARD_SEEK = "forward-seek"
-    REVERSE_SEEK = "reverse-seek"
-    ERROR = "error"
 
 
 class AVRCPClient:
@@ -44,25 +35,28 @@ class AVRCPClient:
     PROPERTIES_INTERFACE = 'org.freedesktop.DBus.Properties'
     OBJECT_MANAGER_INTERFACE = 'org.freedesktop.DBus.ObjectManager'
     
-    def __init__(self, device_path: Optional[str] = None):
+    def __init__(self, device_path: Optional[str] = None, device_name: str = "Unknown", device_mac: str = ""):
         """
         Initialize AVRCP client.
         
         Args:
             device_path: D-Bus path to Bluetooth device (optional)
+            device_name: Device name for state tracking
+            device_mac: Device MAC address for state tracking
         """
-        self.device_path = device_path
         self.player_path: Optional[str] = None
         self.bus: Optional[dbus.SystemBus] = None
         
-        # Cached track info
-        self._cached_track: Optional[Dict[str, Any]] = None
-        self._cached_status: Optional[str] = None
-        self._cached_position: Optional[int] = None
+        # State model - centralized state management
+        self.state = AVRCPState()
+        
+        if device_path:
+            self.state.connect(device_name, device_mac, device_path)
         
         # Callbacks
-        self.on_track_changed: Optional[Callable[[Dict[str, Any]], None]] = None
-        self.on_status_changed: Optional[Callable[[str], None]] = None
+        self.on_track_changed: Optional[Callable[[TrackInfo], None]] = None
+        self.on_status_changed: Optional[Callable[[PlaybackStatus], None]] = None
+        self.on_state_changed: Optional[Callable[[AVRCPState], None]] = None
         
         self._connect_dbus()
     
@@ -74,14 +68,16 @@ class AVRCPClient:
         except Exception as e:
             logger.error(f"Failed to connect to D-Bus: {e}")
     
-    def set_device(self, device_path: str):
+    def set_device(self, device_path: str, device_name: str = "Unknown", device_mac: str = ""):
         """
         Set the Bluetooth device to monitor.
         
         Args:
             device_path: D-Bus path to device (e.g., /org/bluez/hci0/dev_XX_XX_XX_XX_XX_XX)
+            device_name: Device name
+            device_mac: Device MAC address
         """
-        self.device_path = device_path
+        self.state.connect(device_name, device_mac, device_path)
         self.player_path = None
         self._find_media_player()
     
@@ -92,7 +88,7 @@ class AVRCPClient:
         Returns:
             True if player found, False otherwise
         """
-        if not self.device_path or not self.bus:
+        if not self.state.device_path or not self.bus:
             return False
         
         try:
@@ -112,15 +108,24 @@ class AVRCPClient:
             for path, interfaces in objects.items():
                 # Check if this is a media player for our device
                 if (self.MEDIA_PLAYER_INTERFACE in interfaces and 
-                    str(path).startswith(str(self.device_path))):
+                    str(path).startswith(str(self.state.device_path))):
                     self.player_path = path
                     logger.info(f"📻 Found AVRCP media player: {path}")
                     
+                    # Update state
+                    self.state.set_avrcp_available(True)
+                    
                     # Subscribe to property changes
                     self._subscribe_to_changes()
+                    
+                    # Trigger state change callback
+                    if self.on_state_changed:
+                        self.on_state_changed(self.state)
+                    
                     return True
             
-            logger.warning(f"No AVRCP media player found for {self.device_path}")
+            logger.warning(f"No AVRCP media player found for {self.state.device_path}")
+            self.state.set_avrcp_available(False)
             return False
             
         except Exception as e:
@@ -151,20 +156,29 @@ class AVRCPClient:
             
             logger.debug(f"AVRCP property changed: {dict(changed)}")
             
+            state_changed = False
+            
             # Handle track changes
             if 'Track' in changed:
                 track = self._parse_track_metadata(changed['Track'])
-                self._cached_track = track
-                logger.info(f"🎵 Track changed: {track.get('title', 'Unknown')}")
+                self.state.update_track(track)
+                logger.info(f"🎵 Track changed: {track.title}")
+                state_changed = True
                 
                 if self.on_track_changed:
                     self.on_track_changed(track)
             
             # Handle status changes
             if 'Status' in changed:
-                status = str(changed['Status'])
-                self._cached_status = status
-                logger.info(f"▶️ Status changed: {status}")
+                status_str = str(changed['Status'])
+                try:
+                    status = PlaybackStatus(status_str)
+                except ValueError:
+                    status = PlaybackStatus.UNKNOWN
+                
+                self.state.update_status(status)
+                logger.info(f"▶️ Status changed: {status.value}")
+                state_changed = True
                 
                 if self.on_status_changed:
                     self.on_status_changed(status)
@@ -172,13 +186,18 @@ class AVRCPClient:
             # Handle position changes
             if 'Position' in changed:
                 position = int(changed['Position'])
-                self._cached_position = position
+                self.state.update_position(position)
                 logger.debug(f"⏱️ Position: {position}ms")
+                state_changed = True
+            
+            # Trigger state change callback if state was modified
+            if state_changed and self.on_state_changed:
+                self.on_state_changed(self.state)
                 
         except Exception as e:
             logger.error(f"Error handling AVRCP property change: {e}")
     
-    def _parse_track_metadata(self, track_data: Dict) -> Dict[str, Any]:
+    def _parse_track_metadata(self, track_data: Dict) -> TrackInfo:
         """
         Parse track metadata from D-Bus dictionary.
         
@@ -186,46 +205,47 @@ class AVRCPClient:
             track_data: D-Bus dictionary with track info
             
         Returns:
-            Dictionary with title, artist, album, duration
+            TrackInfo object with parsed metadata
         """
-        track = {}
-        
         try:
             # Extract common fields
-            if 'Title' in track_data:
-                track['title'] = str(track_data['Title'])
+            title = str(track_data.get('Title', 'Unknown'))
+            artist = str(track_data.get('Artist', 'Unknown'))
+            album = str(track_data.get('Album', ''))
+            duration = int(track_data.get('Duration', 0))
+            track_number = int(track_data.get('TrackNumber', 0))
+            total_tracks = int(track_data.get('NumberOfTracks', 0))
             
-            if 'Artist' in track_data:
-                track['artist'] = str(track_data['Artist'])
-            
-            if 'Album' in track_data:
-                track['album'] = str(track_data['Album'])
-            
-            if 'Duration' in track_data:
-                # Duration is in milliseconds
-                track['duration'] = int(track_data['Duration'])
-            
-            if 'TrackNumber' in track_data:
-                track['track_number'] = int(track_data['TrackNumber'])
-            
-            if 'NumberOfTracks' in track_data:
-                track['total_tracks'] = int(track_data['NumberOfTracks'])
+            return TrackInfo(
+                title=title,
+                artist=artist,
+                album=album,
+                duration=duration,
+                track_number=track_number,
+                total_tracks=total_tracks
+            )
                 
         except Exception as e:
             logger.error(f"Error parsing track metadata: {e}")
-        
-        return track
+            return TrackInfo(
+                title="Unknown",
+                artist="Unknown",
+                album="",
+                duration=0,
+                track_number=0,
+                total_tracks=0
+            )
     
-    def get_track_info(self) -> Optional[Dict[str, Any]]:
+    def get_track_info(self) -> Optional[TrackInfo]:
         """
         Get current track information.
         
         Returns:
-            Dictionary with title, artist, album, duration or None
+            TrackInfo object or None if not available
         """
         # Return cached if available
-        if self._cached_track:
-            return self._cached_track
+        if self.state.playback.track:
+            return self.state.playback.track
         
         # Try to get from device
         if not self.player_path or not self.bus:
@@ -249,7 +269,7 @@ class AVRCPClient:
             )
             
             track = self._parse_track_metadata(track_data)
-            self._cached_track = track
+            self.state.update_track(track)
             return track
             
         except dbus.exceptions.DBusException as e:
@@ -259,16 +279,16 @@ class AVRCPClient:
             logger.error(f"Error getting track info: {e}")
             return None
     
-    def get_status(self) -> Optional[str]:
+    def get_status(self) -> Optional[PlaybackStatus]:
         """
         Get playback status.
         
         Returns:
-            'playing', 'paused', 'stopped', etc. or None
+            PlaybackStatus enum value or None
         """
         # Return cached if available
-        if self._cached_status:
-            return self._cached_status
+        if self.state.playback.status != PlaybackStatus.UNKNOWN:
+            return self.state.playback.status
         
         if not self.player_path or not self.bus:
             if not self._find_media_player():
@@ -284,13 +304,18 @@ class AVRCPClient:
                 self.PROPERTIES_INTERFACE
             )
             
-            status = player_props.Get(
+            status_str = player_props.Get(
                 self.MEDIA_PLAYER_INTERFACE,
                 'Status'
             )
             
-            self._cached_status = str(status)
-            return self._cached_status
+            try:
+                status = PlaybackStatus(str(status_str))
+            except ValueError:
+                status = PlaybackStatus.UNKNOWN
+                
+            self.state.update_status(status)
+            return status
             
         except dbus.exceptions.DBusException as e:
             logger.debug(f"Could not get status: {e}")
@@ -325,8 +350,9 @@ class AVRCPClient:
                 'Position'
             )
             
-            self._cached_position = int(position)
-            return self._cached_position
+            position_ms = int(position)
+            self.state.update_position(position_ms)
+            return position_ms
             
         except dbus.exceptions.DBusException as e:
             logger.debug(f"Could not get position: {e}")
@@ -449,11 +475,19 @@ class AVRCPClient:
         
         return self._find_media_player()
     
+    def get_state(self) -> AVRCPState:
+        """
+        Get complete AVRCP state.
+        
+        Returns:
+            AVRCPState object with all current state information
+        """
+        return self.state
+    
     def clear_cache(self):
         """Clear cached track info and status"""
-        self._cached_track = None
-        self._cached_status = None
-        self._cached_position = None
+        self.state.reset()
+        logger.info("AVRCP state cleared")
 
 
 # Example usage
