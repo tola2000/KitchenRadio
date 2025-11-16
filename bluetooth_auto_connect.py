@@ -6,6 +6,7 @@ Automatically pairs and connects to the first Bluetooth device that tries to con
 
 import dbus
 import dbus.mainloop.glib
+import dbus.service
 from gi.repository import GLib
 import logging
 import sys
@@ -20,6 +21,60 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class AutoPairAgent(dbus.service.Object):
+    """Bluetooth pairing agent that auto-accepts all pairing requests"""
+    
+    AGENT_INTERFACE = 'org.bluez.Agent1'
+    AGENT_PATH = '/org/bluez/autopair_agent'
+    
+    def __init__(self, bus):
+        super().__init__(bus, self.AGENT_PATH)
+        self.bus = bus
+        logger.info("🤖 Auto-pair agent initialized")
+    
+    @dbus.service.method(AGENT_INTERFACE, in_signature='os', out_signature='')
+    def AuthorizeService(self, device, uuid):
+        """Auto-authorize all services"""
+        logger.info(f"✅ Auto-authorizing service {uuid} for {device}")
+        return
+    
+    @dbus.service.method(AGENT_INTERFACE, in_signature='o', out_signature='u')
+    def RequestPasskey(self, device):
+        """Return passkey (for older pairing methods)"""
+        logger.info(f"🔑 Passkey requested for {device}, returning 0")
+        return dbus.UInt32(0)
+    
+    @dbus.service.method(AGENT_INTERFACE, in_signature='ou', out_signature='')
+    def DisplayPasskey(self, device, passkey):
+        """Display passkey (for confirmation)"""
+        logger.info(f"🔢 Display passkey {passkey:06d} for {device}")
+        return
+    
+    @dbus.service.method(AGENT_INTERFACE, in_signature='ouq', out_signature='')
+    def DisplayPinCode(self, device, pincode):
+        """Display PIN code"""
+        logger.info(f"🔢 Display PIN {pincode} for {device}")
+        return
+    
+    @dbus.service.method(AGENT_INTERFACE, in_signature='ou', out_signature='')
+    def RequestConfirmation(self, device, passkey):
+        """Auto-confirm passkey"""
+        logger.info(f"✅ Auto-confirming passkey {passkey:06d} for {device}")
+        return
+    
+    @dbus.service.method(AGENT_INTERFACE, in_signature='o', out_signature='')
+    def RequestAuthorization(self, device):
+        """Auto-authorize device"""
+        logger.info(f"✅ Auto-authorizing {device}")
+        return
+    
+    @dbus.service.method(AGENT_INTERFACE, in_signature='', out_signature='')
+    def Cancel(self):
+        """Handle cancellation"""
+        logger.warning("⚠️  Pairing cancelled")
+        return
+
+
 class BluetoothAutoConnect:
     """Automatically connect to new Bluetooth devices"""
     
@@ -28,6 +83,7 @@ class BluetoothAutoConnect:
     DEVICE_INTERFACE = 'org.bluez.Device1'
     PROPERTIES_INTERFACE = 'org.freedesktop.DBus.Properties'
     OBJECT_MANAGER_INTERFACE = 'org.freedesktop.DBus.ObjectManager'
+    AGENT_MANAGER_INTERFACE = 'org.bluez.AgentManager1'
     
     def __init__(self, adapter_path='/org/bluez/hci0', auto_pair_first=True):
         """
@@ -44,6 +100,7 @@ class BluetoothAutoConnect:
         self.connected_devices = set()
         self.paired_devices = set()
         self.running = False
+        self.agent = None
         
         # Track if we've already auto-paired
         self.has_auto_paired = False
@@ -86,9 +143,35 @@ class BluetoothAutoConnect:
             # Get already paired devices
             self.scan_existing_devices()
             
+            # Register pairing agent if in auto-pair mode
+            if self.auto_pair_first:
+                self.register_agent()
+            
         except Exception as e:
             logger.error(f"Failed to setup D-Bus: {e}")
             sys.exit(1)
+    
+    def register_agent(self):
+        """Register auto-pairing agent"""
+        try:
+            # Create agent
+            self.agent = AutoPairAgent(self.bus)
+            
+            # Get agent manager
+            agent_manager_obj = self.bus.get_object(self.BLUEZ_SERVICE, '/org/bluez')
+            agent_manager = dbus.Interface(agent_manager_obj, self.AGENT_MANAGER_INTERFACE)
+            
+            # Register agent with NoInputNoOutput capability
+            agent_manager.RegisterAgent(AutoPairAgent.AGENT_PATH, 'NoInputNoOutput')
+            
+            # Request to be the default agent
+            agent_manager.RequestDefaultAgent(AutoPairAgent.AGENT_PATH)
+            
+            logger.info("✅ Auto-pairing agent registered")
+            
+        except Exception as e:
+            logger.error(f"Failed to register agent: {e}")
+            raise
     
     def scan_existing_devices(self):
         """Scan for already paired devices"""
@@ -377,15 +460,30 @@ class BluetoothAutoConnect:
         except KeyboardInterrupt:
             logger.info("\n👋 Stopping auto-connect service...")
             self.running = False
+            self.cleanup()
         except Exception as e:
             logger.error(f"Error in main loop: {e}")
+            self.cleanup()
             return 1
         
         return 0
     
+    def cleanup(self):
+        """Cleanup resources"""
+        if self.agent and self.bus:
+            try:
+                # Unregister agent
+                agent_manager_obj = self.bus.get_object(self.BLUEZ_SERVICE, '/org/bluez')
+                agent_manager = dbus.Interface(agent_manager_obj, self.AGENT_MANAGER_INTERFACE)
+                agent_manager.UnregisterAgent(AutoPairAgent.AGENT_PATH)
+                logger.info("✅ Agent unregistered")
+            except Exception as e:
+                logger.error(f"Error unregistering agent: {e}")
+    
     def stop(self):
         """Stop the service"""
         self.running = False
+        self.cleanup()
 
 
 def signal_handler(signum, frame):
