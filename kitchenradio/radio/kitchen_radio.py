@@ -364,7 +364,8 @@ class KitchenRadio:
         self.logger.info(f"{icon} [MPD] State changed: {old_state} → {new_state}")
         
         # If source switching is enabled, handle exclusive playback
-        if new_state == 'play':
+        # Don't auto-switch if Bluetooth is already active (to avoid interrupting Bluetooth audio)
+        if new_state == 'play' and self.source != BackendType.BLUETOOTH:
             self.set_source(BackendType.MPD)
            
     
@@ -388,7 +389,8 @@ class KitchenRadio:
         self.logger.info(f"{icon} [Spotify] State changed: {old_state} → {new_state}")
         
         # If source switching is enabled, handle exclusive playback
-        if new_state == 'play':
+        # Don't auto-switch if Bluetooth is already active (to avoid interrupting Bluetooth audio)
+        if new_state == 'play' and self.source != BackendType.BLUETOOTH:
             self.set_source(BackendType.LIBRESPOT)
     
     def get_current_source(self) -> Optional[BackendType]:
