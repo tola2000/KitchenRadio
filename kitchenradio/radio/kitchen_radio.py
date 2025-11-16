@@ -1032,9 +1032,9 @@ class KitchenRadio:
                 # Not when first selecting BT from another source
                 if self.source == BackendType.BLUETOOTH:
                     # Already on BT source - pressing BT button again triggers pairing
-                    self.logger.info(f"BT source button pressed while already on BT - entering pairing mode")
+                    self.logger.info(f"BT source button pressed while already on BT - entering pairing mode (60s timeout)")
                     if self.bluetooth_controller:
-                        self.bluetooth_controller.enter_pairing_mode()
+                        self.bluetooth_controller.enter_pairing_mode(timeout_seconds=60)
                 else:
                     # First time selecting BT - just show "Niet Verbonden" without pairing
                     self.logger.info(f"✅ Source set to {source.value} - showing disconnected state")
