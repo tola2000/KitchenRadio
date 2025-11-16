@@ -9,6 +9,7 @@ from .avrcp_client import AVRCPClient
 from .bluez_client import BlueZClient
 from .monitor import (
     AVRCPState,
+    BluetoothMonitor,
     PlaybackState,
     PlaybackStatus,
     TrackInfo
@@ -16,6 +17,7 @@ from .monitor import (
 
 __all__ = [
     'BluetoothController',
+    'BluetoothMonitor',
     'AVRCPClient',
     'BlueZClient',
     'AVRCPState',
