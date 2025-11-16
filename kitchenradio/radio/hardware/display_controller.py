@@ -711,17 +711,21 @@ class DisplayController:
         playback_state = bluetooth_status.get('state', 'stopped')
         
         if is_discoverable:
-            # Show pairing mode message
+            # Show pairing mode in track info format (no connected device yet)
             if not connected_devices:
-                message_data = {
-                    'message': '🔵 PAIRING MODE - Pair your device now!',
-                    'icon': '🔍',
-                    'message_type': 'info',
+                display_data = {
+                    'title': 'Koppel of Verbind',
+                    'artist': 'Bluetooth Koppelmodus',
+                    'album': '',
+                    'playing': False,  # Use pairing icon instead of play icon
+                    'pairing_mode': True,  # Flag for pairing icon
+                    'volume': volume,
+                    'source': 'Bluetooth',
                     'scroll_offsets': self.current_scroll_offsets
                 }
-                self.current_display_type = 'status_message'
-                self.current_display_data = message_data
-                self._render_display_content('status_message', message_data)
+                self.current_display_type = 'track_info'
+                self.current_display_data = display_data
+                self._render_display_content('track_info', display_data)
             else:
                 # Show connected device during pairing mode
                 device = connected_devices[0]

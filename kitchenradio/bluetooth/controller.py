@@ -290,12 +290,13 @@ class BluetoothController:
         
         return False
     
-    def enter_pairing_mode(self, timeout_seconds: int = 60) -> bool:
+    def enter_pairing_mode(self, timeout_seconds: int = 0) -> bool:
         """
         Enter pairing mode - make discoverable and accept next device.
         
         Args:
-            timeout_seconds: How long to stay in pairing mode (default: 60s)
+            timeout_seconds: How long to stay in pairing mode. 
+                           0 = stay indefinitely until source changes (default: 0)
             
         Returns:
             True if successful
@@ -307,17 +308,25 @@ class BluetoothController:
         try:
             logger.info("=" * 60)
             logger.info("🔵 ENTERING PAIRING MODE")
-            logger.info(f"   Ready to pair with new device for {timeout_seconds}s")
+            if timeout_seconds > 0:
+                logger.info(f"   Ready to pair with new device for {timeout_seconds}s")
+            else:
+                logger.info(f"   Ready to pair - stays active until source changes")
             logger.info("=" * 60)
             
             self.pairing_mode = True
             
             # Make discoverable
             self.client.set_adapter_property('Discoverable', True)
-            self.client.set_adapter_property('DiscoverableTimeout', timeout_seconds)
             
-            # Schedule exit from pairing mode
-            GLib.timeout_add(timeout_seconds * 1000, self.exit_pairing_mode)
+            # Set timeout if specified, otherwise stay discoverable indefinitely
+            if timeout_seconds > 0:
+                self.client.set_adapter_property('DiscoverableTimeout', timeout_seconds)
+                # Schedule exit from pairing mode
+                GLib.timeout_add(timeout_seconds * 1000, self.exit_pairing_mode)
+            else:
+                # Set a very long timeout (essentially infinite for our use case)
+                self.client.set_adapter_property('DiscoverableTimeout', 0)
             
             logger.info("👁️  Bluetooth is now DISCOVERABLE")
             logger.info("📱 Pair your device now!")

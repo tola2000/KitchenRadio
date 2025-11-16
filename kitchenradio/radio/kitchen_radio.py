@@ -1004,6 +1004,10 @@ class KitchenRadio:
                 (self.source == BackendType.LIBRESPOT and self.librespot_connected)):
                 self._stop_source(self.source)
             elif self.source == BackendType.BLUETOOTH and self.bluetooth_connected:
+                # Exit pairing mode if active
+                if self.bluetooth_controller and self.bluetooth_controller.pairing_mode:
+                    self.logger.info("Exiting Bluetooth pairing mode (switching sources)")
+                    self.bluetooth_controller.exit_pairing_mode()
                 # Disconnect Bluetooth device when switching away
                 if self.bluetooth_controller and self.bluetooth_controller.is_connected():
                     self.logger.info("Disconnecting Bluetooth device (switching sources)")

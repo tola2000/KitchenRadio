@@ -890,8 +890,12 @@ class DisplayFormatter:
             fill_height = int((volume_number / 100.0) * bar_height)
             fill_y = bar_y + bar_height - fill_height
         
-        # Pre-calculate play icon using large font (one size larger than source)
-        play_icon = "▶" if playing else "⏸"
+        # Pre-calculate play/pause/pairing icon using large font (one size larger than source)
+        pairing_mode = track_data.get('pairing_mode', False)
+        if pairing_mode:
+            play_icon = "🔗"  # Pairing icon for Bluetooth pairing mode
+        else:
+            play_icon = "▶" if playing else "⏸"
         icon_font = self.fonts['large']  # Use large font (one size larger than medium source)
         icon_bbox = icon_font.getbbox(play_icon)
         icon_width = icon_bbox[2] - icon_bbox[0]
