@@ -654,8 +654,12 @@ class BluetoothController:
         Returns:
             True if command was sent successfully, False otherwise
         """
-        if self.monitor:
-            return self.monitor.next()
+        if self.monitor and self.monitor.avrcp_client:
+            if self.monitor.avrcp_client.is_available():
+                logger.info("⏭️ Sending next command to Bluetooth device")
+                return self.monitor.avrcp_client.next()
+            else:
+                logger.warning("Cannot skip to next: AVRCP not available")
         return False
     
     def previous(self) -> bool:
@@ -665,8 +669,12 @@ class BluetoothController:
         Returns:
             True if command was sent successfully, False otherwise
         """
-        if self.monitor:
-            return self.monitor.previous()
+        if self.monitor and self.monitor.avrcp_client:
+            if self.monitor.avrcp_client.is_available():
+                logger.info("⏮️ Sending previous command to Bluetooth device")
+                return self.monitor.avrcp_client.previous()
+            else:
+                logger.warning("Cannot skip to previous: AVRCP not available")
         return False
     
     def cleanup(self):
