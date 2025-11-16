@@ -473,6 +473,8 @@ class KitchenRadio:
             return self.mpd_controller, "MPD", self.mpd_connected
         elif self.source == BackendType.LIBRESPOT:
             return self.librespot_controller, "Spotify", self.librespot_connected
+        elif self.source == BackendType.BLUETOOTH:
+            return self.bluetooth_controller, "Bluetooth", self.bluetooth_connected
         else:
             return None, None, False
 
@@ -1158,11 +1160,15 @@ class KitchenRadio:
                         'mac': list(self.bluetooth_controller.connected_devices)[0] if self.bluetooth_controller.connected_devices else 'Unknown'
                     })
                 
+                # Get Bluetooth volume
+                bluetooth_volume = self.bluetooth_controller.get_volume()
+                
                 status['bluetooth'] = {
                     'connected': True,
                     'discoverable': self.bluetooth_controller.pairing_mode,
                     'connected_devices': connected_devices,
-                    'is_connected': self.bluetooth_controller.is_connected()
+                    'is_connected': self.bluetooth_controller.is_connected(),
+                    'volume': bluetooth_volume if bluetooth_volume is not None else 'unknown'
                 }
             except Exception as e:
                 self.logger.error(f"Error getting Bluetooth status: {e}")

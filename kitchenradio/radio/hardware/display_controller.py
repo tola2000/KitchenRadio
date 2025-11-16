@@ -915,8 +915,8 @@ class DisplayController:
             elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
                 return status['librespot'].get('volume')
             elif current_source == 'bluetooth':
-                # Bluetooth doesn't have volume control (uses system volume)
-                return None
+                # Get Bluetooth volume from status
+                return status.get('bluetooth', {}).get('volume')
             
             return None
         except Exception as e:

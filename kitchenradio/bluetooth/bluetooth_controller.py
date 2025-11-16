@@ -13,6 +13,8 @@ from gi.repository import GLib
 import logging
 import threading
 import time
+import subprocess
+import re
 from typing import Optional, Callable, Set
 
 logger = logging.getLogger(__name__)
@@ -427,6 +429,151 @@ class BluetoothController:
     def get_connected_device_name(self) -> Optional[str]:
         """Get name of currently connected device"""
         return self.current_device_name
+    
+    def get_volume(self) -> Optional[int]:
+        """
+        Get current volume of Bluetooth audio sink from PulseAudio.
+        
+        Returns:
+            Volume level (0-100) or None if unable to get volume
+        """
+        try:
+            # Get list of sinks with their volumes
+            result = subprocess.run(
+                ['pactl', 'list', 'sinks'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode != 0:
+                logger.debug("pactl command failed")
+                return None
+            
+            # Parse output to find bluez sink and its volume
+            lines = result.stdout.split('\n')
+            in_bluez_sink = False
+            
+            for i, line in enumerate(lines):
+                # Look for bluez sink
+                if 'Name:' in line and 'bluez' in line.lower():
+                    in_bluez_sink = True
+                    logger.debug(f"Found Bluetooth sink: {line.strip()}")
+                elif in_bluez_sink:
+                    # Look for Volume line after finding bluez sink
+                    if 'Volume:' in line:
+                        # Extract percentage: "Volume: front-left: 65536 / 100% ..."
+                        # Use regex to find percentage
+                        match = re.search(r'(\d+)%', line)
+                        if match:
+                            volume = int(match.group(1))
+                            logger.debug(f"Bluetooth volume: {volume}%")
+                            return volume
+                    # Stop looking if we hit the next sink
+                    elif 'Sink #' in line or 'Name:' in line:
+                        break
+            
+            logger.debug("No Bluetooth sink volume found")
+            return None
+            
+        except subprocess.TimeoutExpired:
+            logger.error("Timeout getting Bluetooth volume")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting Bluetooth volume: {e}")
+            return None
+    
+    def set_volume(self, volume: int) -> bool:
+        """
+        Set volume of Bluetooth audio sink in PulseAudio.
+        
+        Args:
+            volume: Volume level (0-100)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not 0 <= volume <= 100:
+            logger.error(f"Invalid volume: {volume}. Must be 0-100")
+            return False
+        
+        try:
+            # First, find the bluez sink name
+            result = subprocess.run(
+                ['pactl', 'list', 'sinks', 'short'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode != 0:
+                return False
+            
+            # Find bluez sink
+            bluez_sink = None
+            for line in result.stdout.split('\n'):
+                if 'bluez' in line.lower():
+                    # Extract sink name (second column)
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        bluez_sink = parts[1]
+                        break
+            
+            if not bluez_sink:
+                logger.warning("No Bluetooth sink found")
+                return False
+            
+            # Set volume
+            result = subprocess.run(
+                ['pactl', 'set-sink-volume', bluez_sink, f'{volume}%'],
+                capture_output=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"🔊 Bluetooth volume set to {volume}%")
+                return True
+            else:
+                logger.error("Failed to set Bluetooth volume")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error setting Bluetooth volume: {e}")
+            return False
+    
+    def volume_up(self, step: int = 5) -> bool:
+        """
+        Increase Bluetooth volume by specified step.
+        
+        Args:
+            step: Volume increase step (default 5)
+            
+        Returns:
+            True if successful
+        """
+        current = self.get_volume()
+        if current is None:
+            return False
+        
+        new_volume = min(100, current + step)
+        return self.set_volume(new_volume)
+    
+    def volume_down(self, step: int = 5) -> bool:
+        """
+        Decrease Bluetooth volume by specified step.
+        
+        Args:
+            step: Volume decrease step (default 5)
+            
+        Returns:
+            True if successful
+        """
+        current = self.get_volume()
+        if current is None:
+            return False
+        
+        new_volume = max(0, current - step)
+        return self.set_volume(new_volume)
     
     def cleanup(self):
         """Cleanup resources"""
