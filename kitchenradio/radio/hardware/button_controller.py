@@ -36,7 +36,6 @@ class ButtonType(Enum):
     SOURCE_MPD = "source_mpd"
     SOURCE_SPOTIFY = "source_spotify"
     SOURCE_BLUETOOTH = "source_bluetooth"
-    SOURCE_CD = "source_cd"
     # Menu buttons (around display)
     MENU_UP = "menu_up"
     MENU_DOWN = "menu_down"
@@ -71,7 +70,6 @@ BUTTON_PIN_MAP = {
     ButtonType.SOURCE_MPD: 7,         # TUNER
     ButtonType.SOURCE_SPOTIFY: 6,     # AUX
     ButtonType.SOURCE_BLUETOOTH: 5,   # Bluetooth
-    ButtonType.SOURCE_CD: None,       # CD Player (if applicable, not mapped)
     
     # Menu buttons 
     ButtonType.MENU_UP: 8,            # 
