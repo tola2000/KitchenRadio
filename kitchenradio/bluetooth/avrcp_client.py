@@ -154,15 +154,21 @@ class AVRCPClient:
             if interface != self.MEDIA_PLAYER_INTERFACE:
                 return
             
+            # Log ALL AVRCP data received
+            logger.info(f"📡 AVRCP DATA RECEIVED - Properties changed: {dict(changed)}")
+            if invalidated:
+                logger.info(f"📡 AVRCP DATA RECEIVED - Invalidated properties: {list(invalidated)}")
+            
             logger.debug(f"AVRCP property changed: {dict(changed)}")
             
             state_changed = False
             
             # Handle track changes
             if 'Track' in changed:
+                logger.info(f"📡 AVRCP TRACK DATA: {changed['Track']}")
                 track = self._parse_track_metadata(changed['Track'])
                 self.state.update_track(track)
-                logger.info(f"🎵 Track changed: {track.title}")
+                logger.info(f"🎵 Track changed: {track.title} - {track.artist} ({track.album})")
                 state_changed = True
                 
                 if self.on_track_changed:
@@ -170,6 +176,7 @@ class AVRCPClient:
             
             # Handle status changes
             if 'Status' in changed:
+                logger.info(f"📡 AVRCP STATUS DATA: {changed['Status']}")
                 status_str = str(changed['Status'])
                 try:
                     status = PlaybackStatus(status_str)
@@ -187,6 +194,7 @@ class AVRCPClient:
             if 'Position' in changed:
                 position = int(changed['Position'])
                 self.state.update_position(position)
+                logger.info(f"📡 AVRCP POSITION DATA: {position}ms")
                 logger.debug(f"⏱️ Position: {position}ms")
                 state_changed = True
             
@@ -195,7 +203,7 @@ class AVRCPClient:
                 self.on_state_changed(self.state)
                 
         except Exception as e:
-            logger.error(f"Error handling AVRCP property change: {e}")
+            logger.error(f"❌ Error handling AVRCP property change: {e}", exc_info=True)
     
     def _parse_track_metadata(self, track_data: Dict) -> TrackInfo:
         """
@@ -245,15 +253,18 @@ class AVRCPClient:
         """
         # Return cached if available
         if self.state.playback.track:
+            logger.debug(f"📡 Returning cached track: {self.state.playback.track.title}")
             return self.state.playback.track
         
         # Try to get from device
         if not self.player_path or not self.bus:
             # Try to find player first
             if not self._find_media_player():
+                logger.debug(f"📡 No media player available for track info")
                 return None
         
         try:
+            logger.info(f"📡 Fetching initial track info from AVRCP...")
             player_obj = self.bus.get_object(
                 self.BLUEZ_SERVICE,
                 self.player_path
@@ -268,15 +279,17 @@ class AVRCPClient:
                 'Track'
             )
             
+            logger.info(f"📡 AVRCP INITIAL TRACK DATA: {track_data}")
             track = self._parse_track_metadata(track_data)
             self.state.update_track(track)
+            logger.info(f"📡 Initial track loaded: {track.title} - {track.artist}")
             return track
             
         except dbus.exceptions.DBusException as e:
             logger.debug(f"Could not get track info: {e}")
             return None
         except Exception as e:
-            logger.error(f"Error getting track info: {e}")
+            logger.error(f"❌ Error getting track info: {e}", exc_info=True)
             return None
     
     def get_status(self) -> Optional[PlaybackStatus]:
@@ -288,13 +301,16 @@ class AVRCPClient:
         """
         # Return cached if available
         if self.state.playback.status != PlaybackStatus.UNKNOWN:
+            logger.debug(f"📡 Returning cached status: {self.state.playback.status.value}")
             return self.state.playback.status
         
         if not self.player_path or not self.bus:
             if not self._find_media_player():
+                logger.debug(f"📡 No media player available for status")
                 return None
         
         try:
+            logger.info(f"📡 Fetching initial playback status from AVRCP...")
             player_obj = self.bus.get_object(
                 self.BLUEZ_SERVICE,
                 self.player_path
@@ -309,12 +325,15 @@ class AVRCPClient:
                 'Status'
             )
             
+            logger.info(f"📡 AVRCP INITIAL STATUS DATA: {status_str}")
+            
             try:
                 status = PlaybackStatus(str(status_str))
             except ValueError:
                 status = PlaybackStatus.UNKNOWN
                 
             self.state.update_status(status)
+            logger.info(f"📡 Initial status loaded: {status.value}")
             return status
             
         except dbus.exceptions.DBusException as e:

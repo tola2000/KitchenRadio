@@ -771,6 +771,7 @@ class DisplayController:
                     'artist': 'Ready for streaming',
                     'album': '',
                     'playing': False,
+                    'pairing_mode': True,  # Use pairing_mode to suppress colon separator
                     'volume': volume,
                     'source': 'Bluetooth',
                     'scroll_offsets': self.current_scroll_offsets

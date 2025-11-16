@@ -505,6 +505,7 @@ class BluetoothMonitor:
         
         Waits for MediaPlayer1 interface to become available, then creates
         AVRCP client to monitor track information and playback status.
+        Uses retry logic to handle devices that take time to expose AVRCP.
         
         Args:
             device_path: D-Bus path to the device
@@ -512,10 +513,7 @@ class BluetoothMonitor:
             address: Device MAC address
         """
         try:
-            # Wait a moment for MediaPlayer1 to be available
-            logger.info("⏳ Waiting for AVRCP MediaPlayer interface...")
-            time.sleep(1)
-            
+            # Create AVRCP client immediately
             self.avrcp_client = AVRCPClient(device_path, name, address)
             
             # Set up AVRCP callbacks
@@ -523,18 +521,31 @@ class BluetoothMonitor:
             self.avrcp_client.on_status_changed = self._on_status_changed
             self.avrcp_client.on_state_changed = self._on_state_changed
             
-            # Get initial state
-            if self.avrcp_client.is_available():
-                logger.info("✅ AVRCP connection established")
-                self.current_state = self.avrcp_client.get_state()
-                self.current_track = self.avrcp_client.get_track_info()
-                self.current_status = self.avrcp_client.get_status() or PlaybackStatus.UNKNOWN
+            # Try to establish AVRCP connection with retries
+            logger.info("⏳ Attempting to establish AVRCP MediaPlayer connection...")
+            max_retries = 10  # Try for ~10 seconds
+            retry_delay = 1.0  # 1 second between retries
+            
+            for attempt in range(max_retries):
+                if self.avrcp_client.is_available():
+                    logger.info(f"✅ AVRCP connection established on attempt {attempt + 1}")
+                    self.current_state = self.avrcp_client.get_state()
+                    self.current_track = self.avrcp_client.get_track_info()
+                    self.current_status = self.avrcp_client.get_status() or PlaybackStatus.UNKNOWN
+                    
+                    # Log initial track info if available
+                    if self.current_track and self.current_track.title != 'Unknown':
+                        logger.info(f"🎵 Current track: {self.current_track.title} - {self.current_track.artist}")
+                    
+                    return  # Success!
                 
-                # Log initial track info if available
-                if self.current_track and self.current_track.title != 'Unknown':
-                    logger.info(f"🎵 Current track: {self.current_track.title} - {self.current_track.artist}")
-            else:
-                logger.info("⏳ AVRCP not yet available - will be available when playback starts")
+                # Not available yet - wait and retry
+                if attempt < max_retries - 1:  # Don't sleep on last attempt
+                    logger.debug(f"AVRCP not available yet (attempt {attempt + 1}/{max_retries}), retrying...")
+                    time.sleep(retry_delay)
+            
+            # After all retries, AVRCP still not available
+            logger.info("⏳ AVRCP not available after retries - will be activated when playback starts")
                 
         except Exception as e:
             logger.error(f"Error setting up AVRCP client: {e}")
