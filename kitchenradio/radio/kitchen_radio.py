@@ -1209,6 +1209,17 @@ class KitchenRadio:
             except Exception as e:
                 self.logger.error(f"Error getting Bluetooth status: {e}")
                 status['bluetooth'] = {'connected': False, 'error': str(e)}
+        elif self.source == BackendType.BLUETOOTH:
+            # Bluetooth is selected as source but not connected - return minimal status for display
+            status['bluetooth'] = {
+                'connected': False,
+                'discoverable': False,
+                'connected_devices': [],
+                'is_connected': False,
+                'volume': 50,
+                'state': 'stopped',
+                'current_track': None
+            }
         else:
             status['bluetooth'] = {'connected': False}
         
