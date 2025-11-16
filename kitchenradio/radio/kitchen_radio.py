@@ -952,7 +952,9 @@ class KitchenRadio:
 
     def set_source(self, source: BackendType) -> bool:
         if not self.powered_on:
-            self._power_on()
+            # Power on without auto-selecting a source
+            self.powered_on = True
+            self.logger.info(f"Powered on via source selection: {source.value}")
         return self._set_source(source)
 
 

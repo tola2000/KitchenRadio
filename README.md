@@ -4,15 +4,18 @@ A Python library for controlling MPD (Music Player Daemon) servers, designed for
 
 ## Features
 
-- 🎵 Monitor now playing tracks
-- 🔊 Volume control
-- ⏯️ Playback control
-- 📻 Radio stream support
+- 🎵 **Multi-Source Audio**: MPD, Spotify (Librespot), and Bluetooth
+- 🔊 Volume control across all sources
+- ⏯️ Unified playback control
+- 📻 Radio stream support (MPD)
+- 🔵 **Bluetooth Audio**: Auto-pairing and streaming
 - 🌐 Remote host support
 - 🔄 Real-time status monitoring
+- 🖥️ Hardware display and button support (Raspberry Pi)
 
 ## Installation
 
+### Basic Installation
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -24,6 +27,15 @@ pip install -r requirements.txt
 # Install in development mode
 pip install -e .
 ```
+
+### Bluetooth Support (Raspberry Pi)
+For Bluetooth audio source, install system dependencies first:
+```bash
+sudo apt-get install -y python3-dbus python3-gi python3-gi-cairo gir1.2-glib-2.0 bluez pulseaudio pulseaudio-module-bluetooth
+pip install -r requirements.txt
+```
+
+See [BLUETOOTH_SETUP.md](BLUETOOTH_SETUP.md) for detailed setup instructions.
 
 ## Usage
 
