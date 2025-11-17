@@ -112,33 +112,41 @@ class AVRCPClient:
                     media_players_found.append(str(path))
             
             if media_players_found:
-                logger.debug(f"Available MediaPlayer objects: {media_players_found}")
+                logger.info(f"🔍 Available MediaPlayer objects: {media_players_found}")
+                logger.info(f"🎯 Looking for device: {self.state.device_path}")
             else:
-                logger.debug(f"No MediaPlayer objects found in BlueZ")
+                logger.info(f"❌ No MediaPlayer objects found in BlueZ")
+                logger.info(f"   Searching for device: {self.state.device_path}")
             
             for path, interfaces in objects.items():
                 # Check if this is a media player for our device
-                if (self.MEDIA_PLAYER_INTERFACE in interfaces and 
-                    str(path).startswith(str(self.state.device_path))):
-                    self.player_path = path
-                    logger.info(f"📻 Found AVRCP media player: {path}")
+                path_str = str(path)
+                device_path_str = str(self.state.device_path)
+                
+                if self.MEDIA_PLAYER_INTERFACE in interfaces:
+                    logger.debug(f"   Checking player: {path_str}")
+                    logger.debug(f"   Does '{path_str}' start with '{device_path_str}'? {path_str.startswith(device_path_str)}")
                     
-                    # Update state
-                    self.state.set_avrcp_available(True)
-                    
-                    # Subscribe to property changes
-                    self._subscribe_to_changes()
-                    
-                    # Trigger state change callback
-                    if self.on_state_changed:
-                        self.on_state_changed(self.state)
-                    
-                    return True
+                    if path_str.startswith(device_path_str):
+                        self.player_path = path
+                        logger.info(f"📻 Found AVRCP media player: {path}")
+                        
+                        # Update state
+                        self.state.set_avrcp_available(True)
+                        
+                        # Subscribe to property changes
+                        self._subscribe_to_changes()
+                        
+                        # Trigger state change callback
+                        if self.on_state_changed:
+                            self.on_state_changed(self.state)
+                        
+                        return True
             
-            logger.warning(f"No AVRCP media player found for device {self.state.device_path}")
+            logger.warning(f"❌ No AVRCP media player found for device {self.state.device_path}")
             if media_players_found:
-                logger.warning(f"  Available players: {media_players_found}")
-                logger.warning(f"  None matched device path prefix")
+                logger.warning(f"   Available players: {media_players_found}")
+                logger.warning(f"   None matched device path prefix")
             self.state.set_avrcp_available(False)
             return False
             

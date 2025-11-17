@@ -541,8 +541,10 @@ class BluetoothMonitor:
                 
                 # Not available yet - wait and retry
                 if attempt < max_retries - 1:  # Don't sleep on last attempt
-                    logger.debug(f"AVRCP not available yet (attempt {attempt + 1}/{max_retries}), retrying...")
+                    logger.info(f"⏳ AVRCP not available yet (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
                     time.sleep(retry_delay)
+                else:
+                    logger.info(f"⏳ AVRCP still not available after attempt {attempt + 1}/{max_retries}")
             
             # After all retries, AVRCP still not available
             logger.info("⏳ AVRCP not available after retries - will be activated when playback starts")
