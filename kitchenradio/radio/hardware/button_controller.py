@@ -495,10 +495,10 @@ class ButtonController:
         # Change the volume - controller calculates and returns new volume
         new_volume = self.kitchen_radio.volume_up(step=5)
         
-        # Show volume screen immediately with new volume from controller
+        # Show volume screen - display will get volume from status (with expected values)
         if new_volume is not None:
             try:
-                self.display_controller.show_volume_overlay(volume=new_volume)
+                self.display_controller.show_volume_overlay()
             except Exception as e:
                 logger.warning(f"Failed to show volume screen: {e}")
         
@@ -511,10 +511,10 @@ class ButtonController:
         # Change the volume - controller calculates and returns new volume
         new_volume = self.kitchen_radio.volume_down(step=5)
         
-        # Show volume screen immediately with new volume from controller
+        # Show volume screen - display will get volume from status (with expected values)
         if new_volume is not None:
             try:
-                self.display_controller.show_volume_overlay(volume=new_volume)
+                self.display_controller.show_volume_overlay()
             except Exception as e:
                 logger.warning(f"Failed to show volume screen: {e}")
         

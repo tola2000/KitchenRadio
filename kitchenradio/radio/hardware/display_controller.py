@@ -1043,20 +1043,23 @@ class DisplayController:
             return True
         return False
 
-    def show_volume_overlay(self, timeout: float = 3, volume: int = None):
-        """Show volume overlay using the generic overlay system"""
-        logger.info(f"📢 show_volume_overlay called with volume={volume}, timeout={timeout}")
+    def show_volume_overlay(self, timeout: float = 3):
+        """
+        Show volume overlay using the generic overlay system.
         
-        # If volume is provided explicitly, use it and track the change time
-        if volume is not None:
-            display_volume = volume
-            self.last_volume_change_time = time.time()
-            self.last_volume = volume
-            logger.info(f"   User-initiated volume change: set last_volume={volume}, last_volume_change_time={self.last_volume_change_time}")
-        else:
-            # Otherwise get from current status
-            display_volume = self._get_current_volume(self.last_status)
-            logger.info(f"   Volume from status: {display_volume}")
+        Gets volume from current status which includes expected values from monitor.
+        The monitor immediately provides expected volume values via callbacks,
+        ensuring instant UI feedback.
+        """
+        logger.info(f"📢 show_volume_overlay called, timeout={timeout}")
+        
+        # Get volume from current status (includes expected values from monitor)
+        display_volume = self._get_current_volume(self.last_status)
+        logger.info(f"   Volume from status (with expected values): {display_volume}")
+        
+        # Track volume change time to ignore status updates temporarily
+        self.last_volume_change_time = time.time()
+        self.last_volume = display_volume
         
         volume_data = {
             'volume': display_volume,
