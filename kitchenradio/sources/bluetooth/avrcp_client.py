@@ -105,6 +105,17 @@ class AVRCPClient:
             # Find all media player objects
             objects = obj_manager.GetManagedObjects()
             
+            # Debug: Log all available objects
+            media_players_found = []
+            for path, interfaces in objects.items():
+                if self.MEDIA_PLAYER_INTERFACE in interfaces:
+                    media_players_found.append(str(path))
+            
+            if media_players_found:
+                logger.debug(f"Available MediaPlayer objects: {media_players_found}")
+            else:
+                logger.debug(f"No MediaPlayer objects found in BlueZ")
+            
             for path, interfaces in objects.items():
                 # Check if this is a media player for our device
                 if (self.MEDIA_PLAYER_INTERFACE in interfaces and 
@@ -124,7 +135,10 @@ class AVRCPClient:
                     
                     return True
             
-            logger.warning(f"No AVRCP media player found for {self.state.device_path}")
+            logger.warning(f"No AVRCP media player found for device {self.state.device_path}")
+            if media_players_found:
+                logger.warning(f"  Available players: {media_players_found}")
+                logger.warning(f"  None matched device path prefix")
             self.state.set_avrcp_available(False)
             return False
             
