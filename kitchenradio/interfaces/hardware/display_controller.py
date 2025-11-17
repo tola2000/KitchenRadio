@@ -954,9 +954,10 @@ class DisplayController:
             timeout = display_config.VOLUME_OVERLAY_TIMEOUT
         logger.info(f"📢 show_volume_overlay called, timeout={timeout}")
         
-        # Get volume from current status (includes expected values from monitor)
-        display_volume = self._get_current_volume(self.last_status)
-        logger.info(f"   Volume from status (with expected values): {display_volume}")
+        # Get FRESH status (includes expected values from monitor)
+        fresh_status = self.source_controller.get_status()
+        display_volume = self._get_current_volume(fresh_status)
+        logger.info(f"   Volume from fresh status (with expected values): {display_volume}")
         
         # Track volume change time to ignore status updates temporarily
         self.last_volume_change_time = time.time()

@@ -6,7 +6,7 @@ Spotify/Librespot Configuration
 # Librespot Server Connection
 # =============================================================================
 HOST = 'localhost'
-PORT = 4370
+PORT = 3678
 NAME = 'KitchenRadio'  # Display name for Spotify Connect
 
 # =============================================================================
