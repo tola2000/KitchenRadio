@@ -95,38 +95,47 @@ class KitchenRadioLibrespotClient:
                 logger.error(f"Response content: {response.text[:500]}")
             return None
     
-    def connect(self) -> bool:
+    def connect(self, max_retries: int = 3, retry_delay: float = 1.0) -> bool:
         """
-        Test connection to go-librespot server.
+        Test connection to go-librespot server with retry logic.
+        
+        Args:
+            max_retries: Maximum number of connection attempts
+            retry_delay: Delay in seconds between retries
         
         Returns:
             True if connected successfully
         """
+        import time
+        
         try:
             logger.info(f"Testing connection to go-librespot at {self.base_url}")
             
-            # Try to get status to test connection
-            status = self.get_status()
-            if status is not None:
-                self._connected = True
-                logger.info("Connected to go-librespot successfully")
+            # Try to get status to test connection with retries
+            for attempt in range(max_retries):
+                status = self.get_status()
+                if status is not None:
+                    self._connected = True
+                    logger.info("Connected to go-librespot successfully")
 
-
-
-                loop = asyncio.new_event_loop()
-                t = threading.Thread(target=loop.run_forever, daemon=True)
-                t.start()
-                # store for later shutdown if needed
-                self._ws_thread = t
-                self._ws_loop = loop
-                asyncio.run_coroutine_threadsafe(self.connect_ws(), loop)
-                return True
-            else:
-                logger.error("Failed to get status from go-librespot")
-                self._connected = False
-                return False
-
+                    loop = asyncio.new_event_loop()
+                    t = threading.Thread(target=loop.run_forever, daemon=True)
+                    t.start()
+                    # store for later shutdown if needed
+                    self._ws_thread = t
+                    self._ws_loop = loop
+                    asyncio.run_coroutine_threadsafe(self.connect_ws(), loop)
+                    return True
+                else:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Connection attempt {attempt + 1}/{max_retries} failed, retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                    else:
+                        logger.error(f"Failed to get status from go-librespot after {max_retries} attempts")
+                        self._connected = False
+                        return False
             
+            return False
                 
         except Exception as e:
             logger.error(f"Failed to connect to go-librespot: {e}")
