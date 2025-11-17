@@ -155,6 +155,11 @@ class SourceController:
         else:
             self.logger.warning("[X] Bluetooth backend unavailable")
         
+        # Power on at startup if configured
+        if self.config['power_on_at_startup']:
+            self.logger.info("Auto-powering on at startup...")
+            self.power()
+        
         return True
     
     def _initialize_mpd(self) -> bool:
