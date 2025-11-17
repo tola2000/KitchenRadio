@@ -24,82 +24,52 @@ logger = logging.getLogger(__name__)
 
 class KitchenRadioWeb:
     """
-    REST API wrapper for ButtonController.
+    REST API wrapper for KitchenRadio.
     
-    Provides HTTP endpoints for button control instead of GPIO pins.
-    Can be used alongside or instead of physical GPIO buttons.
+    Provides HTTP endpoints for button control and status display.
+    Acts as a thin web wrapper around an already configured KitchenRadio instance.
+    
+    Design:
+    - Accepts external KitchenRadio, DisplayController, and ButtonController
+    - Does not create or own these components (they're managed by the daemon)
+    - Provides REST API endpoints to interact with existing controllers
+    - Minimal initialization - just sets up Flask routes
     """
     
     def __init__(self, 
-                 kitchen_radio: 'KitchenRadio' = None,
+                 kitchen_radio: 'KitchenRadio',
+                 display_controller = None,
+                 button_controller = None,
                  host: str = '0.0.0.0',
-                 port: int = 5001,
-                 enable_gpio: bool = False,
-                 use_hardware_display: bool = False,
-                 display_interface = None):
+                 port: int = 5001):
         """
-        Initialize KitchenRadio Web API.
+        Initialize KitchenRadio Web API as a wrapper around existing components.
         
         Args:
-            kitchen_radio: KitchenRadio instance to control (will create if None)
-            host: API server host address
-            port: API server port
-            enable_gpio: Whether to also enable GPIO buttons
-            use_hardware_display: Use hardware SPI display instead of emulator
-            display_interface: Optional display interface to use (overrides other settings)
+            kitchen_radio: KitchenRadio instance to control (REQUIRED)
+            display_controller: Optional DisplayController instance for display API
+            button_controller: Optional ButtonController instance for button API
+            host: API server host address (default: 0.0.0.0 = all interfaces)
+            port: API server port (default: 5001)
+            
+        Note:
+            This class no longer creates or manages KitchenRadio, DisplayController,
+            or ButtonController. These should be created and managed by the daemon
+            or calling code. The web interface is just a REST API wrapper.
         """
-        # Create or use provided KitchenRadio instance
+        # Store references to external components
         if kitchen_radio is None:
-            from kitchenradio.radio.kitchen_radio import KitchenRadio
-            self.kitchen_radio = KitchenRadio()
-            self._owns_kitchen_radio = True
-        else:
-            self.kitchen_radio = kitchen_radio
-            self._owns_kitchen_radio = False
+            raise ValueError("kitchen_radio is required - KitchenRadioWeb is now a wrapper and does not create its own instance")
+        
+        self.kitchen_radio = kitchen_radio
+        self.display_controller = display_controller
+        self.button_controller = button_controller
+        
+        # Store display interface reference if available
+        self.display_interface = display_controller.display_interface if display_controller else None
             
         self.host = host
         self.port = port
-        self.enable_gpio = enable_gpio
-        self.use_hardware_display = use_hardware_display
-        
-        # Initialize unified display interface (has built-in emulator, optional hardware)
-        self.display_interface = None
-        
-        try:
-            self.display_interface = DisplayInterface(
-                use_hardware=use_hardware_display,
-                rotate=2  # Flip display upside down (180°)
-            )
-            if self.display_interface.initialize():
-                mode = self.display_interface.get_mode() if hasattr(self.display_interface, 'get_mode') else 'unknown'
-                logger.info(f"Display interface initialized in {mode} mode")
-            else:
-                logger.warning("Display interface initialization failed")
-                self.display_interface = None
-        except Exception as e:
-            logger.error(f"Failed to create display interface: {e}")
-            self.display_interface = None
-
-        # Initialize display controller
-        self.display_controller = None
-        try:
-            # Create display controller with display interface and kitchen_radio
-            self.display_controller = DisplayController(
-                kitchen_radio=self.kitchen_radio,
-                display_interface=self.display_interface  # Works with both emulator and SPI
-            )
-            self.display_controller.initialize()
-            logger.info("Display controller initialized with display interface and update loop started")
-        except Exception as e:
-            logger.warning(f"Failed to initialize display controller: {e}")
-            self.display_controller = None
-
-        # Create button controller with display controller reference
-        self.button_controller = ButtonController(
-            kitchen_radio=self.kitchen_radio,
-            display_controller=self.display_controller,
-            use_hardware=True  # Enable hardware buttons (MCP23017)
-        )
  
         # Flask app for REST API
         self.app = Flask(__name__, 
@@ -148,7 +118,7 @@ class KitchenRadioWeb:
             return jsonify({
                 'buttons': buttons,
                 'total_buttons': len(buttons),
-                'gpio_enabled': self.enable_gpio
+                'button_controller_available': self.button_controller is not None
             })
         
         @self.app.route('/api/button/<button_name>', methods=['POST'])
@@ -168,6 +138,14 @@ class KitchenRadioWeb:
                         'error': f'Unknown button: {button_name}',
                         'available_buttons': [bt.value for bt in ButtonType]
                     }), 400
+                
+                # Check if button controller is available
+                if not self.button_controller:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Button controller not available',
+                        'message': 'Web interface started without button controller'
+                    }), 503
                 
                 # Press the button
                 result = self.button_controller.press_button(button_name)
@@ -223,12 +201,18 @@ class KitchenRadioWeb:
                     'error': f'Unknown button: {button_name}'
                 }), 404
             
+            # Get GPIO pin if button controller is available
+            gpio_pin = 'N/A'
+            if self.button_controller and hasattr(self.button_controller, 'pin_mapping'):
+                gpio_pin = self.button_controller.pin_mapping.get(button_type, 'N/A')
+            
             return jsonify({
                 'name': button_name,
                 'description': self._get_button_description(button_type),
                 'category': self._get_button_category(button_type),
                 'press_count': self.button_stats[button_name],
-                'gpio_pin': self.button_controller.pin_mapping.get(button_type, 'N/A') if self.enable_gpio else 'N/A'
+                'gpio_pin': gpio_pin,
+                'button_controller_available': self.button_controller is not None
             })
         
         
@@ -242,7 +226,7 @@ class KitchenRadioWeb:
                 'total_presses': total_presses,
                 'last_button_press': self.last_button_press,
                 'api_uptime': time.time() - self.api_start_time if self.api_start_time else 0,
-                'gpio_enabled': self.enable_gpio
+                'button_controller_available': self.button_controller is not None
             })
         
         @self.app.route('/api/buttons/reset-stats', methods=['POST'])
@@ -264,7 +248,12 @@ class KitchenRadioWeb:
             return jsonify({
                 'api_running': self.running,
                 'api_uptime': time.time() - self.api_start_time if self.api_start_time else 0,
-                'gpio_enabled': self.enable_gpio,
+                'components': {
+                    'kitchen_radio': True,
+                    'button_controller': self.button_controller is not None,
+                    'display_controller': self.display_controller is not None,
+                    'display_interface': self.display_interface is not None
+                },
                 'total_button_presses': sum(self.button_stats.values()),
                 'kitchen_radio': kitchen_status
             })
@@ -712,30 +701,26 @@ class KitchenRadioWeb:
         """
         Start the KitchenRadio Web API server.
         
+        Note:
+            This only starts the Flask web server. It does NOT initialize
+            KitchenRadio, DisplayController, or ButtonController - those should
+            already be initialized by the caller/daemon before calling this.
+        
         Returns:
             True if started successfully
         """
         try:
-            # Start KitchenRadio if we own it
-            if self._owns_kitchen_radio:
-                if not self.kitchen_radio.start():
-                    logger.error("Failed to start KitchenRadio instance")
-                    return False
+            # Verify kitchen_radio is running (it should be started by caller)
+            if not self.kitchen_radio:
+                logger.error("No KitchenRadio instance provided - cannot start web API")
+                return False
             
-            # Initialize display interface (already done in __init__)
-            if self.display_interface:
-                if not self.display_interface.is_initialized() if hasattr(self.display_interface, 'is_initialized') else False:
-                    if not self.display_interface.initialize():
-                        logger.warning("Failed to initialize display interface, continuing anyway")
-            else:
-                logger.info("Display interface not available - display features disabled")
-            
-            # Note: Display controller would need hardware - using emulator directly for now
-            
-            # Initialize underlying button controller (for GPIO if enabled)
-            if self.enable_gpio:
-                if not self.button_controller.initialize():
-                    logger.warning("Failed to initialize GPIO buttons, continuing with API only")
+            # Log what components are available
+            logger.info("Starting KitchenRadio Web API with:")
+            logger.info(f"  - KitchenRadio: {'✓' if self.kitchen_radio else '✗'}")
+            logger.info(f"  - DisplayController: {'✓' if self.display_controller else '✗'}")
+            logger.info(f"  - ButtonController: {'✓' if self.button_controller else '✗'}")
+            logger.info(f"  - DisplayInterface: {'✓' if self.display_interface else '✗'}")
             
             # Start API server in background thread
             self.running = True
@@ -760,19 +745,7 @@ class KitchenRadioWeb:
             # Give server time to start
             time.sleep(0.5)
             
-            logger.info(f"KitchenRadio Web API started on http://{self.host}:{self.port}")
-            logger.info(f"GPIO buttons {'enabled' if self.enable_gpio else 'disabled'}")
-            
-            # Display mode information
-            if self.display_interface:
-                interface_name = type(self.display_interface).__name__
-                if hasattr(self.display_interface, 'get_mode'):
-                    mode = self.display_interface.get_mode()
-                    logger.info(f"Display interface: {interface_name} ({mode} mode)")
-                else:
-                    logger.info(f"Display interface: {interface_name}")
-            else:
-                logger.info("Display interface: None")
+            logger.info(f"✓ KitchenRadio Web API started on http://{self.host}:{self.port}")
             
             return True
             
@@ -781,41 +754,22 @@ class KitchenRadioWeb:
             return False
     
     def stop(self):
-        """Stop the KitchenRadio Web API server"""
+        """
+        Stop the KitchenRadio Web API server.
+        
+        Note:
+            This only stops the Flask web server. It does NOT clean up
+            KitchenRadio, DisplayController, or ButtonController - those
+            should be cleaned up by the caller/daemon that created them.
+        """
         logger.info("Stopping KitchenRadio Web API...")
         
         self.running = False
         
-        # Cleanup display controller FIRST (this stops the update thread)
-        if self.display_controller:
-            try:
-                logger.info("Cleaning up display controller...")
-                self.display_controller.cleanup()
-            except Exception as e:
-                logger.warning(f"Error cleaning up display controller: {e}")
-        
-        # Cleanup display interface
-        if self.display_interface:
-            try:
-                self.display_interface.cleanup()
-            except Exception as e:
-                logger.warning(f"Error cleaning up display interface: {e}")
-        
-        # Cleanup GPIO if enabled
-        if self.enable_gpio:
-            self.button_controller.cleanup()
-        
-        # Stop KitchenRadio if we own it
-        if self._owns_kitchen_radio:
-            try:
-                self.kitchen_radio.stop()
-            except Exception as e:
-                logger.warning(f"Error stopping KitchenRadio: {e}")
-        
         # Note: Flask development server doesn't have a clean shutdown method
         # In production, you'd use a proper WSGI server like Gunicorn
         
-        logger.info("KitchenRadio Web API stopped")
+        logger.info("✓ KitchenRadio Web API stopped")
     
     def press_button_direct(self, button_name: str) -> bool:
         """
@@ -827,6 +781,9 @@ class KitchenRadioWeb:
         Returns:
             True if successful
         """
+        if not self.button_controller:
+            logger.warning("No button controller available - cannot press button")
+            return False
         return self.button_controller.press_button(button_name)
 
 
@@ -844,57 +801,105 @@ if __name__ == "__main__":
     # Setup logging
     logging.basicConfig(level=logging.INFO)
     
-    # Create KitchenRadio Web API
+    print("="*60)
+    print("KitchenRadio Web API - Standalone Test Mode")
+    print("="*60)
+    print("\nNOTE: KitchenRadioWeb is now a wrapper that requires")
+    print("      pre-configured KitchenRadio + controllers.")
+    print("\nFor proper usage, use: python run_daemon.py --web")
+    print("\nThis standalone mode creates minimal components for testing.")
+    print("="*60)
+    
+    # Create components for standalone testing
+    print("\n1. Creating KitchenRadio instance...")
+    kitchen_radio = KitchenRadio()
+    
+    print("2. Creating DisplayInterface (emulator mode)...")
+    display_interface = DisplayInterface(use_hardware=False)
+    display_interface.initialize()
+    
+    print("3. Creating DisplayController...")
+    display_controller = DisplayController(
+        kitchen_radio=kitchen_radio,
+        display_interface=display_interface
+    )
+    display_controller.initialize()
+    
+    print("4. Creating ButtonController (software mode)...")
+    button_controller = ButtonController(
+        kitchen_radio=kitchen_radio,
+        display_controller=display_controller,
+        use_hardware=False  # Software mode for testing
+    )
+    button_controller.initialize()
+    
+    print("5. Starting KitchenRadio...")
+    if not kitchen_radio.start():
+        print("ERROR: Failed to start KitchenRadio")
+        sys.exit(1)
+    
+    print("6. Creating KitchenRadioWeb wrapper...")
     api = KitchenRadioWeb(
-        kitchen_radio=None,  # Will create its own
-        host='0.0.0.0',  # Listen on all network interfaces (accessible from other devices)
-        port=5001,
-        enable_gpio=True,  # Enable GPIO hardware buttons (MCP23017)
-        use_hardware_display=True  # Use hardware SPI display
+        kitchen_radio=kitchen_radio,
+        display_controller=display_controller,
+        button_controller=button_controller,
+        host='0.0.0.0',
+        port=5001
     )
     
-    # Signal handler to stop both kitchen_radio and API
+    # Signal handler for cleanup
     def signal_handler(signum, frame):
         logger.info(f"Web API received signal {signum}, initiating shutdown...")
-        api.running = False  # Stop the main loop
+        api.running = False
     
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
     if api.start():
-        print("KitchenRadio Web API started successfully")
-        print("API available at:")
+        print("\n" + "="*60)
+        print("✓ KitchenRadio Web API started successfully!")
+        print("="*60)
+        print("\nAPI available at:")
         print("  - Local:   http://127.0.0.1:5001")
         print("  - Network: http://<your-ip>:5001")
         print("  (Use 'ipconfig' to find your IP address)")
         print("\nAvailable endpoints:")
+        print("  Radio Interface:")
+        print("    GET  / - Main radio interface")
+        print("    GET  /radio - Alternative radio interface")
         print("  Button Control:")
         print("    GET  /api/buttons - List all buttons")
         print("    POST /api/button/<name> - Press a button")
         print("    GET  /api/button/<name>/info - Get button info")
         print("    GET  /api/buttons/stats - Get button statistics")
-        print("    POST /api/buttons/reset-stats - Reset statistics")
         print("  Display Control:")
-        print("    GET  /api/display/image - Get display image (PNG)")
+        print("    GET  /api/display/image - Get display image (BMP)")
         print("    GET  /api/display/ascii - Get display as ASCII art")
-        print("    POST /api/display/clear - Clear display")
-        print("    POST /api/display/test - Show test pattern")
-        print("    GET  /api/display/stats - Get display statistics")
+        print("    POST /api/display/update - Update display with status")
         print("    GET  /api/display/status - Get display status")
         print("  System:")
         print("    GET  /api/status - Get API and radio status")
         print("    GET  /api/health - Health check")
+        print("    POST /api/reconnect - Reconnect backends")
         print("\nPress Ctrl+C to stop")
+        print("="*60)
         
         try:
             # Keep running
             while api.running:
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("\nShutting down...")
+            print("\n\nShutting down...")
         finally:
+            print("Stopping web API...")
             api.stop()
+            print("Cleaning up components...")
+            display_controller.cleanup()
+            button_controller.cleanup()
+            display_interface.cleanup()
+            kitchen_radio.stop()
+            print("✓ Shutdown complete")
     else:
-        print("Failed to start KitchenRadio Web API")
+        print("ERROR: Failed to start KitchenRadio Web API")
         sys.exit(1)

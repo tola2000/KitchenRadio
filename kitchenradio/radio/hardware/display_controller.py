@@ -14,6 +14,10 @@ from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
 
 from kitchenradio.radio.kitchen_radio import BackendType
 
+# Import configuration
+from kitchenradio import config
+from kitchenradio.config import display as display_config
+
 from .display_formatter import DisplayFormatter
 from .display_interface import DisplayInterface
 from ..kitchen_radio import KitchenRadio
@@ -31,7 +35,7 @@ class DisplayController:
     
     def __init__(self, 
                  kitchen_radio: 'KitchenRadio' = None,
-                 refresh_rate: float = 80,
+                 refresh_rate: float = None,
                  display_interface = None,
                  use_hardware_display: bool = False):
         """
@@ -41,7 +45,7 @@ class DisplayController:
             kitchen_radio: KitchenRadio instance for status updates
             i2c_port: I2C port number (ignored if display_interface provided)
             i2c_address: I2C address of the SSD1322 display (ignored if display_interface provided)
-            refresh_rate: Display refresh rate in Hz (default: 80 Hz for ultra-smooth pixel scrolling)
+            refresh_rate: Display refresh rate in Hz (default from config: 80 Hz for ultra-smooth pixel scrolling)
             display_interface: Optional external I2C interface (for emulation or custom interface)
             use_hardware_display: Use hardware display if available (when creating interface automatically)
         """
@@ -62,13 +66,13 @@ class DisplayController:
         # Create display formatter for SSD1322
         # Don't override width - let DisplayFormatter use its USABLE_WIDTH default (with margin)
         self.formatter = DisplayFormatter(
-            height=self.display_interface.height if hasattr(self.display_interface, 'height') else 64
+            height=self.display_interface.height if hasattr(self.display_interface, 'height') else display_config.HEIGHT
         )
         
         # Display state
         self.last_status = None
         self.last_powered_on = None  # Track power state separately
-        self.refresh_rate = refresh_rate
+        self.refresh_rate = refresh_rate if refresh_rate is not None else display_config.REFRESH_RATE
         self._first_update = True  # Flag to force first display update after initialization
         
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
@@ -82,28 +86,27 @@ class DisplayController:
         self.last_truncation_info = {}
         self.current_scroll_offsets = {}  # Track current scroll positions for each string
         
-        # Scrolling state
+        # Scrolling state (use config values)
         self.scrolling_active = False
         self.scroll_timer = None
-        self.scroll_update_interval = 0.2  # Update every 500ms
-          # Pause before starting scroll (seconds)
-        self.scroll_pause_duration = 2  # Pause 2 seconds at start and when looping back
+        self.scroll_update_interval = 0.2  # Update every 200ms
+        self.scroll_pause_duration = display_config.SCROLL_PAUSE_DURATION
         # Per-key timestamp (epoch) until which scrolling is paused for that key
         self.scroll_pause_until: Dict[str, float] = {}
       
-        # Overlay state (for volume, menu, etc.)
+        # Overlay state (for volume, menu, etc.) - use config values
         self.overlay_active = False
         self.overlay_type = None  # 'volume', 'menu', etc.
         self.overlay_end_time = 0
-        self.overlay_timeout = 3.0  # 3 seconds default
+        self.overlay_timeout = display_config.MENU_OVERLAY_TIMEOUT  # Default timeout from config
         self.last_volume = None
         self.last_volume_change_time = 0  # Track when volume was last changed
-        self.volume_change_ignore_duration = 1.0  # Ignore status updates for 1 second after volume change
+        self.volume_change_ignore_duration = display_config.VOLUME_CHANGE_IGNORE_DURATION
 
         self.selected_index = 0
         self.on_menu_selected: None
 
-        self.scroll_step = 2  # pixels per update (2 pixels * 80 Hz = 160 pixels/second, 2x faster scrolling)
+        self.scroll_step = display_config.SCROLL_STEP
 
         # Threading for updates
         self.update_thread = None
@@ -918,7 +921,7 @@ class DisplayController:
             return True
         return False
 
-    def show_volume_overlay(self, timeout: float = 3):
+    def show_volume_overlay(self, timeout: float = None):
         """
         Show volume overlay using the generic overlay system.
         
@@ -926,6 +929,8 @@ class DisplayController:
         The monitor immediately provides expected volume values via callbacks,
         ensuring instant UI feedback.
         """
+        if timeout is None:
+            timeout = display_config.VOLUME_OVERLAY_TIMEOUT
         logger.info(f"📢 show_volume_overlay called, timeout={timeout}")
         
         # Get volume from current status (includes expected values from monitor)
@@ -969,8 +974,10 @@ class DisplayController:
         }
         self._render_display_content('clock', clock_data)
 
-    def show_menu_overlay(self, options: List[str], selected_index: int = 0, timeout: float = 3.0, on_selected: Optional[Callable[[int], None]] = None):
+    def show_menu_overlay(self, options: List[str], selected_index: int = 0, timeout: float = None, on_selected: Optional[Callable[[int], None]] = None):
         """Show menu overlay using the generic overlay system"""
+        if timeout is None:
+            timeout = display_config.MENU_OVERLAY_TIMEOUT
         menu_data = {
             'title': 'Menu',
             'menu_items': options,

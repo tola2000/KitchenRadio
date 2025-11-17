@@ -14,6 +14,10 @@ from enum import Enum
 if TYPE_CHECKING:
     from ..kitchen_radio import KitchenRadio, BackendType
 
+# Import configuration
+from kitchenradio import config
+from kitchenradio.config import buttons as buttons_config
+
 logger = logging.getLogger(__name__)
 
 # Hardware configuration flag
@@ -65,36 +69,41 @@ class ButtonType(Enum):
 # Format: ButtonType -> MCP23017 pin number (0-15)
 # Pins 0-7 are on Port A (GPA0-GPA7)
 # Pins 8-15 are on Port B (GPB0-GPB7)
-BUTTON_PIN_MAP = {
-    # Source buttons 
-    ButtonType.SOURCE_MPD: 7,         # TUNER
-    ButtonType.SOURCE_SPOTIFY: 6,     # AUX
-    ButtonType.SOURCE_BLUETOOTH: 5,   # Bluetooth
-    
-    # Menu buttons 
-    ButtonType.MENU_UP: 8,            # 
-    ButtonType.MENU_DOWN: 9,          # 
+# Now loaded from config.buttons module
+def _get_button_pin_map():
+    """Get button pin mapping from config"""
+    return {
+        # Source buttons 
+        ButtonType.SOURCE_MPD: buttons_config.PIN_SOURCE_MPD,
+        ButtonType.SOURCE_SPOTIFY: buttons_config.PIN_SOURCE_SPOTIFY,
+        ButtonType.SOURCE_BLUETOOTH: buttons_config.PIN_SOURCE_BLUETOOTH,
+        
+        # Menu buttons 
+        ButtonType.MENU_UP: buttons_config.PIN_MENU_UP,
+        ButtonType.MENU_DOWN: buttons_config.PIN_MENU_DOWN,
+        
+        # Function buttons
+        ButtonType.SLEEP: buttons_config.PIN_SLEEP,
+        ButtonType.REPEAT: buttons_config.PIN_REPEAT,
+        ButtonType.SHUFFLE: buttons_config.PIN_SHUFFLE,
+        ButtonType.DISPLAY: buttons_config.PIN_DISPLAY,
+        
+        # Transport buttons 
+        ButtonType.TRANSPORT_PREVIOUS: buttons_config.PIN_TRANSPORT_PREVIOUS,
+        ButtonType.TRANSPORT_PLAY_PAUSE: buttons_config.PIN_TRANSPORT_PLAY_PAUSE,
+        ButtonType.TRANSPORT_STOP: buttons_config.PIN_TRANSPORT_STOP,
+        ButtonType.TRANSPORT_NEXT: buttons_config.PIN_TRANSPORT_NEXT,
+        
+        # Volume buttons 
+        ButtonType.VOLUME_DOWN: buttons_config.PIN_VOLUME_DOWN,
+        ButtonType.VOLUME_UP: buttons_config.PIN_VOLUME_UP,
+        
+        # Power button 
+        ButtonType.POWER: buttons_config.PIN_POWER,
+    }
 
-
-    ButtonType.SLEEP: 15,              # 
-    ButtonType.REPEAT: 14,             # 
-    ButtonType.SHUFFLE: 13,            # 
-    ButtonType.DISPLAY: 11,            # 
-
-    
-    # Transport buttons 
-    ButtonType.TRANSPORT_PREVIOUS: 1,     # 
-    ButtonType.TRANSPORT_PLAY_PAUSE: 3,   # 
-    ButtonType.TRANSPORT_STOP: 4,        # 
-    ButtonType.TRANSPORT_NEXT: 2,        # 
-    
-    # Volume buttons 
-    ButtonType.VOLUME_DOWN: 10,       # 
-    ButtonType.VOLUME_UP: 12,         # 
-    
-    # Power button 
-    ButtonType.POWER: 0,             # 
-}
+# Initialize pin map from config
+BUTTON_PIN_MAP = _get_button_pin_map()
 
 
 class ButtonEvent:
@@ -119,23 +128,23 @@ class ButtonController:
     
     def __init__(self, 
                  kitchen_radio: 'KitchenRadio' = None,
-                 debounce_time: float = 0.02,
-                 long_press_time: float = 1.0,
+                 debounce_time: float = None,
+                 long_press_time: float = None,
                  display_controller = None,
-                 use_hardware: bool = True,
+                 use_hardware: bool = None,
                  simulation_mode: bool = False,
-                 i2c_address: int = 0x27):
+                 i2c_address: int = None):
         """
         Initialize button controller with MCP23017 hardware support.
         
         Args:
             kitchen_radio: KitchenRadio instance to control
-            debounce_time: Button debounce time in seconds
-            long_press_time: Time threshold for long press detection
+            debounce_time: Button debounce time in seconds (default from config)
+            long_press_time: Time threshold for long press detection (default from config)
             display_controller: Optional display controller for volume screen
-            use_hardware: Enable MCP23017 hardware buttons (auto-disabled if not available)
+            use_hardware: Enable MCP23017 hardware buttons (default from config, auto-disabled if not available)
             simulation_mode: Legacy parameter - disables hardware (opposite of use_hardware)
-            i2c_address: I2C address of MCP23017 (default 0x27)
+            i2c_address: I2C address of MCP23017 (default from config)
         """
         # Store KitchenRadio reference
         self.kitchen_radio = kitchen_radio
@@ -143,16 +152,21 @@ class ButtonController:
         # Store display controller for volume screen
         self.display_controller = display_controller
         
-        # Timing configuration
-        self.debounce_time = debounce_time
-        self.long_press_time = long_press_time
+        # Timing configuration - use config defaults if not specified
+        self.debounce_time = debounce_time if debounce_time is not None else buttons_config.DEBOUNCE_TIME
+        self.long_press_time = long_press_time if long_press_time is not None else buttons_config.LONG_PRESS_TIME
         
         # Hardware configuration (support both use_hardware and simulation_mode)
         # simulation_mode=True means use_hardware=False
         if simulation_mode:
             use_hardware = False
+        
+        # Use config default if not specified
+        if use_hardware is None:
+            use_hardware = buttons_config.USE_HARDWARE
+            
         self.use_hardware = use_hardware and HARDWARE_AVAILABLE
-        self.i2c_address = i2c_address
+        self.i2c_address = i2c_address if i2c_address is not None else buttons_config.I2C_ADDRESS
         self.mcp = None
         self.button_pins = {}
         self.monitor_thread = None
@@ -549,7 +563,7 @@ class ButtonController:
         logger.debug("Volume up")
         
         # Change the volume - controller calculates and returns new volume
-        new_volume = self.kitchen_radio.volume_up(step=5)
+        new_volume = self.kitchen_radio.volume_up(step=buttons_config.VOLUME_STEP)
         
         # Show volume screen - display will get volume from status (with expected values)
         if new_volume is not None:
@@ -565,7 +579,7 @@ class ButtonController:
         logger.debug("Volume down")
         
         # Change the volume - controller calculates and returns new volume
-        new_volume = self.kitchen_radio.volume_down(step=5)
+        new_volume = self.kitchen_radio.volume_down(step=buttons_config.VOLUME_STEP)
         
         # Show volume screen - display will get volume from status (with expected values)
         if new_volume is not None:

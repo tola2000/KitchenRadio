@@ -17,6 +17,10 @@ import io
 from typing import Callable, Optional, Tuple, Dict, Any
 from PIL import Image, ImageDraw
 
+# Import configuration
+from kitchenradio import config
+from kitchenradio.config import display as display_config
+
 logger = logging.getLogger(__name__)
 
 # Hardware SPI support is OPTIONAL - only available on Raspberry Pi
@@ -44,27 +48,27 @@ class DisplayInterface:
     Perfect for development (emulator) and production (hardware).
     """
     
-    # Display specifications (same for both modes)
-    WIDTH = 256
-    HEIGHT = 64
+    # Display specifications (same for both modes) - use config values
+    WIDTH = display_config.WIDTH
+    HEIGHT = display_config.HEIGHT
     WIDTH_MARGIN = 10  # Reduce drawable width by 10 pixels (246 usable width)
     
-    # SPI configuration (for hardware mode)
-    DEFAULT_SPI_BUS_SPEED = 4_000_000  # 4 MHz
-    MAX_SPI_BUS_SPEED = 10_000_000     # 10 MHz
-    GPIO_DC = 25
-    GPIO_RST = 24
-    SPI_PORT = 0
-    SPI_DEVICE = 0
+    # SPI configuration (for hardware mode) - use config values
+    DEFAULT_SPI_BUS_SPEED = display_config.SPI_BUS_SPEED
+    MAX_SPI_BUS_SPEED = 10_000_000     # 10 MHz (hardware limit)
+    GPIO_DC = display_config.GPIO_DC
+    GPIO_RST = display_config.GPIO_RST
+    SPI_PORT = display_config.SPI_PORT
+    SPI_DEVICE = display_config.SPI_DEVICE
     
     def __init__(self,
                  use_hardware: bool = False,
-                 bus_speed_hz: int = DEFAULT_SPI_BUS_SPEED,
-                 gpio_dc: int = GPIO_DC,
-                 gpio_rst: int = GPIO_RST,
-                 spi_port: int = SPI_PORT,
-                 spi_device: int = SPI_DEVICE,
-                 rotate: int = 0):
+                 bus_speed_hz: int = None,
+                 gpio_dc: int = None,
+                 gpio_rst: int = None,
+                 spi_port: int = None,
+                 spi_device: int = None,
+                 rotate: int = None):
         """
         Initialize display interface.
         
@@ -73,21 +77,21 @@ class DisplayInterface:
         
         Args:
             use_hardware: Try to use hardware SPI (default: False = emulator)
-            bus_speed_hz: SPI bus speed in Hz (hardware only, default: 4 MHz)
-            gpio_dc: D/C GPIO pin (hardware only, default: 25)
-            gpio_rst: RST GPIO pin (hardware only, default: 24)
-            spi_port: SPI port (hardware only, default: 0)
-            spi_device: SPI device/CE (hardware only, default: 0)
-            rotate: Display rotation in degrees (0, 1, 2, 3 = 0°, 90°, 180°, 270°)
+            bus_speed_hz: SPI bus speed in Hz (hardware only, default from config)
+            gpio_dc: D/C GPIO pin (hardware only, default from config)
+            gpio_rst: RST GPIO pin (hardware only, default from config)
+            spi_port: SPI port (hardware only, default from config)
+            spi_device: SPI device/CE (hardware only, default from config)
+            rotate: Display rotation in degrees (0, 1, 2, 3 = 0°, 90°, 180°, 270°), default from config
                     Use 2 to flip display upside down
         """
         self.use_hardware = use_hardware
-        self.bus_speed_hz = bus_speed_hz
-        self.gpio_dc = gpio_dc
-        self.gpio_rst = gpio_rst
-        self.spi_port = spi_port
-        self.spi_device = spi_device
-        self.rotate = rotate
+        self.bus_speed_hz = bus_speed_hz if bus_speed_hz is not None else display_config.SPI_BUS_SPEED
+        self.gpio_dc = gpio_dc if gpio_dc is not None else display_config.GPIO_DC
+        self.gpio_rst = gpio_rst if gpio_rst is not None else display_config.GPIO_RST
+        self.spi_port = spi_port if spi_port is not None else display_config.SPI_PORT
+        self.spi_device = spi_device if spi_device is not None else display_config.SPI_DEVICE
+        self.rotate = rotate if rotate is not None else display_config.ROTATE
         
         # Display state
         self.mode = None  # 'hardware' or 'emulator'
