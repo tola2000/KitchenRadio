@@ -273,47 +273,7 @@ class KitchenRadio:
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}", exc_info=True)
     
-    def reconnect_backends(self) -> Dict[str, bool]:
-        """
-        Attempt to reconnect to all disconnected backends.
-        
-        Returns:
-            dict: Dictionary with backend names as keys and success status as values
-        """
-        self.logger.info("Reconnecting backends...")
-        results = {}
-        
-        try:
-            # MPD reconnection
-            if hasattr(self.source_controller, 'mpd_controller'):
-                try:
-                    results['mpd'] = self.source_controller.mpd_controller.reconnect()
-                except Exception as e:
-                    self.logger.error(f"MPD reconnection failed: {e}")
-                    results['mpd'] = False
-            
-            # Librespot reconnection
-            if hasattr(self.source_controller, 'librespot_controller'):
-                try:
-                    results['librespot'] = self.source_controller.librespot_controller.reconnect()
-                except Exception as e:
-                    self.logger.error(f"Librespot reconnection failed: {e}")
-                    results['librespot'] = False
-            
-            # Bluetooth reconnection
-            if hasattr(self.source_controller, 'bluetooth_controller'):
-                try:
-                    results['bluetooth'] = self.source_controller.bluetooth_controller.reconnect()
-                except Exception as e:
-                    self.logger.error(f"Bluetooth reconnection failed: {e}")
-                    results['bluetooth'] = False
-            
-            self.logger.info(f"Reconnection results: {results}")
-            return results
-            
-        except Exception as e:
-            self.logger.error(f"Error during backend reconnection: {e}", exc_info=True)
-            return {'error': str(e)}
+ 
     
     def shutdown(self):
         """

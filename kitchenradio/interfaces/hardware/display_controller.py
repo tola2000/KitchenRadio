@@ -322,96 +322,96 @@ class DisplayController:
             # Update last volume for tracking
             current_volume = self._get_current_volume(current_status)
 
-                # Determine display content based on current source
-                current_source = current_status.get('current_source')
-                current_powered_on = current_status.get('powered_on', False)
-                
-                # Detect power state change
-                power_state_changed = (self.last_powered_on is not None and 
-                                      current_powered_on != self.last_powered_on)
-                
-                if power_state_changed:
-                    logger.info(f"Power state transition detected: {self.last_powered_on} -> {current_powered_on}, source: {current_source}")
-                
-                scroll_update = self._is_scroll_update_needed()
-                
-                overlay_dismissed = self._dismiss_overlay()
-           
-                # Check if we should ignore volume updates (recently changed by user)
-                time_since_volume_change = time.time() - self.last_volume_change_time
-                ignore_volume_updates = time_since_volume_change < self.volume_change_ignore_duration
-                
-                # Check for external update of the volume
-                if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
-                    # Only update if we're not ignoring volume updates
-                    if not ignore_volume_updates:
-                        self._render_volume_overlay(current_volume)
-                        # Update last_volume to prevent continuous re-rendering
-                        self.last_volume = current_volume
-                        return
-                    else:
-                        # Ignore this volume update - keep showing user-set volume
-                        return
-                elif self.overlay_active:
-                    return
+            # Determine display content based on current source
+            current_source = current_status.get('current_source')
+            current_powered_on = current_status.get('powered_on', False)
             
-                elif not current_powered_on:
-                    # Powered off - show clock and clear display state
-                    self.last_powered_on = current_powered_on
-                    # Clear display state so next power on shows fresh content
-                    self.last_status = None
-                    self.current_display_type = None
-                    self.current_display_data = None
-                    self.last_truncation_info = {}
-                    self.current_scroll_offsets = {}
-                    self.scroll_pause_until = {}
-                    logger.debug("Power OFF - cleared display state")
-                    self._render_clock_display()
+            # Detect power state change
+            power_state_changed = (self.last_powered_on is not None and 
+                                  current_powered_on != self.last_powered_on)
+            
+            if power_state_changed:
+                logger.info(f"Power state transition detected: {self.last_powered_on} -> {current_powered_on}, source: {current_source}")
+            
+            scroll_update = self._is_scroll_update_needed()
+            
+            overlay_dismissed = self._dismiss_overlay()
+       
+            # Check if we should ignore volume updates (recently changed by user)
+            time_since_volume_change = time.time() - self.last_volume_change_time
+            ignore_volume_updates = time_since_volume_change < self.volume_change_ignore_duration
+            
+            # Check for external update of the volume
+            if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
+                # Only update if we're not ignoring volume updates
+                if not ignore_volume_updates:
+                    self._render_volume_overlay(current_volume)
+                    # Update last_volume to prevent continuous re-rendering
+                    self.last_volume = current_volume
                     return
-                elif current_source == 'none' or current_source is None:
-                    self.last_powered_on = current_powered_on
+                else:
+                    # Ignore this volume update - keep showing user-set volume
+                    return
+            elif self.overlay_active:
+                return
+        
+            elif not current_powered_on:
+                # Powered off - show clock and clear display state
+                self.last_powered_on = current_powered_on
+                # Clear display state so next power on shows fresh content
+                self.last_status = None
+                self.current_display_type = None
+                self.current_display_data = None
+                self.last_truncation_info = {}
+                self.current_scroll_offsets = {}
+                self.scroll_pause_until = {}
+                logger.debug("Power OFF - cleared display state")
+                self._render_clock_display()
+                return
+            elif current_source == 'none' or current_source is None:
+                self.last_powered_on = current_powered_on
+                self._render_no_source_display(current_status)
+                return
+            
+            # Check if status has changed or force refresh or first update after initialization or power state changed
+            if not self.overlay_active and ( (current_volume != self.last_volume ) or current_status != self.last_status or overlay_dismissed or force_refresh or self._first_update or power_state_changed ):
+                if self._first_update:
+                    logger.info("First display update after initialization - forcing render")
+                    self._first_update = False
+                if power_state_changed:
+                    logger.info(f"Power state changed: {self.last_powered_on} -> {current_powered_on} - forcing render")
+                
+                self.last_status = current_status
+                self.last_volume = current_volume
+                self.last_powered_on = current_powered_on
+
+                if current_source == 'mpd' and current_status.get('mpd', {}).get('connected'):
+                    logger.info(f"Rendering MPD display after status/power change")
+                    self._render_mpd_display(current_status['mpd'])
+                    return
+                elif current_source == 'librespot':
+                    # Render Spotify display regardless of connection status - will show "Niet Actief" if not connected
+                    logger.info(f"Rendering Spotify display after status/power change")
+                    self._render_librespot_display(current_status.get('librespot', {'connected': False, 'volume': 50, 'current_track': None}))
+                    return
+                elif current_source == 'bluetooth':
+                    logger.info(f"Rendering Bluetooth display after status/power change")
+                    self._render_bluetooth_display(current_status.get('bluetooth', {}))
+                    return
+                else:
+                    logger.info(f"Rendering no source display after status/power change")
                     self._render_no_source_display(current_status)
                     return
-                
-                # Check if status has changed or force refresh or first update after initialization or power state changed
-                if not self.overlay_active and ( (current_volume != self.last_volume ) or current_status != self.last_status or overlay_dismissed or force_refresh or self._first_update or power_state_changed ):
-                    if self._first_update:
-                        logger.info("First display update after initialization - forcing render")
-                        self._first_update = False
-                    if power_state_changed:
-                        logger.info(f"Power state changed: {self.last_powered_on} -> {current_powered_on} - forcing render")
-                    
-                    self.last_status = current_status
-                    self.last_volume = current_volume
-                    self.last_powered_on = current_powered_on
-
-                    if current_source == 'mpd' and current_status.get('mpd', {}).get('connected'):
-                        logger.info(f"Rendering MPD display after status/power change")
-                        self._render_mpd_display(current_status['mpd'])
-                        return
-                    elif current_source == 'librespot':
-                        # Render Spotify display regardless of connection status - will show "Niet Actief" if not connected
-                        logger.info(f"Rendering Spotify display after status/power change")
-                        self._render_librespot_display(current_status.get('librespot', {'connected': False, 'volume': 50, 'current_track': None}))
-                        return
-                    elif current_source == 'bluetooth':
-                        logger.info(f"Rendering Bluetooth display after status/power change")
-                        self._render_bluetooth_display(current_status.get('bluetooth', {}))
-                        return
-                    else:
-                        logger.info(f"Rendering no source display after status/power change")
-                        self._render_no_source_display(current_status)
-                        return
-                # Handle scroll updates - refresh current display with updated scroll offsets
-                if not self.current_display_type or not self.current_display_data:
-                    return                
-                elif scroll_update:
-                    # Update scroll offsets in current display data
-                    display_data = self.current_display_data.copy()
-                    display_data['scroll_offsets'] = self.current_scroll_offsets
-                    # Render with appropriate formatter
-                    self._render_display_content(self.current_display_type, display_data)
-                return         
+            # Handle scroll updates - refresh current display with updated scroll offsets
+            if not self.current_display_type or not self.current_display_data:
+                return                
+            elif scroll_update:
+                # Update scroll offsets in current display data
+                display_data = self.current_display_data.copy()
+                display_data['scroll_offsets'] = self.current_scroll_offsets
+                # Render with appropriate formatter
+                self._render_display_content(self.current_display_type, display_data)
+            return         
         except Exception as e:
             logger.error(f"Error updating display: {e}")
 
