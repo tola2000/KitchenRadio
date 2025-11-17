@@ -15,9 +15,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from kitchenradio import config
-from kitchenradio.radio.kitchen_radio import KitchenRadio
-from kitchenradio.radio.hardware.button_controller import ButtonController
-from kitchenradio.radio.hardware.display_controller import DisplayController
+from kitchenradio.kitchen_radio import KitchenRadio
+from kitchenradio.hardware.button_controller import ButtonController
+from kitchenradio.hardware.display_controller import DisplayController
 
 logger = logging.getLogger(__name__)
 

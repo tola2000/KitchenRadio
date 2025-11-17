@@ -18,7 +18,7 @@ from enum import Enum
 from kitchenradio import config
 
 # Import both backends
-from kitchenradio.mpd import KitchenRadioClient as MPDClient, PlaybackController as MPDController, NowPlayingMonitor as MPDMonitor
+from kitchenradio.radio import KitchenRadioClient as MPDClient, PlaybackController as MPDController, NowPlayingMonitor as MPDMonitor
 from kitchenradio.spotify import KitchenRadioLibrespotClient, LibrespotController, LibrespotMonitor
 
 

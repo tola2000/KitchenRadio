@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
 
-from kitchenradio.radio.kitchen_radio import BackendType
+from kitchenradio.kitchen_radio import BackendType
 
 # Import configuration
 from kitchenradio import config
@@ -20,7 +20,7 @@ from kitchenradio.config import display as display_config
 
 from .display_formatter import DisplayFormatter
 from .display_interface import DisplayInterface
-from ..kitchen_radio import KitchenRadio
+from ...kitchen_radio import KitchenRadio
 
 logger = logging.getLogger(__name__)
 
