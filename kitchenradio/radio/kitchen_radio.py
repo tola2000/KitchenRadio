@@ -14,10 +14,12 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Callable
 from enum import Enum
 
+# Import configuration
+from kitchenradio import config
 
 # Import both backends
 from kitchenradio.mpd import KitchenRadioClient as MPDClient, PlaybackController as MPDController, NowPlayingMonitor as MPDMonitor
-from kitchenradio.librespot import KitchenRadioLibrespotClient, LibrespotController, LibrespotMonitor
+from kitchenradio.spotify import KitchenRadioLibrespotClient, LibrespotController, LibrespotMonitor
 
 
 class BackendType(Enum):
@@ -81,24 +83,38 @@ class KitchenRadio:
         self.logger.info("KitchenRadio daemon initialized with both MPD and librespot backends")
     
     def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from environment variables"""
+        """
+        Load configuration from environment variables with fallback to config.py defaults.
+        
+        Environment variables take precedence over config.py values.
+        """
         return {
             # MPD settings
-            'mpd_host': os.getenv('MPD_HOST', '192.168.1.4'),
-            'mpd_port': int(os.getenv('MPD_PORT', '6600')),
-            'mpd_password': os.getenv('MPD_PASSWORD', ''),
-            'mpd_timeout': int(os.getenv('MPD_TIMEOUT', '10')),
+            'mpd_host': os.getenv('MPD_HOST', config.MPD_HOST),
+            'mpd_port': int(os.getenv('MPD_PORT', str(config.MPD_PORT))),
+            'mpd_password': os.getenv('MPD_PASSWORD', config.MPD_PASSWORD),
+            'mpd_timeout': int(os.getenv('MPD_TIMEOUT', str(config.MPD_TIMEOUT))),
+            'mpd_default_volume': int(os.getenv('MPD_DEFAULT_VOLUME', str(config.MPD_DEFAULT_VOLUME))),
             
             # Librespot settings
-            'librespot_host': os.getenv('LIBRESPOT_HOST', '192.168.1.4'),
-            'librespot_port': int(os.getenv('LIBRESPOT_PORT', '3678')),
-            'librespot_timeout': int(os.getenv('LIBRESPOT_TIMEOUT', '10')),
+            'librespot_host': os.getenv('LIBRESPOT_HOST', config.LIBRESPOT_HOST),
+            'librespot_port': int(os.getenv('LIBRESPOT_PORT', str(config.LIBRESPOT_PORT))),
+            'librespot_timeout': int(os.getenv('LIBRESPOT_TIMEOUT', str(config.MPD_TIMEOUT))),
+            'librespot_default_volume': int(os.getenv('LIBRESPOT_DEFAULT_VOLUME', str(config.LIBRESPOT_DEFAULT_VOLUME))),
+            
+            # Bluetooth settings
+            'bluetooth_default_volume': int(os.getenv('BLUETOOTH_DEFAULT_VOLUME', str(config.BLUETOOTH_DEFAULT_VOLUME))),
+            'bluetooth_pairing_timeout': int(os.getenv('BLUETOOTH_PAIRING_TIMEOUT', str(config.BLUETOOTH_PAIRING_TIMEOUT))),
             
             # General settings
-            'default_volume': int(os.getenv('DEFAULT_VOLUME', '50')),
-            'log_level': os.getenv('LOG_LEVEL', 'INFO'),
+            'default_volume': int(os.getenv('DEFAULT_VOLUME', str(config.MPD_DEFAULT_VOLUME))),
+            'log_level': os.getenv('LOG_LEVEL', config.LOG_LEVEL),
             'debug': os.getenv('DEBUG', 'false').lower() == 'true',
             'dev_mode': os.getenv('DEV_MODE', 'false').lower() == 'true',
+            
+            # System settings
+            'power_on_at_startup': os.getenv('POWER_ON_AT_STARTUP', str(config.POWER_ON_AT_STARTUP)).lower() == 'true',
+            'default_source': os.getenv('DEFAULT_SOURCE', config.DEFAULT_SOURCE),
         }
     
     def _setup_logging(self):
@@ -160,10 +176,10 @@ class KitchenRadio:
         
         try:
             self.mpd_client = MPDClient(
-                host=self.config['mpd_host'],
-                port=self.config['mpd_port'],
-                password=self.config['mpd_password'],
-                timeout=self.config['mpd_timeout']
+                host=self.config.get('mpd_host', config.MPD_HOST),
+                port=self.config.get('mpd_port', config.MPD_PORT),
+                password=self.config.get('mpd_password', config.MPD_PASSWORD),
+                timeout=self.config.get('mpd_timeout', config.MPD_TIMEOUT)
             )
             
             if not self.mpd_client.connect():
@@ -189,9 +205,9 @@ class KitchenRadio:
         
         try:
             self.librespot_client = KitchenRadioLibrespotClient(
-                host=self.config['librespot_host'],
-                port=self.config['librespot_port'],
-                timeout=self.config['librespot_timeout']
+                host=self.config.get('librespot_host', config.LIBRESPOT_HOST),
+                port=self.config.get('librespot_port', config.LIBRESPOT_PORT),
+                timeout=self.config.get('librespot_timeout', config.MPD_TIMEOUT)
             )
             
             if not self.librespot_client.connect():

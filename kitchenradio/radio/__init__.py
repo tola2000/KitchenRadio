@@ -23,9 +23,6 @@ except ImportError:
     HardwareIntegration = None
     HARDWARE_CONTROLLERS_AVAILABLE = False
 
-# Import hardware configuration utilities
-from .hardware_config import HardwareConfig, setup_hardware_environment
-
 __version__ = "1.0.0"
 __author__ = "KitchenRadio Team"
 
@@ -34,8 +31,6 @@ __all__ = [
     'KitchenRadio',
     'BackendType',
     'HARDWARE_CONTROLLERS_AVAILABLE',
-    'HardwareConfig',
-    'setup_hardware_environment'
 ]
 
 # Add hardware exports if available
