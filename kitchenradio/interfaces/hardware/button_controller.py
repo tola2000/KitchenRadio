@@ -133,21 +133,26 @@ class ButtonController:
                  display_controller = None,
                  use_hardware: bool = None,
                  simulation_mode: bool = False,
-                 i2c_address: int = None):
+                 i2c_address: int = None,
+                 shutdown_callback: Callable[[], None] = None):
         """
         Initialize button controller with MCP23017 hardware support.
         
         Args:
-            source_controller: KitchenRadio instance to control
+            source_controller: SourceController instance to control playback
             debounce_time: Button debounce time in seconds (default from config)
             long_press_time: Time threshold for long press detection (default from config)
             display_controller: Optional display controller for volume screen
             use_hardware: Enable MCP23017 hardware buttons (default from config, auto-disabled if not available)
             simulation_mode: Legacy parameter - disables hardware (opposite of use_hardware)
             i2c_address: I2C address of MCP23017 (default from config)
+            shutdown_callback: Callback function to initiate system shutdown/reboot
         """
-        # Store KitchenRadio reference
+        # Store SourceController reference
         self.source_controller = source_controller
+        
+        # Store shutdown callback for long press power button
+        self.shutdown_callback = shutdown_callback
         
         # Store display controller for volume screen
         self.display_controller = display_controller
@@ -384,6 +389,7 @@ class ButtonController:
         
         # For power button, start long press detection thread
         if button_type == ButtonType.POWER:
+            logger.info(f"🔵 Power button pressed - starting long press detection (threshold: {self.long_press_time}s)")
             self._start_long_press_detection(button_type)
         else:
             # Execute button action immediately for non-power buttons
@@ -404,11 +410,15 @@ class ButtonController:
         
         # For power button, handle short press if long press didn't fire
         if button_type == ButtonType.POWER:
+            logger.info(f"🔵 Power button released: duration={press_duration:.2f}s, long_press_fired={state['long_press_fired']}, threshold={self.long_press_time}s")
+            
             if not state['long_press_fired'] and press_duration < self.long_press_time:
-                logger.info(f"Power button short press detected ({press_duration:.2f}s)")
+                logger.info(f"⚪ Power button SHORT PRESS detected ({press_duration:.2f}s < {self.long_press_time}s)")
                 self._execute_button_action(button_type)
             elif state['long_press_fired']:
-                logger.info(f"Power button released after long press ({press_duration:.2f}s)")
+                logger.info(f"🔴 Power button released after LONG PRESS ({press_duration:.2f}s >= {self.long_press_time}s)")
+            else:
+                logger.warning(f"⚠️ Power button released but no action taken: duration={press_duration:.2f}s, fired={state['long_press_fired']}")
         
         state['press_start_time'] = 0
         state['long_press_fired'] = False
@@ -774,9 +784,19 @@ class ButtonController:
             # Give display time to show the message
             time.sleep(1)
             
-            # Initiate shutdown and reboot
-            self.source_controller.shutdown()
-            return True
+            # Initiate shutdown and reboot via callback
+            if self.shutdown_callback:
+                self.shutdown_callback()
+                return True
+            else:
+                logger.error("No shutdown callback configured!")
+                if self.display_controller:
+                    self.display_controller.show_Notification_overlay(
+                        "Herstart Mislukt", 
+                        "Geen shutdown callback", 
+                        timeout=3
+                    )
+                return False
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
             if self.display_controller:

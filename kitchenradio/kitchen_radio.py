@@ -194,7 +194,8 @@ class KitchenRadio:
                     long_press_time=getattr(config, 'BUTTON_LONG_PRESS_TIME', 1.0),
                     display_controller=self.display_controller,
                     use_hardware=getattr(config, 'BUTTON_USE_HARDWARE', True),
-                    i2c_address=getattr(config, 'BUTTON_I2C_ADDRESS', 0x20)
+                    i2c_address=getattr(config, 'BUTTON_I2C_ADDRESS', 0x20),
+                    shutdown_callback=self.shutdown
                 )
                 if not self.button_controller.initialize():
                     self.logger.warning("Button Controller initialization failed - continuing without buttons")
@@ -294,14 +295,14 @@ class KitchenRadio:
         try:
             if platform.system() == 'Linux':
                 self.logger.info("Executing Linux reboot command...")
-                subprocess.run(['sudo', 'shutdown', '-h', 'now'])
+                subprocess.run(['sudo', 'reboot'])
             elif platform.system() == 'Windows':
                 self.logger.info("Executing Windows reboot command...")
                 subprocess.run(['shutdown', '/r', '/t', '0'])
             else:
-                self.logger.warning("Shutdown only supported on Linux/Windows")
+                self.logger.warning("Reboot only supported on Linux/Windows")
         except Exception as e:
-            self.logger.error(f"Failed to shutdown system: {e}")
+            self.logger.error(f"Failed to reboot system: {e}")
     
     def run(self):
         """
