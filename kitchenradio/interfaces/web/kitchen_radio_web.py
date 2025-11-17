@@ -15,10 +15,10 @@ from pathlib import Path
 import io
 import base64
 
-from kitchenradio.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
-from kitchenradio.hardware.display_controller import DisplayController
+from kitchenradio.interfaces.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
+from kitchenradio.interfaces.hardware.display_controller import DisplayController
 from kitchenradio.kitchen_radio import KitchenRadio
-from kitchenradio.hardware.display_interface import DisplayInterface
+from kitchenradio.interfaces.hardware.display_interface import DisplayInterface
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class KitchenRadioWeb:
                 # If it's a source button and the press was successful, update the display
                 if result and button_name in ['source_mpd', 'source_spotify'] and self.display_interface:
                     try:
-                        from kitchenradio.hardware.display_formatter import DisplayFormatter
+                        from kitchenradio.interfaces.hardware.display_formatter import DisplayFormatter
                         formatter = DisplayFormatter()
                         status_data = self.kitchen_radio.get_status()
                         draw_func = formatter.format_status(status_data)
@@ -517,7 +517,7 @@ class KitchenRadioWeb:
                         })
                     elif item_id == 'switch_to_mpd':
                         # Switch to MPD source
-                        from ..kitchen_radio import BackendType
+                        from kitchenradio.kitchen_radio import BackendType
                         try:
                             success = self.kitchen_radio.set_source(BackendType.MPD)
                             return jsonify({
@@ -533,7 +533,7 @@ class KitchenRadioWeb:
                             })
                     elif item_id == 'switch_to_spotify':
                         # Switch to Spotify source
-                        from ..kitchen_radio import BackendType
+                        from kitchenradio.kitchen_radio import BackendType
                         try:
                             success = self.kitchen_radio.set_source(BackendType.LIBRESPOT)
                             return jsonify({
@@ -590,7 +590,7 @@ class KitchenRadioWeb:
                 
                 # Import display formatter here to avoid circular imports
                 try:
-                    from kitchenradio.hardware.display_formatter import DisplayFormatter
+                    from kitchenradio.interfaces.hardware.display_formatter import DisplayFormatter
                     formatter = DisplayFormatter()
                     
                     # Format status for display
@@ -630,7 +630,7 @@ class KitchenRadioWeb:
                 
                 # Import display formatter
                 try:
-                    from kitchenradio.hardware.display_formatter import DisplayFormatter
+                    from kitchenradio.interfaces.hardware.display_formatter import DisplayFormatter
                     formatter = DisplayFormatter()
                     
                     # Format text for display

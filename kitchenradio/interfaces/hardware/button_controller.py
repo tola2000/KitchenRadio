@@ -12,7 +12,7 @@ from typing import Dict, Callable, Optional, Any, TYPE_CHECKING
 from enum import Enum
 
 if TYPE_CHECKING:
-    from ..kitchen_radio import KitchenRadio, BackendType
+    from kitchenradio.kitchen_radio import KitchenRadio, BackendType
 
 # Import configuration
 from kitchenradio import config
@@ -522,19 +522,19 @@ class ButtonController:
     
     def _select_mpd(self) -> bool:
         """Switch to MPD source"""
-        from ..kitchen_radio import BackendType
+        from kitchenradio.kitchen_radio import BackendType
         logger.info("Switching to MPD source")
         return self.kitchen_radio.set_source(BackendType.MPD)
     
     def _select_spotify(self) -> bool:
         """Switch to Spotify (librespot) source"""
-        from ..kitchen_radio import BackendType
+        from kitchenradio.kitchen_radio import BackendType
         logger.info("Switching to Spotify source")
         return self.kitchen_radio.set_source(BackendType.LIBRESPOT)
     
     def _select_bluetooth(self) -> bool:
         """Switch to Bluetooth source and enter pairing mode"""
-        from ..kitchen_radio import BackendType
+        from kitchenradio.kitchen_radio import BackendType
         logger.info("Switching to Bluetooth source")
         return self.kitchen_radio.set_source(BackendType.BLUETOOTH)
     
@@ -831,7 +831,7 @@ class ButtonController:
 # Example usage and testing
 if __name__ == "__main__":
     import sys
-    from ..kitchen_radio import KitchenRadio
+    from kitchenradio.kitchen_radio import KitchenRadio
     
     # Setup logging
     logging.basicConfig(level=logging.DEBUG)
