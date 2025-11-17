@@ -12,7 +12,7 @@ from typing import Dict, Callable, Optional, Any, TYPE_CHECKING
 from enum import Enum
 
 if TYPE_CHECKING:
-    from kitchenradio.kitchen_radio import KitchenRadio, BackendType
+    from kitchenradio.sources.source_controller import SourceController, BackendType
 
 # Import configuration
 from kitchenradio import config
@@ -27,10 +27,10 @@ try:
     from adafruit_mcp230xx.mcp23017 import MCP23017
     from digitalio import Pull
     HARDWARE_AVAILABLE = True
-    logger.info("✓ Hardware libraries loaded successfully (board, busio, MCP23017, Pull)")
+    logger.info("[OK] Hardware libraries loaded successfully (board, busio, MCP23017, Pull)")
 except ImportError as e:
     HARDWARE_AVAILABLE = False
-    logger.info(f"✗ Hardware libraries not available: {e}")
+    logger.info(f"[X] Hardware libraries not available: {e}")
     logger.info("   To enable hardware buttons: pip install adafruit-circuitpython-mcp230xx")
 
 
@@ -127,7 +127,7 @@ class ButtonController:
     """
     
     def __init__(self, 
-                 kitchen_radio: 'KitchenRadio' = None,
+                 source_controller: 'SourceController' = None,
                  debounce_time: float = None,
                  long_press_time: float = None,
                  display_controller = None,
@@ -138,7 +138,7 @@ class ButtonController:
         Initialize button controller with MCP23017 hardware support.
         
         Args:
-            kitchen_radio: KitchenRadio instance to control
+            source_controller: KitchenRadio instance to control
             debounce_time: Button debounce time in seconds (default from config)
             long_press_time: Time threshold for long press detection (default from config)
             display_controller: Optional display controller for volume screen
@@ -147,7 +147,7 @@ class ButtonController:
             i2c_address: I2C address of MCP23017 (default from config)
         """
         # Store KitchenRadio reference
-        self.kitchen_radio = kitchen_radio
+        self.source_controller = source_controller
         
         # Store display controller for volume screen
         self.display_controller = display_controller
@@ -522,48 +522,48 @@ class ButtonController:
     
     def _select_mpd(self) -> bool:
         """Switch to MPD source"""
-        from kitchenradio.kitchen_radio import BackendType
+        from kitchenradio.sources.source_controller import BackendType
         logger.info("Switching to MPD source")
-        return self.kitchen_radio.set_source(BackendType.MPD)
+        return self.source_controller.set_source(BackendType.MPD)
     
     def _select_spotify(self) -> bool:
         """Switch to Spotify (librespot) source"""
-        from kitchenradio.kitchen_radio import BackendType
+        from kitchenradio.sources.source_controller import BackendType
         logger.info("Switching to Spotify source")
-        return self.kitchen_radio.set_source(BackendType.LIBRESPOT)
+        return self.source_controller.set_source(BackendType.LIBRESPOT)
     
     def _select_bluetooth(self) -> bool:
         """Switch to Bluetooth source and enter pairing mode"""
-        from kitchenradio.kitchen_radio import BackendType
+        from kitchenradio.sources.source_controller import BackendType
         logger.info("Switching to Bluetooth source")
-        return self.kitchen_radio.set_source(BackendType.BLUETOOTH)
+        return self.source_controller.set_source(BackendType.BLUETOOTH)
     
     def _play_pause(self) -> bool:
         """Toggle play/pause"""
         logger.info("Toggle play/pause")
-        return self.kitchen_radio.play_pause()
+        return self.source_controller.play_pause()
     
     def _stop(self) -> bool:
         """Stop playback"""
         logger.info("Stop playback")
-        return self.kitchen_radio.stop_play()
+        return self.source_controller.stop_play()
     
     def _next(self) -> bool:
         """Next track"""
         logger.info("Next track")
-        return self.kitchen_radio.next()
+        return self.source_controller.next()
     
     def _previous(self) -> bool:
         """Previous track"""
         logger.info("Previous track")
-        return self.kitchen_radio.previous()
+        return self.source_controller.previous()
     
     def _volume_up(self) -> bool:
         """Increase volume and show volume screen"""
         logger.debug("Volume up")
         
         # Change the volume - controller calculates and returns new volume
-        new_volume = self.kitchen_radio.volume_up(step=buttons_config.VOLUME_STEP)
+        new_volume = self.source_controller.volume_up(step=buttons_config.VOLUME_STEP)
         
         # Show volume screen - display will get volume from status (with expected values)
         if new_volume is not None:
@@ -579,7 +579,7 @@ class ButtonController:
         logger.debug("Volume down")
         
         # Change the volume - controller calculates and returns new volume
-        new_volume = self.kitchen_radio.volume_down(step=buttons_config.VOLUME_STEP)
+        new_volume = self.source_controller.volume_down(step=buttons_config.VOLUME_STEP)
         
         # Show volume screen - display will get volume from status (with expected values)
         if new_volume is not None:
@@ -597,11 +597,11 @@ class ButtonController:
         logger.info("Menu up navigation")
         try:
             # Check if menu is available for current source
-            status = self.kitchen_radio.get_status()
+            status = self.source_controller.get_status()
             current_source = status.get('current_source')
             
             if current_source:
-                menu_options = self.kitchen_radio.get_menu_options()
+                menu_options = self.source_controller.get_menu_options()
                 if not menu_options.get('has_menu', False):
                     logger.info(f"Menu not available for source: {current_source}")
                     if self.display_controller:
@@ -634,11 +634,11 @@ class ButtonController:
         logger.info("Menu down navigation")
         try:
             # Check if menu is available for current source
-            status = self.kitchen_radio.get_status()
+            status = self.source_controller.get_status()
             current_source = status.get('current_source')
             
             if current_source:
-                menu_options = self.kitchen_radio.get_menu_options()
+                menu_options = self.source_controller.get_menu_options()
                 if not menu_options.get('has_menu', False):
                     logger.info(f"Menu not available for source: {current_source}")
                     if self.display_controller:
@@ -720,7 +720,7 @@ class ButtonController:
             else:
                 selected_item = None
             logger.info(f"Handling menu selection: index={index}, item='{selected_item}'")
-            result = self.kitchen_radio.execute_menu_action('select menu', selected_item)
+            result = self.source_controller.execute_menu_action('select menu', selected_item)
             logger.info(f"MPD playlist execution result: {result}")
             return result.get('success', False)
         except Exception as e:
@@ -732,7 +732,7 @@ class ButtonController:
     def _power(self) -> bool:
         """Power button short press - toggle power on/off"""
         logger.info("Power button short press - toggling power")
-        return self.kitchen_radio.power()
+        return self.source_controller.power()
     
     def _power_long_press(self) -> bool:
         """Power button long press - initiate system reboot"""
@@ -751,7 +751,7 @@ class ButtonController:
             time.sleep(1)
             
             # Initiate shutdown and reboot
-            self.kitchen_radio.shutdown()
+            self.source_controller.shutdown()
             return True
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
@@ -793,7 +793,7 @@ class ButtonController:
         
         try:
             # Get current status to see what's available
-            status = self.kitchen_radio.get_status()
+            status = self.source_controller.get_status()
             available_sources = status.get('available_sources', [])
             current_source = status.get('current_source')
             
@@ -802,7 +802,7 @@ class ButtonController:
             # Get menu options from kitchen radio for current source
             if current_source:
                 try:
-                    menu_options = self.kitchen_radio.get_menu_options()
+                    menu_options = self.source_controller.get_menu_options()
                     logger.info(f"Kitchen radio menu options: {menu_options}")
                     
                     if menu_options.get('has_menu', False):
@@ -827,40 +827,3 @@ class ButtonController:
         
         return menu_items
     
-
-# Example usage and testing
-if __name__ == "__main__":
-    import sys
-    from kitchenradio.kitchen_radio import KitchenRadio
-    
-    # Setup logging
-    logging.basicConfig(level=logging.DEBUG)
-    
-    # Create KitchenRadio instance
-    kitchen_radio = KitchenRadio()
-    
-    if not kitchen_radio.start():
-        print("Failed to start KitchenRadio")
-        sys.exit(1)
-    
-    # Create and initialize controller
-    controller = ButtonController(kitchen_radio)
-    
-    if controller.initialize():
-        print("ButtonController initialized successfully")
-        print("Press buttons to test (Ctrl+C to exit)")
-        
-        try:
-            # Keep running
-            while True:
-                time.sleep(1)
-                    
-        except KeyboardInterrupt:
-            print("\nShutting down...")
-        finally:
-            controller.cleanup()
-            kitchen_radio.stop()
-    else:
-        print("Failed to initialize ButtonController")
-        kitchen_radio.stop()
-        sys.exit(1)

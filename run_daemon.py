@@ -16,8 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from kitchenradio import config
 from kitchenradio.kitchen_radio import KitchenRadio
-from kitchenradio.hardware.button_controller import ButtonController
-from kitchenradio.hardware.display_controller import DisplayController
+from kitchenradio.interfaces.hardware.button_controller import ButtonController
+from kitchenradio.interfaces.hardware.display_controller import DisplayController
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +116,16 @@ def main():
     
     logger.info("✓ KitchenRadio core initialized")
     
+    # Get SourceController for direct access by UI components
+    source_controller = kitchen_radio.source_controller
+    logger.info("✓ SourceController available for UI components")
+    
     # Initialize Display Controller (if enabled)
     display_controller = None
     if enable_display:
         logger.info("Initializing Display Controller...")
         display_controller = DisplayController(
-            kitchen_radio=kitchen_radio,
+            source_controller=source_controller,
             refresh_rate=config.DISPLAY_REFRESH_RATE,
             use_hardware_display=config.DISPLAY_USE_HARDWARE
         )
@@ -137,7 +141,7 @@ def main():
     if enable_buttons:
         logger.info("Initializing Button Controller...")
         button_controller = ButtonController(
-            kitchen_radio=kitchen_radio,
+            source_controller=source_controller,
             debounce_time=config.BUTTON_DEBOUNCE_TIME,
             long_press_time=config.BUTTON_LONG_PRESS_TIME,
             display_controller=display_controller,
@@ -156,17 +160,18 @@ def main():
     if enable_web:
         logger.info("Initializing Web Interface...")
         try:
-            from kitchenradio.web.kitchen_radio_web import KitchenRadioWeb
+            from kitchenradio.interfaces.web.kitchen_radio_web import KitchenRadioWeb
             
-            # KitchenRadioWeb is now a wrapper - pass existing controllers
+            # KitchenRadioWeb is now a wrapper - pass SourceController and existing controllers
             web_server = KitchenRadioWeb(
-                kitchen_radio=kitchen_radio,
-                display_controller=display_controller,  # Pass existing controller (or None)
-                button_controller=button_controller,    # Pass existing controller (or None)
+                source_controller=source_controller,     # Direct SourceController access
+                display_controller=display_controller,   # Pass existing controller (or None)
+                button_controller=button_controller,     # Pass existing controller (or None)
+                kitchen_radio=kitchen_radio,             # For daemon operations (reconnect_backends)
                 host=args.host,
                 port=args.port
             )
-            logger.info("✓ Web Interface initialized as wrapper around existing controllers")
+            logger.info("✓ Web Interface initialized using SourceController")
             logger.info(f"  Access at: http://{args.host}:{args.port}")
         except Exception as e:
             logger.error(f"Failed to initialize Web Interface: {e}")

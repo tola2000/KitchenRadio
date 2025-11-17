@@ -17,53 +17,56 @@ import base64
 
 from kitchenradio.interfaces.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
 from kitchenradio.interfaces.hardware.display_controller import DisplayController
-from kitchenradio.kitchen_radio import KitchenRadio
+from kitchenradio.sources.source_controller import SourceController, BackendType
 from kitchenradio.interfaces.hardware.display_interface import DisplayInterface
 
 logger = logging.getLogger(__name__)
 
 class KitchenRadioWeb:
     """
-    REST API wrapper for KitchenRadio.
+    REST API wrapper for SourceController.
     
     Provides HTTP endpoints for button control and status display.
-    Acts as a thin web wrapper around an already configured KitchenRadio instance.
+    Acts as a thin web wrapper around SourceController.
     
     Design:
-    - Accepts external KitchenRadio, DisplayController, and ButtonController
+    - Accepts external SourceController, DisplayController, and ButtonController
     - Does not create or own these components (they're managed by the daemon)
     - Provides REST API endpoints to interact with existing controllers
     - Minimal initialization - just sets up Flask routes
     """
     
     def __init__(self, 
-                 kitchen_radio: 'KitchenRadio',
+                 source_controller: 'SourceController',
                  display_controller = None,
                  button_controller = None,
+                 kitchen_radio = None,
                  host: str = '0.0.0.0',
                  port: int = 5001):
         """
         Initialize KitchenRadio Web API as a wrapper around existing components.
         
         Args:
-            kitchen_radio: KitchenRadio instance to control (REQUIRED)
+            source_controller: SourceController instance to control (REQUIRED)
             display_controller: Optional DisplayController instance for display API
             button_controller: Optional ButtonController instance for button API
+            kitchen_radio: Optional KitchenRadio instance for daemon operations (reconnect_backends)
             host: API server host address (default: 0.0.0.0 = all interfaces)
             port: API server port (default: 5001)
             
         Note:
-            This class no longer creates or manages KitchenRadio, DisplayController,
-            or ButtonController. These should be created and managed by the daemon
-            or calling code. The web interface is just a REST API wrapper.
+            This class uses SourceController directly instead of KitchenRadio facade.
+            All UI components now use SourceController for cleaner architecture.
+            KitchenRadio reference is only kept for daemon-level operations like reconnect_backends.
         """
         # Store references to external components
-        if kitchen_radio is None:
-            raise ValueError("kitchen_radio is required - KitchenRadioWeb is now a wrapper and does not create its own instance")
+        if source_controller is None:
+            raise ValueError("source_controller is required - KitchenRadioWeb is now a wrapper and does not create its own instance")
         
-        self.kitchen_radio = kitchen_radio
+        self.source_controller = source_controller
         self.display_controller = display_controller
         self.button_controller = button_controller
+        self.kitchen_radio = kitchen_radio  # Optional, only for daemon operations
         
         # Store display interface reference if available
         self.display_interface = display_controller.display_interface if display_controller else None
@@ -163,7 +166,7 @@ class KitchenRadioWeb:
                     try:
                         from kitchenradio.interfaces.hardware.display_formatter import DisplayFormatter
                         formatter = DisplayFormatter()
-                        status_data = self.kitchen_radio.get_status()
+                        status_data = self.source_controller.get_status()
                         draw_func = formatter.format_status(status_data)
                         self.display_interface.render_frame(draw_func)
                         logger.info(f"Display updated after {button_name} press")
@@ -242,8 +245,8 @@ class KitchenRadioWeb:
         
         @self.app.route('/api/status', methods=['GET'])
         def api_status():
-            """Get API status and KitchenRadio status"""
-            kitchen_status = self.kitchen_radio.get_status()
+            """Get API status and SourceController status"""
+            kitchen_status = self.source_controller.get_status()
             
             return jsonify({
                 'api_running': self.running,
@@ -271,6 +274,13 @@ class KitchenRadioWeb:
         def reconnect_backends():
             """Attempt to reconnect to disconnected backends"""
             try:
+                if not self.kitchen_radio:
+                    return jsonify({
+                        'success': False,
+                        'message': 'KitchenRadio instance not available for reconnect operation',
+                        'timestamp': time.time()
+                    }), 503
+                
                 results = self.kitchen_radio.reconnect_backends()
                 return jsonify({
                     'success': True,
@@ -447,8 +457,8 @@ class KitchenRadioWeb:
         def get_menu():
             """Get menu options for the active source"""
             try:
-                # Get current source from KitchenRadio
-                status = self.kitchen_radio.get_status()
+                # Get current source from SourceController
+                status = self.source_controller.get_status()
                 active_source = status.get('current_source', 'none')
                 available_sources = status.get('available_sources', [])
                 
@@ -508,6 +518,13 @@ class KitchenRadioWeb:
                 if action == 'select' and item_id:
                     if item_id == 'reconnect':
                         # Attempt to reconnect backends
+                        if not self.kitchen_radio:
+                            return jsonify({
+                                'success': False,
+                                'message': 'KitchenRadio instance not available for reconnect operation',
+                                'action': 'backends_reconnect_failed'
+                            })
+                        
                         results = self.kitchen_radio.reconnect_backends()
                         return jsonify({
                             'success': True,
@@ -517,9 +534,8 @@ class KitchenRadioWeb:
                         })
                     elif item_id == 'switch_to_mpd':
                         # Switch to MPD source
-                        from kitchenradio.kitchen_radio import BackendType
                         try:
-                            success = self.kitchen_radio.set_source(BackendType.MPD)
+                            success = self.source_controller.set_source(BackendType.MPD)
                             return jsonify({
                                 'success': success,
                                 'message': 'Switched to MPD' if success else 'Failed to switch to MPD',
@@ -533,9 +549,8 @@ class KitchenRadioWeb:
                             })
                     elif item_id == 'switch_to_spotify':
                         # Switch to Spotify source
-                        from kitchenradio.kitchen_radio import BackendType
                         try:
-                            success = self.kitchen_radio.set_source(BackendType.LIBRESPOT)
+                            success = self.source_controller.set_source(BackendType.LIBRESPOT)
                             return jsonify({
                                 'success': success,
                                 'message': 'Switched to Spotify' if success else 'Failed to switch to Spotify',
@@ -580,13 +595,13 @@ class KitchenRadioWeb:
         
         @self.app.route('/api/display/update', methods=['POST'])
         def update_display():
-            """Update display with current KitchenRadio status"""
+            """Update display with current SourceController status"""
             try:
                 if not self.display_interface:
                     return jsonify({'error': 'Display interface not available'}), 503
                 
-                # Get current status from KitchenRadio
-                status_data = self.kitchen_radio.get_status()
+                # Get current status from SourceController
+                status_data = self.source_controller.get_status()
                 
                 # Import display formatter here to avoid circular imports
                 try:
@@ -812,37 +827,42 @@ if __name__ == "__main__":
     
     # Create components for standalone testing
     print("\n1. Creating KitchenRadio instance...")
+    from kitchenradio.kitchen_radio import KitchenRadio
     kitchen_radio = KitchenRadio()
     
-    print("2. Creating DisplayInterface (emulator mode)...")
+    print("2. Starting KitchenRadio...")
+    if not kitchen_radio.start():
+        print("ERROR: Failed to start KitchenRadio")
+        sys.exit(1)
+    
+    # Get SourceController from KitchenRadio
+    source_controller = kitchen_radio.source_controller
+    
+    print("3. Creating DisplayInterface (emulator mode)...")
     display_interface = DisplayInterface(use_hardware=False)
     display_interface.initialize()
     
-    print("3. Creating DisplayController...")
+    print("4. Creating DisplayController...")
     display_controller = DisplayController(
-        kitchen_radio=kitchen_radio,
+        source_controller=source_controller,
         display_interface=display_interface
     )
     display_controller.initialize()
     
-    print("4. Creating ButtonController (software mode)...")
+    print("5. Creating ButtonController (software mode)...")
     button_controller = ButtonController(
-        kitchen_radio=kitchen_radio,
+        source_controller=source_controller,
         display_controller=display_controller,
         use_hardware=False  # Software mode for testing
     )
     button_controller.initialize()
     
-    print("5. Starting KitchenRadio...")
-    if not kitchen_radio.start():
-        print("ERROR: Failed to start KitchenRadio")
-        sys.exit(1)
-    
     print("6. Creating KitchenRadioWeb wrapper...")
     api = KitchenRadioWeb(
-        kitchen_radio=kitchen_radio,
+        source_controller=source_controller,
         display_controller=display_controller,
         button_controller=button_controller,
+        kitchen_radio=kitchen_radio,  # For reconnect_backends
         host='0.0.0.0',
         port=5001
     )
