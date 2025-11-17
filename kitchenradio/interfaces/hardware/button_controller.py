@@ -714,15 +714,39 @@ class ButtonController:
     def _on_menu_item_selected(self, index: int) -> None:
         """Handle selection of a menu item by index"""
         try:
-            menu_items = self._get_menu_items()
-            if 0 <= index < len(menu_items):
-                selected_item = menu_items[index]
+            # Get menu options from source controller (not just the labels)
+            menu_options = self.source_controller.get_menu_options()
+            
+            if not menu_options.get('has_menu', False):
+                logger.warning("No menu available")
+                return False
+            
+            options = menu_options.get('options', [])
+            if 0 <= index < len(options):
+                selected_option = options[index]
+                option_id = selected_option.get('id')
+                action = selected_option.get('action', 'select')
+                
+                logger.info(f"Handling menu selection: index={index}, option_id='{option_id}', action='{action}'")
+                
+                # Execute the menu action
+                result = self.source_controller.execute_menu_action(action, option_id)
+                logger.info(f"Menu action execution result: {result}")
+                
+                # Show success/error message
+                if self.display_controller:
+                    if result.get('success', False):
+                        message = result.get('message', 'Action completed')
+                        self.display_controller.show_status_message(message, "✓", "success")
+                    else:
+                        error = result.get('error', 'Action failed')
+                        self.display_controller.show_status_message(error, "❌", "error")
+                
+                return result.get('success', False)
             else:
-                selected_item = None
-            logger.info(f"Handling menu selection: index={index}, item='{selected_item}'")
-            result = self.source_controller.execute_menu_action('select menu', selected_item)
-            logger.info(f"MPD playlist execution result: {result}")
-            return result.get('success', False)
+                logger.error(f"Invalid menu index: {index}")
+                return False
+                
         except Exception as e:
             logger.error(f"Error handling menu selection at index {index}: {e}")
             if self.display_controller:
