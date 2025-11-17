@@ -337,29 +337,33 @@ class DisplayController:
             if power_state_changed:
                 logger.info(f"Power state transition detected: {self.last_powered_on} -> {current_powered_on}, source: {current_source}")
             
-            scroll_update = self._is_scroll_update_needed()
-            
+            # Check for overlay dismissal first
             overlay_dismissed = self._dismiss_overlay()
        
-            # Check if we should ignore volume updates (recently changed by user)
-            time_since_volume_change = time.time() - self.last_volume_change_time
-            ignore_volume_updates = time_since_volume_change < self.volume_change_ignore_duration
-            
-            # Check for external update of the volume
-            if (current_volume != self.last_volume) and self.overlay_active and self.overlay_type == 'volume':
-                # Only update if we're not ignoring volume updates
-                if not ignore_volume_updates:
-                    self._render_volume_overlay(current_volume)
-                    # Update last_volume to prevent continuous re-rendering
-                    self.last_volume = current_volume
+            # If overlay is active, skip all normal updates (including scroll) to prevent interference
+            if self.overlay_active:
+                # Check if we should ignore volume updates (recently changed by user)
+                time_since_volume_change = time.time() - self.last_volume_change_time
+                ignore_volume_updates = time_since_volume_change < self.volume_change_ignore_duration
+                
+                # Check for external update of the volume overlay
+                if self.overlay_type == 'volume' and (current_volume != self.last_volume):
+                    # Only update if we're not ignoring volume updates
+                    if not ignore_volume_updates:
+                        self._render_volume_overlay(current_volume)
+                        # Update last_volume to prevent continuous re-rendering
+                        self.last_volume = current_volume
+                    # Always return when overlay is active (volume changed or not)
                     return
                 else:
-                    # Ignore this volume update - keep showing user-set volume
+                    # Non-volume overlay active, skip all updates
                     return
-            elif self.overlay_active:
-                return
+            
+            # No overlay active - check if scroll update is needed
+            scroll_update = self._is_scroll_update_needed()
         
-            elif not current_powered_on:
+            # Handle power off state
+            if not current_powered_on:
                 # Powered off - show clock and clear display state
                 self.last_powered_on = current_powered_on
                 # Clear display state so next power on shows fresh content
