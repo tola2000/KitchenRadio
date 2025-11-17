@@ -69,6 +69,12 @@ class KitchenRadioLibrespotClient:
                 raise ValueError(f"Unsupported HTTP method: {method}")
             
             response.raise_for_status()
+            
+            # Check if response has content
+            if not response.text or response.text.strip() == '':
+                logger.error(f"Empty response from {url}")
+                return None
+            
             return response.json()
             
         except requests.exceptions.Timeout:
@@ -83,6 +89,10 @@ class KitchenRadioLibrespotClient:
             return None
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error for {url}: {e}")
+            # Log the actual response content for debugging
+            if 'response' in locals():
+                logger.error(f"Response status: {response.status_code}, content length: {len(response.text)}")
+                logger.error(f"Response content: {response.text[:500]}")
             return None
     
     def connect(self) -> bool:
@@ -159,12 +169,15 @@ class KitchenRadioLibrespotClient:
 
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
-        for callback in self.callbacks['any']:
-            try:
-                callback(event='any', **kwargs)
-            except Exception as e:
-                logger.error(f"Error in 'any' callback for {event}: {e}")
+        # Trigger 'any' callbacks if registered
+        if 'any' in self.callbacks:
+            for callback in self.callbacks['any']:
+                try:
+                    callback(event=event, **kwargs)
+                except Exception as e:
+                    logger.error(f"Error in 'any' callback for {event}: {e}")
 
+        # Trigger specific event callbacks
         if event in self.callbacks:
             for callback in self.callbacks[event]:
                 try:
