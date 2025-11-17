@@ -114,12 +114,15 @@ class NowPlayingMonitor:
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
         
-        for callback in self.callbacks['any']:
-            try:
-                callback(event='any', **kwargs)
-            except Exception as e:
-                logger.error(f"Error in 'any' callback for {event}: {e}")
+        # Trigger 'any' callbacks if registered
+        if 'any' in self.callbacks:
+            for callback in self.callbacks['any']:
+                try:
+                    callback(event=event, **kwargs)
+                except Exception as e:
+                    logger.error(f"Error in 'any' callback for {event}: {e}")
                 
+        # Trigger specific event callbacks
         if event in self.callbacks:
             for callback in self.callbacks[event]:
                 try:
@@ -235,7 +238,7 @@ class NowPlayingMonitor:
                 self.current_track = self._format_track_info(song)
                 
         except Exception as e:
-            logger.error(f"Error checking for changes: {e}")
+            logger.error(f"Error checking for changes: {e}", exc_info=True)
     
     def _monitor_loop(self):
         """Main monitoring loop."""
