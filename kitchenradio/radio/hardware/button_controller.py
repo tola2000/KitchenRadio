@@ -492,75 +492,33 @@ class ButtonController:
         """Increase volume and show volume screen"""
         logger.debug("Volume up")
         
-        # Get current volume BEFORE changing it
-        try:
-            status = self.kitchen_radio.get_status()
-            current_source = status.get('current_source')
-            current_volume = None
-            
-            if current_source == 'mpd' and status.get('mpd', {}).get('connected'):
-                current_volume = status['mpd'].get('volume')
-            elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
-                current_volume = status['librespot'].get('volume')
-            
-            # Calculate expected new volume (clamped to 100)
-            # Ensure current_volume is an integer
-            if current_volume is not None:
-                current_volume = int(current_volume)
-                new_volume = min(current_volume + 5, 100)
-            else:
-                new_volume = None
-        except Exception as e:
-            logger.warning(f"Failed to get current volume: {e}")
-            new_volume = None
+        # Change the volume - controller calculates and returns new volume
+        new_volume = self.kitchen_radio.volume_up(step=5)
         
-        # Change the volume
-        result = self.kitchen_radio.volume_up(step=5)
+        # Show volume screen immediately with new volume from controller
+        if new_volume is not None:
+            try:
+                self.display_controller.show_volume_overlay(volume=new_volume)
+            except Exception as e:
+                logger.warning(f"Failed to show volume screen: {e}")
         
-        # Show volume screen immediately with calculated new volume
-        try:
-            self.display_controller.show_volume_overlay(volume=new_volume)
-        except Exception as e:
-            logger.warning(f"Failed to show volume screen: {e}")
-        
-        return result
+        return new_volume is not None
     
     def _volume_down(self) -> bool:
         """Decrease volume and show volume screen"""
         logger.debug("Volume down")
         
-        # Get current volume BEFORE changing it
-        try:
-            status = self.kitchen_radio.get_status()
-            current_source = status.get('current_source')
-            current_volume = None
-            
-            if current_source == 'mpd' and status.get('mpd', {}).get('connected'):
-                current_volume = status['mpd'].get('volume')
-            elif current_source == 'librespot' and status.get('librespot', {}).get('connected'):
-                current_volume = status['librespot'].get('volume')
-            
-            # Calculate expected new volume (clamped to 0)
-            # Ensure current_volume is an integer
-            if current_volume is not None:
-                current_volume = int(current_volume)
-                new_volume = max(current_volume - 5, 0)
-            else:
-                new_volume = None
-        except Exception as e:
-            logger.warning(f"Failed to get current volume: {e}")
-            new_volume = None
+        # Change the volume - controller calculates and returns new volume
+        new_volume = self.kitchen_radio.volume_down(step=5)
         
-        # Change the volume
-        result = self.kitchen_radio.volume_down(step=5)
+        # Show volume screen immediately with new volume from controller
+        if new_volume is not None:
+            try:
+                self.display_controller.show_volume_overlay(volume=new_volume)
+            except Exception as e:
+                logger.warning(f"Failed to show volume screen: {e}")
         
-        # Show volume screen immediately with calculated new volume
-        try:
-            self.display_controller.show_volume_overlay(volume=new_volume)
-        except Exception as e:
-            logger.warning(f"Failed to show volume screen: {e}")
-        
-        return result
+        return new_volume is not None
     
 
     

@@ -828,7 +828,7 @@ class KitchenRadio:
             self.logger.error(f"Error getting volume from {source_name}: {e}")
             return None
     
-    def volume_up(self, step: int = 5) -> bool:
+    def volume_up(self, step: int = 5) -> Optional[int]:
         """
         Increase volume by specified step on the currently active source.
         
@@ -836,33 +836,33 @@ class KitchenRadio:
             step: Volume increase step (default 5)
             
         Returns:
-            True if successful, False if no active source or command failed
+            New volume level (0-100) if successful, None if no active source or command failed
         """
         controller, source_name, is_connected = self._get_active_controller()
         
         if not controller:
             self.logger.warning("No active source set for volume up command")
-            return False
+            return None
         
         if not is_connected:
             self.logger.warning(f"Active source {source_name} is not connected")
-            return False
+            return None
         
         if self.source == BackendType.NONE:
             self.logger.warning(f"No active source selected for next command")
-            return False
+            return None
                
         try:
-            result = controller.volume_up(step)
-            if result:
-                self.logger.info(f"🔊 [{source_name}] Volume increased by {step}%")
-            return result
+            new_volume = controller.volume_up(step)
+            if new_volume is not None:
+                self.logger.info(f"🔊 [{source_name}] Volume increased to {new_volume}%")
+            return new_volume
                 
         except Exception as e:
             self.logger.error(f"Error increasing volume on {source_name}: {e}")
-            return False
+            return None
     
-    def volume_down(self, step: int = 5) -> bool:
+    def volume_down(self, step: int = 5) -> Optional[int]:
         """
         Decrease volume by specified step on the currently active source.
         
@@ -870,30 +870,30 @@ class KitchenRadio:
             step: Volume decrease step (default 5)
             
         Returns:
-            True if successful, False if no active source or command failed
+            New volume level (0-100) if successful, None if no active source or command failed
         """
         controller, source_name, is_connected = self._get_active_controller()
         
         if not controller:
             self.logger.warning("No active source set for volume down command")
-            return False
+            return None
         
         if not is_connected:
             self.logger.warning(f"Active source {source_name} is not connected")
-            return False
+            return None
         
         if self.source == BackendType.NONE:
             self.logger.warning(f"No active source selected for next command")
-            return False       
+            return None       
         try:
-            result = controller.volume_down(step)
-            if result:
-                self.logger.info(f"🔊 [{source_name}] Volume decreased by {step}%")
-            return result
+            new_volume = controller.volume_down(step)
+            if new_volume is not None:
+                self.logger.info(f"🔊 [{source_name}] Volume decreased to {new_volume}%")
+            return new_volume
                 
         except Exception as e:
             self.logger.error(f"Error decreasing volume on {source_name}: {e}")
-            return False
+            return None
 
     def start(self) -> bool:
         """

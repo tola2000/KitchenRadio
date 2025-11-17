@@ -108,7 +108,7 @@ class LibrespotController:
         """
         return self.client.get_volume()
     
-    def volume_up(self, step: int = 5) -> bool:
+    def volume_up(self, step: int = 5) -> Optional[int]:
         """
         Increase volume by step.
         
@@ -116,19 +116,20 @@ class LibrespotController:
             step: Volume increase step (default 5)
             
         Returns:
-            True if successful
+            New volume level (0-100) if successful, None if error
         """
         try:
             current_volume = self.get_volume()
             if current_volume is not None:
                 new_volume = min(100, current_volume + step)
-                return self.set_volume(new_volume)
-            return False
+                if self.set_volume(new_volume):
+                    return new_volume
+            return None
         except Exception as e:
             logger.error(f"Error increasing volume: {e}")
-            return False
+            return None
     
-    def volume_down(self, step: int = 5) -> bool:
+    def volume_down(self, step: int = 5) -> Optional[int]:
         """
         Decrease volume by step.
         
@@ -136,17 +137,18 @@ class LibrespotController:
             step: Volume decrease step (default 5)
             
         Returns:
-            True if successful
+            New volume level (0-100) if successful, None if error
         """
         try:
             current_volume = self.get_volume()
             if current_volume is not None:
                 new_volume = max(0, current_volume - step)
-                return self.set_volume(new_volume)
-            return False
+                if self.set_volume(new_volume):
+                    return new_volume
+            return None
         except Exception as e:
             logger.error(f"Error decreasing volume: {e}")
-            return False
+            return None
     
     def set_shuffle(self, enabled: bool) -> bool:
         """
