@@ -72,8 +72,10 @@ class KitchenRadioLibrespotClient:
             
             # Check if response has content
             if not response.text or response.text.strip() == '':
-                logger.error(f"Empty response from {url}")
-                return None
+                # Empty response can be valid (e.g., 204 No Content or when no device connected)
+                # Only log as debug, not error
+                logger.debug(f"Empty response from {url} (status: {response.status_code})")
+                return {} if response.status_code == 200 else None
             
             return response.json()
             
@@ -99,39 +101,55 @@ class KitchenRadioLibrespotClient:
         """
         Test connection to go-librespot server with retry logic.
         
+        Tests if the server is responding by attempting a simple HTTP request.
+        Empty responses are acceptable - they just mean no device is connected yet.
+        
         Args:
             max_retries: Maximum number of connection attempts
             retry_delay: Delay in seconds between retries
         
         Returns:
-            True if connected successfully
+            True if server is responding (even with empty data)
         """
         import time
         
         try:
             logger.info(f"Testing connection to go-librespot at {self.base_url}")
             
-            # Try to get status to test connection with retries
+            # Try to reach the server with retries
             for attempt in range(max_retries):
-                status = self.get_status()
-                if status is not None:
-                    self._connected = True
-                    logger.info("Connected to go-librespot successfully")
-
-                    loop = asyncio.new_event_loop()
-                    t = threading.Thread(target=loop.run_forever, daemon=True)
-                    t.start()
-                    # store for later shutdown if needed
-                    self._ws_thread = t
-                    self._ws_loop = loop
-                    asyncio.run_coroutine_threadsafe(self.connect_ws(), loop)
-                    return True
-                else:
+                try:
+                    # Simple GET request to test if server is responding
+                    # We don't care about the response data - just that we can reach it
+                    response = requests.get(
+                        f"{self.base_url}/status",
+                        timeout=self.timeout
+                    )
+                    
+                    # Server responded! Even 204 No Content or empty response is fine
+                    if response.status_code in [200, 204]:
+                        self._connected = True
+                        logger.info(f"✅ go-librespot server is responding (status: {response.status_code})")
+                        
+                        # Start WebSocket connection
+                        loop = asyncio.new_event_loop()
+                        t = threading.Thread(target=loop.run_forever, daemon=True)
+                        t.start()
+                        # store for later shutdown if needed
+                        self._ws_thread = t
+                        self._ws_loop = loop
+                        asyncio.run_coroutine_threadsafe(self.connect_ws(), loop)
+                        return True
+                    else:
+                        logger.warning(f"Unexpected status code: {response.status_code}")
+                        
+                except requests.exceptions.RequestException as e:
+                    # Connection error - server not reachable
                     if attempt < max_retries - 1:
-                        logger.warning(f"Connection attempt {attempt + 1}/{max_retries} failed, retrying in {retry_delay}s...")
+                        logger.warning(f"Connection attempt {attempt + 1}/{max_retries} failed: {e}, retrying in {retry_delay}s...")
                         time.sleep(retry_delay)
                     else:
-                        logger.error(f"Failed to get status from go-librespot after {max_retries} attempts")
+                        logger.error(f"Cannot reach go-librespot server after {max_retries} attempts: {e}")
                         self._connected = False
                         return False
             
