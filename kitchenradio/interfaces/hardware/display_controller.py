@@ -34,6 +34,7 @@ class DisplayController:
     
     def __init__(self, 
                  kitchen_radio: 'KitchenRadio' = None,
+                 source_controller: 'SourceController' = None,
                  refresh_rate: float = None,
                  display_interface = None,
                  use_hardware_display: bool = False):
@@ -41,13 +42,23 @@ class DisplayController:
         Initialize simplified display controller for SSD1322.
         
         Args:
-            kitchen_radio: KitchenRadio instance for status updates
+            kitchen_radio: DEPRECATED - use source_controller instead
+            source_controller: SourceController instance for status updates
             i2c_port: I2C port number (ignored if display_interface provided)
             i2c_address: I2C address of the SSD1322 display (ignored if display_interface provided)
             refresh_rate: Display refresh rate in Hz (default from config: 80 Hz for ultra-smooth pixel scrolling)
             display_interface: Optional external I2C interface (for emulation or custom interface)
             use_hardware_display: Use hardware display if available (when creating interface automatically)
         """
+        # Support both old kitchen_radio parameter and new source_controller parameter
+        if source_controller:
+            self.source_controller = source_controller
+        elif kitchen_radio and hasattr(kitchen_radio, 'source_controller'):
+            self.source_controller = kitchen_radio.source_controller
+        else:
+            self.source_controller = None
+        
+        # Keep kitchen_radio reference for backward compatibility if provided
         self.kitchen_radio = kitchen_radio
 
         self._wake_event = threading.Event()
@@ -299,10 +310,17 @@ class DisplayController:
                     logger.info("Display controller: kitchen_radio stopped, initiating cleanup")
                     self.cleanup()
                     return
-                current_status = self.kitchen_radio.get_status()
+            
+            # Get status from source_controller
+            if self.source_controller:
+                current_status = self.source_controller.get_status()
                 logger.debug("_update_display: get_status() completed")
-                # Update last volume for tracking
-                current_volume = self._get_current_volume(current_status)
+            else:
+                logger.warning("No source_controller available for display updates")
+                return
+                
+            # Update last volume for tracking
+            current_volume = self._get_current_volume(current_status)
 
                 # Determine display content based on current source
                 current_source = current_status.get('current_source')

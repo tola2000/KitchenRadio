@@ -649,7 +649,7 @@ class SourceController:
         self.source = BackendType.NONE
         self.powered_on = False
         
-        self.logger.info("✓ Powered off")
+        self.logger.info("[OK] Powered off")
         return True
     
     def power(self) -> bool:
@@ -860,4 +860,4 @@ class SourceController:
             except Exception as e:
                 self.logger.warning(f"Error cleaning up Bluetooth: {e}")
         
-        self.logger.info("✓ SourceController cleanup complete")
+        self.logger.info("[OK] SourceController cleanup complete")

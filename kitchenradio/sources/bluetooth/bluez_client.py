@@ -69,7 +69,7 @@ class AutoPairAgent(dbus.service.Object):
     @dbus.service.method(AGENT_INTERFACE, in_signature='', out_signature='')
     def Cancel(self):
         """Handle cancellation"""
-        logger.warning("⚠️  Pairing cancelled")
+        logger.warning("[!] Pairing cancelled")
         return
 
 
@@ -136,10 +136,10 @@ class BlueZClient:
                 path_keyword='path'
             )
             
-            logger.info("✅ BlueZ D-Bus connection established")
+            logger.info("[OK] BlueZ D-Bus connection established")
             
         except Exception as e:
-            logger.error(f"❌ Failed to setup BlueZ D-Bus: {e}")
+            logger.error(f"[X] Failed to setup BlueZ D-Bus: {e}")
             raise
     
     def _on_properties_changed_internal(self, interface, changed, invalidated, path):
@@ -168,7 +168,7 @@ class BlueZClient:
             return True
             
         except Exception as e:
-            logger.error(f"❌ Failed to register BlueZ agent: {e}")
+            logger.error(f"[X] Failed to register BlueZ agent: {e}")
             return False
     
     def unregister_agent(self) -> bool:

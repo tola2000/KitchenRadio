@@ -170,6 +170,7 @@ class KitchenRadio:
                 from kitchenradio.interfaces.hardware.display_controller import DisplayController
                 self.display_controller = DisplayController(
                     source_controller=self.source_controller,
+                    kitchen_radio=self,  # For backward compatibility
                     refresh_rate=getattr(config, 'DISPLAY_REFRESH_RATE', 1.0),
                     use_hardware_display=getattr(config, 'DISPLAY_USE_HARDWARE', True)
                 )
@@ -267,7 +268,7 @@ class KitchenRadio:
             self.source_controller.stop_monitoring()
             self.source_controller.cleanup()
             
-            self.logger.info("✓ KitchenRadio daemon stopped")
+            self.logger.info("[OK] KitchenRadio daemon stopped")
             
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}", exc_info=True)
@@ -439,9 +440,17 @@ Examples:
         os.environ['LOG_LEVEL'] = 'DEBUG'
     
     # Determine what to enable
-    enable_display = (args.display) and not (args.no_hardware or args.no_display)
-    enable_buttons = (args.buttons) and not (args.no_hardware or args.no_buttons)
+    # By default, enable display and buttons unless explicitly disabled
+    # This allows running with just --web to get everything
+    enable_display = not (args.no_hardware or args.no_display)
+    enable_buttons = not (args.no_hardware or args.no_buttons)
     enable_web = args.web
+    
+    # If user explicitly passed --display or --buttons, respect that
+    if args.display:
+        enable_display = True
+    if args.buttons:
+        enable_buttons = True
     
     # Create daemon with optional UI components
     daemon = KitchenRadio(
