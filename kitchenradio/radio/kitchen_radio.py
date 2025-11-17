@@ -1013,6 +1013,40 @@ class KitchenRadio:
         
         self.logger.info("KitchenRadio daemon stopped")
     
+    def shutdown(self):
+        """
+        Shutdown KitchenRadio and reboot the operating system.
+        
+        This is a clean shutdown that:
+        1. Stops all audio playback
+        2. Disconnects from all backends
+        3. Cleans up all resources
+        4. Initiates system reboot
+        """
+        self.logger.info("🔴 Initiating system shutdown and reboot...")
+        
+        # Stop all KitchenRadio services
+        self.stop()
+        
+        # Initiate system reboot
+        import subprocess
+        import platform
+        
+        try:
+            system = platform.system()
+            if system == "Windows":
+                # Windows reboot command
+                self.logger.info("Executing Windows reboot command...")
+                subprocess.Popen(["shutdown", "/r", "/t", "0"], shell=True)
+            else:
+                # Linux/Unix reboot command (requires sudo privileges)
+                self.logger.info("Executing Linux/Unix reboot command...")
+                subprocess.Popen(["sudo", "reboot"], shell=False)
+            
+            self.logger.info("✅ System reboot initiated successfully")
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initiate system reboot: {e}")
+            raise
 
     def set_source(self, source: BackendType) -> bool:
         if not self.powered_on:

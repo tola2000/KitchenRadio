@@ -362,8 +362,18 @@ class ButtonController:
         """
         logger.info(f"Button pressed: {button_type.value}")
         
-        # Execute button action
-        self._execute_button_action(button_type)
+        # Store press start time for long press detection
+        state = self.button_states[button_type]
+        state['press_start_time'] = time.time()
+        state['pressed'] = True
+        state['long_press_fired'] = False
+        
+        # For power button, start long press detection thread
+        if button_type == ButtonType.POWER:
+            self._start_long_press_detection(button_type)
+        else:
+            # Execute button action immediately for non-power buttons
+            self._execute_button_action(button_type)
     
     def _handle_button_release(self, button_type: ButtonType):
         """
@@ -373,6 +383,21 @@ class ButtonController:
             button_type: The button that was released
         """
         logger.debug(f"Button released: {button_type.value}")
+        
+        state = self.button_states[button_type]
+        press_duration = time.time() - state['press_start_time'] if state['press_start_time'] > 0 else 0
+        state['pressed'] = False
+        
+        # For power button, handle short press if long press didn't fire
+        if button_type == ButtonType.POWER:
+            if not state['long_press_fired'] and press_duration < self.long_press_time:
+                logger.info(f"Power button short press detected ({press_duration:.2f}s)")
+                self._execute_button_action(button_type)
+            elif state['long_press_fired']:
+                logger.info(f"Power button released after long press ({press_duration:.2f}s)")
+        
+        state['press_start_time'] = 0
+        state['long_press_fired'] = False
     
     def press_button(self, button_name: str) -> bool:
         """
@@ -418,6 +443,37 @@ class ButtonController:
             self._cancel_long_press_detection(button_type)
             
             logger.debug(f"Button released: {button_type.value}")
+    
+    def _start_long_press_detection(self, button_type: ButtonType):
+        """
+        Start long press detection for a button in a separate thread.
+        
+        Args:
+            button_type: The button to monitor for long press
+        """
+        def long_press_worker():
+            state = self.button_states[button_type]
+            start_time = state['press_start_time']
+            
+            # Wait for long press duration
+            time.sleep(self.long_press_time)
+            
+            # Check if button is still pressed and this is the same press event
+            if (state['pressed'] and 
+                state['press_start_time'] == start_time and 
+                not state['long_press_fired']):
+                
+                logger.info(f"🔴 Long press detected on {button_type.value} ({self.long_press_time}s)")
+                state['long_press_fired'] = True
+                
+                # Execute long press action
+                if button_type == ButtonType.POWER:
+                    self._power_long_press()
+        
+        # Start thread
+        thread = threading.Thread(target=long_press_worker, daemon=True)
+        self.press_threads[button_type] = thread
+        thread.start()
     
     def _execute_button_action(self, button_type: ButtonType) -> bool:
         """
@@ -660,10 +716,38 @@ class ButtonController:
             return False
     
     def _power(self) -> bool:
-        """Power button - stop all playback"""
-        logger.info("Power button pressed - stopping all playback")
+        """Power button short press - toggle power on/off"""
+        logger.info("Power button short press - toggling power")
         return self.kitchen_radio.power()
     
+    def _power_long_press(self) -> bool:
+        """Power button long press - initiate system reboot"""
+        logger.info("🔴 Power button LONG PRESS - initiating system reboot!")
+        
+        try:
+            # Show notification that reboot is starting
+            if self.display_controller:
+                self.display_controller.show_Notification_overlay(
+                    "Systeem Herstart", 
+                    "Bezig met herstarten...", 
+                    timeout=5
+                )
+            
+            # Give display time to show the message
+            time.sleep(1)
+            
+            # Initiate shutdown and reboot
+            self.kitchen_radio.shutdown()
+            return True
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+            if self.display_controller:
+                self.display_controller.show_Notification_overlay(
+                    "Herstart Mislukt", 
+                    f"Fout: {e}", 
+                    timeout=3
+                )
+            return False
 
 
     def get_button_state(self, button_type: ButtonType) -> bool:
