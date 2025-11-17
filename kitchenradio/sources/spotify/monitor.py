@@ -53,13 +53,16 @@ class LibrespotMonitor:
 
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
+        
+        # Trigger 'any' callbacks if registered
+        if 'any' in self.callbacks:
+            for callback in self.callbacks['any']:
+                try:
+                    callback(event=event, **kwargs)
+                except Exception as e:
+                    logger.error(f"Error in 'any' callback for {event}: {e}")
 
-        for callback in self.callbacks['any']:
-            try:
-                callback(**kwargs)
-            except Exception as e:
-                logger.error(f"Error in 'any' callback for {event}: {e}")
-
+        # Trigger specific event callbacks
         if event in self.callbacks:
             for callback in self.callbacks[event]:
                 try:
