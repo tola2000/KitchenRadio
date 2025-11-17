@@ -266,6 +266,11 @@ class SourceController:
         Returns:
             True if successful
         """
+        # Auto-power on if currently off
+        if not self.powered_on:
+            self.logger.info("Auto-powering on via source selection...")
+            self.power()
+        
         self.logger.info(f"Setting audio source to: {source.value}")
         
         # Validate source
