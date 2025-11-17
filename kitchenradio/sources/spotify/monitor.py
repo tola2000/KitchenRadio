@@ -113,15 +113,26 @@ class LibrespotMonitor:
                 return
             
             # Check for playing state changes
-            old_paused = self.current_status.get('paused', False)
+            # Use None as default to detect first update
+            old_paused = self.current_status.get('paused', None)
             new_paused = status.get('paused', False)
-            old_stopped = self.current_status.get('stopped', False)
-            new_stopped = status.get('stopped', False)     
+            old_stopped = self.current_status.get('stopped', None)
+            new_stopped = status.get('stopped', False)
+            
+            # Skip state change detection on first update (when old values are None)
+            if old_paused is None or old_stopped is None:
+                # First update - just set current status and skip change detection
+                logger.debug("First Spotify status update - initializing state")
+                self.current_status = status
+                if status.get('track'):
+                    self.current_track = self._format_track_info(status)
+                return
+            
             old_playing = not old_paused and not old_stopped
             new_playing = not new_paused and not new_stopped
 
             if old_playing != new_playing:
-                logger.info(f"Playback state changed: {'playing' if new_playing else 'paused'}")
+                logger.info(f"Playback state changed: {old_playing}→{new_playing} ({'playing' if new_playing else 'paused'})")
                 self._trigger_callbacks('state_changed', 
                                       old_state='play' if old_playing else 'pause', 
                                       new_state='play' if new_playing else 'pause')
