@@ -142,8 +142,8 @@ class DisplayController:
         else:
             logger.debug("Display interface already initialized")
         
-        # Start update thread if KitchenRadio is provided
-        if self.kitchen_radio:
+        # Start update thread if we have a source_controller
+        if self.source_controller:
             self.running = True
             self._shutting_down = False  # Clear shutdown flag on initialization
             self.update_thread = threading.Thread(target=self._update_loop, daemon=True)
@@ -152,8 +152,12 @@ class DisplayController:
             
             # Trigger initial display update to show current status
             self._wake_event.set()
+            
+            # Register for callbacks from SourceController (if it has callback support)
+            if hasattr(self.source_controller, 'add_callback'):
+                self.source_controller.add_callback('any', self._on_client_changed)
+                logger.info("Registered display callback with SourceController")
         
-        self.kitchen_radio.add_callback('any', self._on_client_changed)
         logger.info("Simplified DisplayController initialized successfully")
         return True
     
