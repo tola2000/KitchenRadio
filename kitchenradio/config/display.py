@@ -19,7 +19,7 @@ GPIO_RST = 24       # GPIO pin for Reset (RST) signal
 SPI_PORT = 0        # SPI port number
 SPI_DEVICE = 0      # SPI device/chip enable number
 SPI_BUS_SPEED = 4_000_000  # SPI bus speed in Hz (4 MHz default, max 10 MHz)
-ROTATE = 0          # Display rotation: 0=0°, 1=90°, 2=180°, 3=270°
+ROTATE = 2          # Display rotation: 0=0°, 1=90°, 2=180°, 3=270° (2=upside down fix)
 
 # =============================================================================
 # Display Overlay Timeouts
