@@ -33,6 +33,18 @@ class NowPlayingMonitor:
         self._monitor_thread = None
         self._stop_event = threading.Event()
         
+        # Track expected values from commands (set by client events)
+        self.expected_volume = None
+        self.expected_volume_timestamp = None
+        self.expected_state = None
+        self.expected_state_timestamp = None
+        self.expected_value_timeout = 2.0  # Expire expected values after 2 seconds
+        
+        # Subscribe to client command events
+        self.client.add_callback('volume_command', self._on_volume_command)
+        self.client.add_callback('playback_command', self._on_playback_command)
+        logger.debug("Monitor subscribed to client command events")
+        
     def add_callback(self, event: str, callback: Callable):
         """
         Add callback for specific event.
@@ -45,6 +57,59 @@ class NowPlayingMonitor:
             self.callbacks[event] = []
         self.callbacks[event].append(callback)
         logger.debug(f"Added callback for {event}")
+    
+    def _on_volume_command(self, command: str, expected_volume: int, **kwargs):
+        """
+        Handle volume command from client.
+        Notifies monitor of expected volume BEFORE MPD status updates.
+        """
+        logger.info(f"📢 Client sent volume command: {command}, expected volume: {expected_volume}")
+        self.expected_volume = expected_volume
+        self.expected_volume_timestamp = time.time()
+        
+        # Immediately trigger callback with expected volume
+        self._trigger_callbacks('volume_command_sent', expected_volume=expected_volume)
+        # Also trigger volume_changed with expected value for immediate display update
+        self._trigger_callbacks('volume_changed', volume=expected_volume)
+    
+    def _on_playback_command(self, command: str, expected_state: str, **kwargs):
+        """
+        Handle playback command from client.
+        Notifies monitor of expected state BEFORE MPD status updates.
+        """
+        logger.info(f"🎵 Client sent playback command: {command}, expected state: {expected_state}")
+        self.expected_state = expected_state
+        self.expected_state_timestamp = time.time()
+        
+        # Immediately trigger callback with expected state
+        self._trigger_callbacks('playback_command_sent', command=command, expected_state=expected_state)
+        # Also trigger state_changed with expected value for immediate display update
+        old_state = self.current_status.get('state')
+        self._trigger_callbacks('state_changed', old_state=old_state, new_state=expected_state)
+    
+    def _is_expected_volume_valid(self) -> bool:
+        """Check if expected volume is still valid (not expired)."""
+        if self.expected_volume is None or self.expected_volume_timestamp is None:
+            return False
+        return (time.time() - self.expected_volume_timestamp) < self.expected_value_timeout
+    
+    def _is_expected_state_valid(self) -> bool:
+        """Check if expected state is still valid (not expired)."""
+        if self.expected_state is None or self.expected_state_timestamp is None:
+            return False
+        return (time.time() - self.expected_state_timestamp) < self.expected_value_timeout
+    
+    def _clear_expired_expected_values(self):
+        """Clear expected values that have expired."""
+        if self.expected_volume is not None and not self._is_expected_volume_valid():
+            logger.debug(f"⏱️ Expected volume expired: {self.expected_volume}")
+            self.expected_volume = None
+            self.expected_volume_timestamp = None
+        
+        if self.expected_state is not None and not self._is_expected_state_valid():
+            logger.debug(f"⏱️ Expected state expired: {self.expected_state}")
+            self.expected_state = None
+            self.expected_state_timestamp = None
     
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
@@ -135,8 +200,34 @@ class NowPlayingMonitor:
             new_volume = status.get('volume')
             
             if old_volume != new_volume:
-                logger.info(f"Volume changed: {old_volume} → {new_volume}")
-                self._trigger_callbacks('volume_changed', volume=int(new_volume) if new_volume else 0)
+                # Check if this matches expected volume from command
+                if self._is_expected_volume_valid():
+                    if int(new_volume) == self.expected_volume:
+                        logger.info(f"✅ Volume confirmed: {old_volume} → {new_volume} (matched expected {self.expected_volume})")
+                        # Clear expected value - MPD has caught up
+                        self.expected_volume = None
+                        self.expected_volume_timestamp = None
+                    else:
+                        logger.warning(f"⚠️ Volume mismatch: got {new_volume}, expected {self.expected_volume}")
+                        # Still trigger callback with actual value since it differs
+                        self._trigger_callbacks('volume_changed', volume=int(new_volume) if new_volume else 0)
+                else:
+                    # No expected value or expired - this is a new change
+                    logger.info(f"Volume changed: {old_volume} → {new_volume} (external change)")
+                    self._trigger_callbacks('volume_changed', volume=int(new_volume) if new_volume else 0)
+            
+            # Check if state matches expected state from command
+            if new_state != old_state and self._is_expected_state_valid():
+                if new_state == self.expected_state:
+                    logger.info(f"✅ Playback state confirmed: {new_state} (matched expected)")
+                    # Clear expected value - MPD has caught up
+                    self.expected_state = None
+                    self.expected_state_timestamp = None
+                else:
+                    logger.warning(f"⚠️ State mismatch: got {new_state}, expected {self.expected_state}")
+            
+            # Clear expired expected values
+            self._clear_expired_expected_values()
             
             # Update current status
             self.current_status = status
@@ -223,11 +314,34 @@ class NowPlayingMonitor:
             return None
         
     def get_status(self) -> Optional[Dict[str, Any]]:
-        "Gets current status"
+        """
+        Get current status with expected values override.
+        
+        Returns status with expected values (if valid and not expired) instead of actual MPD values.
+        This ensures immediate UI feedback while waiting for MPD to update.
+        
+        Expected values expire after 2 seconds and revert to actual MPD values.
+        """
         try:
-            return self.current_status
+            # Clear any expired expected values
+            self._clear_expired_expected_values()
+            
+            # Start with current MPD status
+            status = self.current_status.copy() if self.current_status else {}
+            
+            # Override with expected volume if valid
+            if self._is_expected_volume_valid():
+                status['volume'] = str(self.expected_volume)
+                logger.debug(f"⚡ Returning expected volume: {self.expected_volume} (not yet confirmed by MPD)")
+            
+            # Override with expected state if valid
+            if self._is_expected_state_valid():
+                status['state'] = self.expected_state
+                logger.debug(f"⚡ Returning expected state: {self.expected_state} (not yet confirmed by MPD)")
+            
+            return status
         except Exception as e:
-            logger.error(f"Error getting current track: {e}")
+            logger.error(f"Error getting status: {e}")
             return None
     
     def print_current_track(self):

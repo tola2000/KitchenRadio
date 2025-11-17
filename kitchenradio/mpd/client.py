@@ -42,6 +42,9 @@ class KitchenRadioClient:
         self.timeout = timeout
         self._connected = False
         
+        # Event callbacks for command events (notifying monitor of expected changes)
+        self.callbacks = {}
+        
         # Thread safety locks
         self._command_lock = threading.RLock()  # Reentrant lock for nested calls
         self._connection_lock = threading.RLock()
@@ -119,6 +122,28 @@ class KitchenRadioClient:
                 logger.error(f"Error during MPD disconnect: {e}")
                 self._connected = False
     
+    def add_callback(self, event: str, callback: Callable):
+        """
+        Add callback for command events.
+        
+        Args:
+            event: Event name ('command_sent', 'volume_command', 'playback_command', etc.)
+            callback: Callback function
+        """
+        if event not in self.callbacks:
+            self.callbacks[event] = []
+        self.callbacks[event].append(callback)
+        logger.debug(f"Added client callback for {event}")
+    
+    def _trigger_callbacks(self, event: str, **kwargs):
+        """Trigger callbacks for event."""
+        if event in self.callbacks:
+            for callback in self.callbacks[event]:
+                try:
+                    callback(**kwargs)
+                except Exception as e:
+                    logger.error(f"Error in client callback for {event}: {e}")
+    
     def is_connected(self) -> bool:
         """Check if connected to MPD server (thread-safe)."""
         with self._connection_lock:
@@ -129,6 +154,9 @@ class KitchenRadioClient:
         """Start playback from current or specified position (thread-safe)."""
         with self._command_lock:
             try:
+                # Emit event BEFORE sending command so monitor knows expected state
+                self._trigger_callbacks('playback_command', command='play', expected_state='play', songpos=songpos)
+                
                 if songpos is not None:
                     self.client.play(songpos)
                 else:
@@ -143,6 +171,10 @@ class KitchenRadioClient:
         """Pause or unpause playback (thread-safe)."""
         with self._command_lock:
             try:
+                # Emit event BEFORE sending command
+                expected_state = 'pause' if (state is None or state) else 'play'
+                self._trigger_callbacks('playback_command', command='pause', expected_state=expected_state, pause_state=state)
+                
                 if state is None:
                     self.client.pause()
                 else:
@@ -157,6 +189,9 @@ class KitchenRadioClient:
         """Stop playback (thread-safe)."""
         with self._command_lock:
             try:
+                # Emit event BEFORE sending command
+                self._trigger_callbacks('playback_command', command='stop', expected_state='stop')
+                
                 self.client.stop()
                 return True
             except Exception as e:
@@ -193,6 +228,10 @@ class KitchenRadioClient:
             try:
                 if not 0 <= volume <= 100:
                     raise ValueError("Volume must be between 0 and 100")
+                
+                # Emit event BEFORE sending command so monitor knows expected volume
+                self._trigger_callbacks('volume_command', command='set_volume', expected_volume=volume)
+                
                 self.client.setvol(volume)
                 return True
             except Exception as e:

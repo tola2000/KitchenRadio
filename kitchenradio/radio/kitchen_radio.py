@@ -203,6 +203,7 @@ class KitchenRadio:
             self.librespot_connected = True
 
             self.librespot_monitor.add_callback('any', self._on_client_changed)
+            self.librespot_monitor.add_callback('track_started', self._on_spotify_track_started)
             
             self.logger.info(f"Librespot backend initialized successfully - {self.config['librespot_host']}:{self.config['librespot_port']}")
             return True
@@ -294,6 +295,15 @@ class KitchenRadio:
         # Trigger display update
         if self.source == BackendType.BLUETOOTH:
             self._trigger_callbacks('status_changed', old_status=old_status, new_status=new_status)
+    
+    def _on_spotify_track_started(self, track, **kwargs):
+        """Handle Spotify track start - auto-switch to Spotify source"""
+        self.logger.info(f"🎵 Spotify track started: {track.get('title', 'Unknown')} - {track.get('artist', 'Unknown')}")
+        
+        # Auto-switch to Spotify source if not already there
+        if self.source != BackendType.LIBRESPOT:
+            self.logger.info("Auto-switching to Spotify source")
+            self.set_source(BackendType.LIBRESPOT)
 
     def add_callback(self, event: str, callback: Callable):
         """
