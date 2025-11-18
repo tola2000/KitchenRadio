@@ -673,11 +673,9 @@ class BluetoothController:
             True if command was sent successfully, False otherwise
         """
         if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
                 logger.info("▶️ Sending play command to Bluetooth device")
                 return self.monitor.avrcp_client.play()
-            else:
-                logger.warning("Cannot play: AVRCP not available")
+
         return False
     
     def pause(self) -> bool:
