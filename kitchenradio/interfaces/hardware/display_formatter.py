@@ -900,7 +900,10 @@ class DisplayFormatter:
         }
         
         # Pre-calculate volume bar dimensions
-        volume_number = int(volume) if volume is not None else 0
+        try:
+            volume_number = int(volume)
+        except (TypeError, ValueError):
+            volume_number = 0
         fill_height = 0
         fill_y = 0
         if volume_number and volume_number > 0:
