@@ -785,8 +785,9 @@ class SourceController:
                 self.librespot_monitor.add_callback('state_changed', librespot_state_callback)
             if on_client_changed:
                 self.librespot_monitor.add_callback('any', on_client_changed)
-            # Always add internal callback to switch source on playback
+            # Always add internal callback to switch source on playback or resume
             self.librespot_monitor.add_callback('track_started', self._on_librespot_track_started)
+            self.librespot_monitor.add_callback('track_resumed', self._on_librespot_track_started)
             if on_spotify_track_started:
                 self.librespot_monitor.add_callback('track_started', on_spotify_track_started)
             self.librespot_monitor.start_monitoring()
