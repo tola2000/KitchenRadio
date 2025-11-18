@@ -255,10 +255,18 @@ class DisplayController:
         while self.running:
             try:
                 start_time = time.time()
-                
                 # Check running flag before doing any work
                 if not self.running or self._shutting_down:
                     break
+
+                # Get power state before deciding update interval
+                powered_on = True
+                if self.source_controller:
+                    try:
+                        status = self.source_controller.get_status()
+                        powered_on = status.get('powered_on', True)
+                    except Exception as e:
+                        logger.warning(f"Could not get power state for display update: {e}")
 
                 # Update display if KitchenRadio is available
                 if self.kitchen_radio:
@@ -268,14 +276,18 @@ class DisplayController:
                 if self.manual_update_requested:
                     self.manual_update_requested = False
                     # Manual update is handled by the manual methods
-                
+
                 # Check running flag before sleeping
                 if not self.running or self._shutting_down:
                     break
 
                 # Calculate sleep time
                 elapsed = time.time() - start_time
-                sleep_time = max(0, frame_time - elapsed)
+                # If powered off, throttle updates to every 5 seconds
+                if not powered_on:
+                    sleep_time = max(0, 5.0 - elapsed)
+                else:
+                    sleep_time = max(0, frame_time - elapsed)
 
                 # Wait either for wake_event (set by callback) or timeout
                 # This will wake immediately if cleanup() sets the event
@@ -289,7 +301,7 @@ class DisplayController:
                     logger.info("Exiting update loop due to shutdown after exception")
                     break
                 time.sleep(1.0)  # Wait before continuing after error
-        
+
         logger.info("Display update loop exited")
     
     def _update_display(self, force_refresh: bool = False, scroll_update: bool = False):
