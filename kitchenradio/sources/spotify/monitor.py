@@ -110,7 +110,7 @@ class LibrespotMonitor:
             # Get current status
             status = self.client.get_status()
             if not status or not isinstance(status, dict):
-                logger.warning("Spotify monitor: status is None or not a dict, skipping change check.")
+                logger.debug("Spotify monitor: status is None or not a dict, skipping change check.")
                 return
 
             # Defensive: ensure self.current_status is a dict
