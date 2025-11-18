@@ -589,13 +589,22 @@ class BluetoothMonitor:
     
     def _on_status_changed(self, path: str, status: PlaybackStatus):
         """Handle playback status change from AVRCP"""
+        # Convert dbus.String or str to PlaybackStatus if needed
+        if isinstance(status, PlaybackStatus):
+            status_enum = status
+        else:
+            status_str = str(status)
+            try:
+                status_enum = PlaybackStatus(status_str)
+            except ValueError:
+                status_enum = PlaybackStatus.UNKNOWN
         old_status = self.current_status
-        self.current_status = status
+        self.current_status = status_enum
 
-        logger.info(f"▶️  Status changed: {old_status.value} → {status.value}")
+        logger.info(f"▶️  Status changed: {old_status.value} → {status_enum.value}")
 
         # Trigger specific events based on status transition
-        if status == PlaybackStatus.PLAYING and old_status != PlaybackStatus.PLAYING:
+        if status_enum == PlaybackStatus.PLAYING and old_status != PlaybackStatus.PLAYING:
             if old_status == PlaybackStatus.PAUSED:
                 logger.info("⏯️  Track resumed")
                 self._trigger_callbacks('track_resumed', track=self._format_track_info(self.current_track))
