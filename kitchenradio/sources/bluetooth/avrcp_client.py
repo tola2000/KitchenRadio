@@ -38,6 +38,7 @@ from typing import Optional, Dict, Any, Callable
 from .monitor import AVRCPState, TrackInfo, PlaybackStatus
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class AVRCPClient:

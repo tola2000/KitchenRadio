@@ -12,7 +12,7 @@ POWER_ON_AT_STARTUP = True  # Power on radio when daemon starts
 # =============================================================================
 # Logging
 # =============================================================================
-LOG_LEVEL = 'DEBUG'  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_LEVEL = 'INFO'  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 # =============================================================================
 # Hardware Configuration
