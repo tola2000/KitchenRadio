@@ -794,18 +794,30 @@ class SourceController:
             self.logger.info("Started Librespot monitoring")
         
         # Bluetooth monitoring
-        if self.bluetooth_connected and self.bluetooth_controller and bluetooth_callbacks:
-            if 'connected' in bluetooth_callbacks:
-                self.bluetooth_controller.on_device_connected = bluetooth_callbacks['connected']
-            if 'disconnected' in bluetooth_callbacks:
-                self.bluetooth_controller.on_device_disconnected = bluetooth_callbacks['disconnected']
-            
-            if self.bluetooth_controller.monitor:
-                if 'track_changed' in bluetooth_callbacks:
-                    self.bluetooth_controller.monitor.register_callback('track_changed', bluetooth_callbacks['track_changed'])
-                if 'status_changed' in bluetooth_callbacks:
-                    self.bluetooth_controller.monitor.register_callback('status_changed', bluetooth_callbacks['status_changed'])
-            
+        if self.bluetooth_connected and self.bluetooth_controller:
+            def _on_bluetooth_device_connected(*args, **kwargs):
+                self.logger.info("Bluetooth device connected event received. Switching source to Bluetooth.")
+                self.set_source(BackendType.BLUETOOTH)
+
+            # Register internal callback for device connected
+            self.bluetooth_controller.on_device_connected = _on_bluetooth_device_connected
+
+            # Register any user-provided callbacks
+            if bluetooth_callbacks:
+                if 'connected' in bluetooth_callbacks:
+                    # Chain user callback after internal
+                    orig_cb = self.bluetooth_controller.on_device_connected
+                    def chained_cb(*args, **kwargs):
+                        orig_cb(*args, **kwargs)
+                        bluetooth_callbacks['connected'](*args, **kwargs)
+                    self.bluetooth_controller.on_device_connected = chained_cb
+                if 'disconnected' in bluetooth_callbacks:
+                    self.bluetooth_controller.on_device_disconnected = bluetooth_callbacks['disconnected']
+                if self.bluetooth_controller.monitor:
+                    if 'track_changed' in bluetooth_callbacks:
+                        self.bluetooth_controller.monitor.register_callback('track_changed', bluetooth_callbacks['track_changed'])
+                    if 'status_changed' in bluetooth_callbacks:
+                        self.bluetooth_controller.monitor.register_callback('status_changed', bluetooth_callbacks['status_changed'])
             self.logger.info("Started Bluetooth monitoring")
     
     def stop_monitoring(self):
