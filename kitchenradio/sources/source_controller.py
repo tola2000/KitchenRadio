@@ -1,16 +1,4 @@
 
-class SourceController:
-    """
-    Manages all music playback backends and provides unified control interface.
-    """
-
-    def _on_librespot_track_started(self, **kwargs):
-        """Callback for Librespot track started event - switch source to LIBRESPOT."""
-        from kitchenradio.sources.source_controller import BackendType
-        self.set_source(BackendType.LIBRESPOT)
-        self.logger.info("Source switched to Spotify (LIBRESPOT) due to track_started event.")
-
-    # ...existing code...
 
 import logging
 import time
