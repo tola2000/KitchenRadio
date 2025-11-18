@@ -39,6 +39,12 @@ from .monitor import AVRCPState, TrackInfo, PlaybackStatus
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 class AVRCPClient:
