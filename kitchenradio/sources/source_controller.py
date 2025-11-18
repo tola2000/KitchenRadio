@@ -145,30 +145,28 @@ class SourceController:
     
     def _initialize_mpd(self) -> bool:
         """Initialize MPD backend"""
-        self.logger.info("Initializing MPD backend...")
-        
-        try:
-            self.mpd_client = MPDClient(
-                host=self.config.get('mpd_host', config.MPD_HOST),
-                port=self.config.get('mpd_port', config.MPD_PORT),
-                password=self.config.get('mpd_password', config.MPD_PASSWORD),
-                timeout=self.config.get('mpd_timeout', config.MPD_TIMEOUT)
-            )
-            
-            if not self.mpd_client.connect():
-                self.logger.warning("Failed to connect to MPD")
-                return False
-            
-            self.mpd_controller = MPDController(self.mpd_client)
-            self.mpd_monitor = MPDMonitor(self.mpd_client)
-            self.mpd_connected = True
-            
-            self.logger.info(f"MPD backend initialized - {self.config['mpd_host']}:{self.config['mpd_port']}")
-            return True
-            
-        except Exception as e:
-            self.logger.warning(f"MPD initialization failed: {e}")
-            return False
+        self.logger.info("Initializing MPD backend with retries...")
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                self.mpd_client = MPDClient(
+                    host=self.config.get('mpd_host', config.MPD_HOST),
+                    port=self.config.get('mpd_port', config.MPD_PORT),
+                    password=self.config.get('mpd_password', config.MPD_PASSWORD),
+                    timeout=self.config.get('mpd_timeout', config.MPD_TIMEOUT)
+                )
+                if self.mpd_client.connect():
+                    self.mpd_controller = MPDController(self.mpd_client)
+                    self.mpd_monitor = MPDMonitor(self.mpd_client)
+                    self.mpd_connected = True
+                    self.logger.info(f"MPD backend initialized - {self.config['mpd_host']}:{self.config['mpd_port']}")
+                    return True
+                else:
+                    self.logger.warning(f"Failed to connect to MPD (attempt {attempt+1}/{max_retries})")
+            except Exception as e:
+                self.logger.warning(f"MPD initialization failed (attempt {attempt+1}/{max_retries}): {e}")
+            time.sleep(10)  # Wait 10 seconds before retrying
+        return False
     
     def _initialize_librespot(self) -> bool:
         """Initialize librespot backend"""
