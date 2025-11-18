@@ -578,18 +578,21 @@ class SourceController:
     # Power Management
     # =========================================================================
     
-    def power_on(self) -> bool:
-        """Power on - restore source and start playback"""
+    def power_on(self, trigger_source: 'BackendType' = None) -> bool:
+        """Power on - restore source and start playback. If trigger_source is provided, use it as initial source."""
         if self.powered_on:
             self.logger.info("Already powered on")
             return True
-        
+
         self.powered_on = True
         self.logger.info("Powering on...")
-        
+
         # Determine source to use
         source_to_use = None
-        if self.previous_source and self.previous_source != BackendType.NONE:
+        if trigger_source is not None:
+            source_to_use = trigger_source
+            self.logger.info(f"Power-on triggered by source: {source_to_use.value}")
+        elif self.previous_source and self.previous_source != BackendType.NONE:
             source_to_use = self.previous_source
             self.logger.info(f"Restoring previous source: {source_to_use.value}")
         else:
@@ -597,7 +600,7 @@ class SourceController:
             if available:
                 source_to_use = available[0]
                 self.logger.info(f"Selecting first available source: {source_to_use.value}")
-        
+
         # Set source and auto-start playback
         if source_to_use:
             self.set_source(source_to_use)
@@ -607,7 +610,7 @@ class SourceController:
             except Exception as e:
                 self.logger.warning(f"Could not auto-start playback on power on: {e}")
             return True
-        
+
         self.logger.warning("No sources available for power on")
         return False
     
@@ -802,8 +805,11 @@ class SourceController:
         # Bluetooth monitoring
         if self.bluetooth_connected and self.bluetooth_controller:
             def _on_bluetooth_device_connected(name, address, *args, **kwargs):
-                self.logger.info(f"Bluetooth device connected event received for {name} ({address}). Switching source to Bluetooth.")
-                self.set_source(BackendType.BLUETOOTH)
+                self.logger.info(f"Bluetooth device connected event received for {name} ({address}). Powering on and switching source to Bluetooth.")
+                if not self.powered_on:
+                    self.power_on(trigger_source=BackendType.BLUETOOTH)
+                else:
+                    self.set_source(BackendType.BLUETOOTH)
 
             # Register internal callback for device connected
             self.bluetooth_controller.on_device_connected = _on_bluetooth_device_connected
