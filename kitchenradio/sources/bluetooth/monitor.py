@@ -587,7 +587,7 @@ class BluetoothMonitor:
             except Exception as e:
                 logger.error(f"Error updating Bluetooth display on track change: {e}")
     
-    def _on_status_changed(self, status: PlaybackStatus):
+    def _on_status_changed(self, path: str, status: PlaybackStatus):
         """Handle playback status change from AVRCP"""
         old_status = self.current_status
         self.current_status = status
