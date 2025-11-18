@@ -795,8 +795,8 @@ class SourceController:
         
         # Bluetooth monitoring
         if self.bluetooth_connected and self.bluetooth_controller:
-            def _on_bluetooth_device_connected(*args, **kwargs):
-                self.logger.info("Bluetooth device connected event received. Switching source to Bluetooth.")
+            def _on_bluetooth_device_connected(name, address, *args, **kwargs):
+                self.logger.info(f"Bluetooth device connected event received for {name} ({address}). Switching source to Bluetooth.")
                 self.set_source(BackendType.BLUETOOTH)
 
             # Register internal callback for device connected
