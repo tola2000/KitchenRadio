@@ -558,7 +558,7 @@ class BluetoothMonitor:
         except Exception as e:
             logger.error(f"Error setting up AVRCP client: {e}")
     
-    def _on_track_changed(self, track: TrackInfo):
+    def _on_track_changed(self, path: str, track: TrackInfo):
         """Handle track change from AVRCP"""
         self.current_track = track
         logger.info(f"🎵 Track changed: {track.title} - {track.artist}")
