@@ -759,6 +759,7 @@ class SourceController:
                     'current_track': current_track,
                     'playback_status': playback_status,
                 }
+                self.logger.debug(f"[get_status bluethooth] Full status: {status['bluetooth']}")
             except Exception as e:
                 status['bluetooth'] = {'connected': False, 'error': str(e)}
         else:
