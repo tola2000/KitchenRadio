@@ -74,6 +74,8 @@ class AVRCPClient:
                     self.on_track_changed(path, changed['Track'])
                 if self.on_status_changed and 'Status' in changed:
                     self.on_status_changed(path, changed['Status'])
+            # Track the current active player path (for control commands)
+            self.player_path: Optional[str] = None
         self.bus.add_signal_receiver(
             on_properties_changed,
             signal_name='PropertiesChanged',
