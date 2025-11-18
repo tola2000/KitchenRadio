@@ -812,10 +812,7 @@ class SourceController:
         if self.mpd_monitor:
             self.mpd_monitor.stop_monitoring()
             self.logger.info("Stopped MPD monitoring")
-        
-        if self.librespot_monitor:
-            self.librespot_monitor.stop_monitoring()
-            self.logger.info("Stopped Librespot monitoring")
+        # Do NOT stop librespot monitoring here; only stop on full shutdown/cleanup
 
     def _on_librespot_track_started(self, *args, **kwargs):
         """
