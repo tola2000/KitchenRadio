@@ -326,18 +326,18 @@ class BluetoothMonitor:
     self.client = bluez_client
     self.display_controller = display_controller
     self.callbacks = {}
-    self.current_track: Optional[TrackInfo] = None
-    self.current_status: PlaybackStatus = PlaybackStatus.UNKNOWN
-    self.current_state: Optional[AVRCPState] = None
-    self.avrcp_client: Optional[AVRCPClient] = None
+    self.current_track = None
+    self.current_status = PlaybackStatus.UNKNOWN
+    self.current_state = None
+    self.avrcp_client = None
     self.is_monitoring = False
-    self._monitor_thread: Optional[threading.Thread] = None
+    self._monitor_thread = None
     self._stop_event = threading.Event()
 
     # Track connected devices
-    self.connected_devices: Set[str] = set()  # MAC addresses
-    self.current_device_path: Optional[str] = None
-    self.current_device_name: Optional[str] = None
+    self.connected_devices = set()  # MAC addresses
+    self.current_device_path = None
+    self.current_device_name = None
         
     def add_callback(self, event: str, callback: Callable):
         """
