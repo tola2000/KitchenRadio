@@ -162,7 +162,7 @@ class BlueZClient:
             logger.error(f"[X] Failed to setup BlueZ D-Bus: {e}")
             raise
 
-    def on_volume_changed_test(interface, changed, invalidated):
+    def on_volume_changed_test(interface, changed, invalidated, path):
          logger.info(f"Volume change detected on {changed}")
 
     def _on_properties_changed_internal(self, interface, changed, invalidated, path):
