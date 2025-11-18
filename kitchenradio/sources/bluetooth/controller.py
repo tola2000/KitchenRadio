@@ -21,7 +21,7 @@ from .bluez_client import BlueZClient
 from .monitor import BluetoothMonitor
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.DEBUG)
 
 class BluetoothController:
     """
