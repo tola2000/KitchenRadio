@@ -760,6 +760,7 @@ class SourceController:
                     'current_track': current_track,
                     'playback_status': playback_status,
                 }
+                self.logger.info(f"Bluetooth state: { status['bluetooth']}")
             except Exception as e:
                 self.logger.error(f"Error getting Bluetooth state: {e}")
                 status['bluetooth'] = {'connected': False, 'error': str(e)}
