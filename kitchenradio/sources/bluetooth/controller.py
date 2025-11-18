@@ -21,7 +21,6 @@ from .bluez_client import BlueZClient
 from .monitor import BluetoothMonitor
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 class BluetoothController:
     """
@@ -412,7 +411,6 @@ class BluetoothController:
         return devices
     
     def get_volume(self) -> Optional[int]:
-        logger.debug("AVRCP volume not available, returning default 50")
         return 0
     
     def refresh_volume(self) -> Optional[int]:
