@@ -30,19 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 class DisplayController:
-    def show_poweroff_menu(self, timeout: float = 10):
-        """
-        Show menu overlay on the clock screen (power-off mode) with update/restart option.
-        """
-        menu_options = ["Update & Restart KitchenRadio", "Cancel"]
-        def handle_selection(index):
-            if index == 0:
-                self.show_Notification_overlay("Updating...", "KitchenRadio will restart", timeout=3)
-                if self.kitchen_radio and hasattr(self.kitchen_radio, 'update_and_restart'):
-                    self.kitchen_radio.update_and_restart()
-            elif index == 1:
-                self.show_clock()
-        self.show_menu_overlay(menu_options, selected_index=1, timeout=timeout, on_selected=handle_selection)
     """
     Simplified Display Controller for SSD1322 256x64 OLED display.
     

@@ -134,7 +134,8 @@ class ButtonController:
                  use_hardware: bool = None,
                  simulation_mode: bool = False,
                  i2c_address: int = None,
-                 shutdown_callback: Callable[[], None] = None):
+                 shutdown_callback: Callable[[], None] = None,
+                 kitchen_radio = None):
         """
         Initialize button controller with MCP23017 hardware support.
         
@@ -148,14 +149,15 @@ class ButtonController:
             i2c_address: I2C address of MCP23017 (default from config)
             shutdown_callback: Callback function to initiate system shutdown/reboot
         """
-        # Store SourceController reference
-        self.source_controller = source_controller
-        
-        # Store shutdown callback for long press power button
-        self.shutdown_callback = shutdown_callback
-        
-        # Store display controller for volume screen
-        self.display_controller = display_controller
+
+    # Store SourceController reference
+    self.source_controller = source_controller
+    # Store shutdown callback for long press power button
+    self.shutdown_callback = shutdown_callback
+    # Store display controller for volume screen
+    self.display_controller = display_controller
+    # Store KitchenRadio reference
+    self.kitchen_radio = kitchen_radio
         
         # Timing configuration - use config defaults if not specified
         self.debounce_time = debounce_time if debounce_time is not None else buttons_config.DEBOUNCE_TIME
@@ -607,21 +609,18 @@ class ButtonController:
         logger.info("Menu up navigation")
         try:
             status = self.source_controller.get_status()
-            if not status.get('powered_on', True):
-                # If powered off, show poweroff menu
+            powered_on = status.get('powered_on', True)
+            if powered_on:
+                current_source = status.get('current_source')
+                menu_options = self.source_controller.get_menu_options() if current_source else None
+            else:
+                menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
+            if not menu_options or not menu_options.get('has_menu', False):
+                logger.info("Menu not available.")
                 if self.display_controller:
-                    self.display_controller.show_poweroff_menu()
-                return True
-            # ...existing menu up logic...
-            current_source = status.get('current_source')
-            if current_source:
-                menu_options = self.source_controller.get_menu_options()
-                if not menu_options.get('has_menu', False):
-                    logger.info(f"Menu not available for source: {current_source}")
-                    if self.display_controller:
-                        self.display_controller.show_status_message("Function not available", "⚠", "warning")
-                    return False
-            menu_items = self._get_menu_items()
+                    self.display_controller.show_status_message("Function not available", "⚠", "warning")
+                return False
+            menu_items = [opt.get('label', str(opt)) for opt in menu_options.get('options', [])]
             if menu_items:
                 self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
                 logger.info(f"Menu scroll up to index {self._current_menu_index}")
@@ -642,21 +641,18 @@ class ButtonController:
         logger.info("Menu down navigation")
         try:
             status = self.source_controller.get_status()
-            if not status.get('powered_on', True):
-                # If powered off, show poweroff menu
+            powered_on = status.get('powered_on', True)
+            if powered_on:
+                current_source = status.get('current_source')
+                menu_options = self.source_controller.get_menu_options() if current_source else None
+            else:
+                menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
+            if not menu_options or not menu_options.get('has_menu', False):
+                logger.info("Menu not available.")
                 if self.display_controller:
-                    self.display_controller.show_poweroff_menu()
-                return True
-            # ...existing menu down logic...
-            current_source = status.get('current_source')
-            if current_source:
-                menu_options = self.source_controller.get_menu_options()
-                if not menu_options.get('has_menu', False):
-                    logger.info(f"Menu not available for source: {current_source}")
-                    if self.display_controller:
-                        self.display_controller.show_status_message("Function not available", "⚠", "warning")
-                    return False
-            menu_items = self._get_menu_items()
+                    self.display_controller.show_status_message("Function not available", "⚠", "warning")
+                return False
+            menu_items = [opt.get('label', str(opt)) for opt in menu_options.get('options', [])]
             if menu_items:
                 self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
                 logger.info(f"Menu scroll down to index {self._current_menu_index}")
@@ -720,35 +716,35 @@ class ButtonController:
     def _on_menu_item_selected(self, index: int) -> None:
         """Handle selection of a menu item by index"""
         try:
-            # Get menu options from source controller (not just the labels)
-            menu_options = self.source_controller.get_menu_options()
-            
-            if not menu_options.get('has_menu', False):
+            status = self.source_controller.get_status()
+            powered_on = status.get('powered_on', True)
+            if powered_on:
+                menu_options = self.source_controller.get_menu_options()
+                execute_action = self.source_controller.execute_menu_action
+            else:
+                menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
+                execute_action = self.kitchen_radio.execute_menu_action if self.kitchen_radio else None
+            if not menu_options or not menu_options.get('has_menu', False):
                 logger.warning("No menu available")
                 return False
-            
             options = menu_options.get('options', [])
             if 0 <= index < len(options):
                 selected_option = options[index]
                 option_id = selected_option.get('id')
                 action = selected_option.get('action', 'select')
-                
                 logger.info(f"Handling menu selection: index={index}, option_id='{option_id}', action='{action}'")
-                
                 # Execute the menu action
-                result = self.source_controller.execute_menu_action(action, option_id)
+                result = execute_action(action, option_id) if execute_action else {'success': False, 'error': 'No action handler'}
                 logger.info(f"Menu action execution result: {result}")
-                
                 # Show success/error message
                 if self.display_controller:
-                    if result.get('success', False):
+                    if result.get('status', '') == 'success':
                         message = result.get('message', 'Action completed')
                         self.display_controller.show_status_message(message, "✓", "success")
                     else:
-                        error = result.get('error', 'Action failed')
+                        error = result.get('message', 'Action failed')
                         self.display_controller.show_status_message(error, "❌", "error")
-                
-                return result.get('success', False)
+                return result.get('status', '') == 'success'
             else:
                 logger.error(f"Invalid menu index: {index}")
                 return False

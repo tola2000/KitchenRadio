@@ -190,7 +190,8 @@ class KitchenRadio:
                     display_controller=self.display_controller,
                     use_hardware=getattr(config, 'BUTTON_USE_HARDWARE', True),
                     i2c_address=getattr(config, 'BUTTON_I2C_ADDRESS', 0x20),
-                    shutdown_callback=self.shutdown
+                    shutdown_callback=self.shutdown,
+                    kitchen_radio=self
                 )
                 if not self.button_controller.initialize():
                     self.logger.warning("Button Controller initialization failed - continuing without buttons")
@@ -229,6 +230,95 @@ class KitchenRadio:
         self.logger.info("=" * 80)
         return True
     
+    def get_menu_options(self) -> Dict[str, Any]:
+        
+        try:
+            options = [
+                {
+                    'id': 'reboot',
+                    'label': "Reboot",
+                    'type': 'management',
+                    'action': 'reboot'
+                },
+                {
+                    'id': 'update',
+                    'label': "Update",
+                    'type': 'management',
+                    'action': 'update_restart'
+                },
+                ,
+                {
+                    'id': 'restart',
+                    'label': "Herstart",
+                    'type': 'management',
+                    'action': 'herstart'
+                }
+            ]
+            return {
+                'has_menu': True,
+                'menu_type': 'management',
+                'options': options,
+                'message': f'{len(options)} available'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting MPD menu options: {e}")
+            return {
+                'has_menu': False,
+                'options': [],
+                'message': 'Error retrieving playlists'
+            }
+        
+    def execute_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
+
+        
+        try:
+            if action == 'reboot':
+                self.logger.info("Reboot action selected from menu")
+                self.shutdown()
+                return {
+                    'status': 'success',
+                    'message': 'System is rebooting...'
+                }
+            elif action == 'update':
+                self.logger.info("Update & Restart action selected from menu")
+                success = self.update_and_restart()
+                if success:
+                    return {
+                        'status': 'success',
+                        'message': 'KitchenRadio is updating and restarting...'
+                    }
+                else:
+                    return {
+                        'status': 'error',
+                        'message': 'Update & Restart failed'
+                    }
+            elif action == 'herstart':
+                self.logger.info("Restart action selected from menu")
+                success = self.stop()
+                if success:
+                    return {
+                        'status': 'success',
+                        'message': 'KitchenRadio is restarting...'
+                    }
+                else:
+                    return {
+                        'status': 'error',
+                        'message': 'Restart failed'
+                    }
+            else:
+                self.logger.warning(f"Unknown menu action: {action}")
+                return {
+                    'status': 'error',
+                    'message': f'Unknown action: {action}'
+                }
+        except Exception as e:
+            self.logger.error(f"Error executing menu action '{action}': {e}")
+            return {
+                'status': 'error',
+                'message': f'Error executing action: {e}'
+            }
+                
     def stop(self):
         """Stop the KitchenRadio daemon and cleanup all resources."""
         self.logger.info("Stopping KitchenRadio daemon...")
@@ -316,6 +406,8 @@ class KitchenRadio:
                 self.logger.warning("Reboot only supported on Linux/Windows")
         except Exception as e:
             self.logger.error(f"Failed to reboot system: {e}")
+    
+
     
     def run(self):
         """
