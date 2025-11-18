@@ -23,12 +23,26 @@ if __name__ == "__main__":
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
 
+
     # Listen for PropertiesChanged on any MediaPlayer1 object
     bus.add_signal_receiver(
         on_properties_changed,
         signal_name='PropertiesChanged',
         dbus_interface='org.freedesktop.DBus.Properties',
         path=None,  # Listen globally
+        arg0='org.bluez.MediaPlayer1',
+    )
+
+    # Listen specifically for volume changes on MediaPlayer1
+    def on_volume_changed(interface, changed, invalidated):
+        if 'Volume' in changed:
+            print(f"[DBUS EVENT] Volume changed on {interface}: {changed['Volume']}")
+
+    bus.add_signal_receiver(
+        on_volume_changed,
+        signal_name='PropertiesChanged',
+        dbus_interface='org.freedesktop.DBus.Properties',
+        path=None,
         arg0='org.bluez.MediaPlayer1',
     )
 

@@ -9,6 +9,7 @@ High-level Bluetooth audio management:
 - Device state tracking
 """
 
+from calendar import c
 from gi.repository import GLib
 import logging
 import threading
@@ -50,6 +51,7 @@ class BluetoothController:
         self.running = False
         self.current_device_path: Optional[str] = None
         self.current_device_name: Optional[str] = None
+        self.current_volume: Optional[int] = None
         
         # Volume cache (to avoid constant PulseAudio polling)
         self._cached_volume: Optional[int] = None
@@ -94,6 +96,7 @@ class BluetoothController:
 
                 # Set up property change callback (controller still needs this for pairing)
                 self.client.on_properties_changed = self._on_properties_changed
+                self.client.on_volume_changed = self._on_volume_changed
 
                 logger.info("✅ BluetoothController: Client initialized")
 
@@ -160,6 +163,11 @@ class BluetoothController:
         except Exception as e:
             logger.error(f"Error scanning existing devices: {e}")
     
+    def _on_volume_changed(self, interface: str, changed: Dict, invalidated: list, path: str):
+        if "Volume" in changed:
+            self.current_volume = changed["Volume"]
+            print(f"Bluetooth volume changed: {self.current_volume} (0–127)")
+
     def _on_properties_changed(self, interface: str, changed: Dict, invalidated: list, path: str):
         """Handle property changes from BlueZ client"""
         try:
@@ -411,214 +419,18 @@ class BluetoothController:
         return devices
     
     def get_volume(self) -> Optional[int]:
-        return 0
-    
-    def refresh_volume(self) -> Optional[int]:
-        """
-        Refresh the volume cache by querying PulseAudio.
-        This should be called sparingly to avoid performance issues.
-        
-        Returns:
-            Updated volume level (0-100) or None if unable to get volume
-        """
-        # Skip if no device connected
-        if not self.connected_devices:
-            self._volume_cache_valid = False
-            return None
-            
-        try:
-            # Use shorter timeout and only get sink info (faster)
-            result = subprocess.run(
-                ['pactl', 'list', 'sinks', 'short'],
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
-            
-            if result.returncode != 0:
-                return self._cached_volume
-            
-            # Find bluez sink name
-            sink_name = None
-            for line in result.stdout.split('\n'):
-                if 'bluez' in line.lower():
-                    parts = line.split()
-                    if parts:
-                        sink_name = parts[0]
-                        break
-            
-            if not sink_name:
-                return self._cached_volume
-            
-            # Get volume for specific sink (much faster than listing all sinks)
-            result = subprocess.run(
-                ['pactl', 'get-sink-volume', sink_name],
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
-            
-            if result.returncode == 0:
-                # Parse volume: "Volume: front-left: 65536 / 100% ..."
-                match = re.search(r'(\d+)%', result.stdout)
-                if match:
-                    volume = int(match.group(1))
-                    self._cached_volume = volume
-                    self._volume_cache_valid = True
-                    logger.debug(f"Refreshed Bluetooth volume cache: {volume}%")
-                    return volume
-            
-            return self._cached_volume
-            
-        except subprocess.TimeoutExpired:
-            logger.debug("Timeout refreshing Bluetooth volume")
-            return self._cached_volume
-        except Exception as e:
-            logger.debug(f"Could not refresh Bluetooth volume: {e}")
-            return self._cached_volume
-    
+        return self.current_volume   
+
     def set_volume(self, volume: int) -> bool:
-        """
-        Set volume of Bluetooth audio sink in PulseAudio.
-        
-        Args:
-            volume: Volume level (0-100)
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        if not 0 <= volume <= 100:
-            logger.error(f"Invalid volume: {volume}. Must be 0-100")
-            return False
-        
-        try:
-            # First, find the bluez sink name
-            result = subprocess.run(
-                ['pactl', 'list', 'sinks', 'short'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            
-            if result.returncode != 0:
-                return False
-            
-            # Find bluez sink
-            bluez_sink = None
-            for line in result.stdout.split('\n'):
-                if 'bluez' in line.lower():
-                    # Extract sink name (second column)
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        bluez_sink = parts[1]
-                        break
-            
-            if not bluez_sink:
-                logger.warning("No Bluetooth sink found")
-                return False
-            
-            # Set volume
-            result = subprocess.run(
-                ['pactl', 'set-sink-volume', bluez_sink, f'{volume}%'],
-                capture_output=True,
-                timeout=2
-            )
-            
-            if result.returncode == 0:
-                logger.info(f"🔊 Bluetooth volume set to {volume}%")
-                # Update cache
-                self._cached_volume = volume
-                self._volume_cache_valid = True
-                return True
-            else:
-                logger.error("Failed to set Bluetooth volume")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error setting Bluetooth volume: {e}")
-            return False
+        return False
     
     def volume_up(self, step: int = 5) -> bool:
-        """
-        Increase Bluetooth volume via AVRCP.
-        
-        Args:
-            step: Volume increase step (default 5, converted to AVRCP 0-127 scale)
-            
-        Returns:
-            True if successful
-        """
-        if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
-                logger.info("🔊 Sending volume up command to Bluetooth device")
-                # Convert step from 0-100 scale to 0-127 AVRCP scale
-                avrcp_step = int(step * 127 / 100)
-                return self.monitor.avrcp_client.volume_up(avrcp_step)
-            else:
-                logger.warning("Cannot increase volume: AVRCP not available")
         return False
     
     def volume_down(self, step: int = 5) -> bool:
-        """
-        Decrease Bluetooth volume via AVRCP.
-        
-        Args:
-            step: Volume decrease step (default 5, converted to AVRCP 0-127 scale)
-            
-        Returns:
-            True if successful
-        """
-        if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
-                logger.info("🔉 Sending volume down command to Bluetooth device")
-                # Convert step from 0-100 scale to 0-127 AVRCP scale
-                avrcp_step = int(step * 127 / 100)
-                return self.monitor.avrcp_client.volume_down(avrcp_step)
-            else:
-                logger.warning("Cannot decrease volume: AVRCP not available")
         return False
     
-    def _unsuspend_bluetooth_sink(self):
-        """
-        Prevent PulseAudio from suspending the Bluetooth sink.
-        This fixes the issue where audio stops after 1 second due to auto-suspend.
-        """
-        try:
-            # Find Bluetooth sink
-            result = subprocess.run(
-                ['pactl', 'list', 'sinks', 'short'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            
-            if result.returncode == 0:
-                for line in result.stdout.split('\n'):
-                    if 'bluez' in line.lower():
-                        # Extract sink name (first column)
-                        parts = line.split()
-                        if parts:
-                            sink_name = parts[0]
-                            
-                            # Unsuspend the sink
-                            subprocess.run(
-                                ['pactl', 'suspend-sink', sink_name, '0'],
-                                capture_output=True,
-                                timeout=2
-                            )
-                            logger.info(f"🔊 Unsuspended Bluetooth sink: {sink_name}")
-                            
-                            # Set as default sink to ensure audio routes here
-                            subprocess.run(
-                                ['pactl', 'set-default-sink', sink_name],
-                                capture_output=True,
-                                timeout=2
-                            )
-                            logger.info(f"🎯 Set Bluetooth as default sink: {sink_name}")
-                            break
-        except Exception as e:
-            logger.warning(f"Could not unsuspend Bluetooth sink: {e}")
-    
+
     def get_current_track(self) -> Optional[Dict[str, Any]]:
         """
         Get current track information from AVRCP.

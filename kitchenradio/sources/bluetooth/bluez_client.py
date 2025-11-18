@@ -87,6 +87,7 @@ class BlueZClient:
     BLUEZ_SERVICE = 'org.bluez'
     ADAPTER_INTERFACE = 'org.bluez.Adapter1'
     DEVICE_INTERFACE = 'org.bluez.Device1'
+    TRANSPORT_INTERFACE = 'org.bluez.MediaTransport1'
     PROPERTIES_INTERFACE = 'org.freedesktop.DBus.Properties'
     OBJECT_MANAGER_INTERFACE = 'org.freedesktop.DBus.ObjectManager'
     AGENT_MANAGER_INTERFACE = 'org.bluez.AgentManager1'
@@ -107,6 +108,7 @@ class BlueZClient:
         
         # Callbacks
         self.on_properties_changed: Optional[Callable[[str, Dict, List, str], None]] = None
+        self.on_volume_changed: Optional[Callable[[str, Dict, List, str], None]] = None
         
         # Initialize D-Bus
         self._setup_dbus()
@@ -135,6 +137,14 @@ class BlueZClient:
                 dbus_interface=self.PROPERTIES_INTERFACE,
                 path_keyword='path'
             )
+
+            # Subscribe to property changes
+            self.bus.add_signal_receiver(
+                self._on_volume_changed_internal,
+                signal_name='PropertiesChanged',
+                dbus_interface=self.TRANSPORT_INTERFACE,
+                path_keyword='path'
+            )
             
             logger.info("[OK] BlueZ D-Bus connection established")
             
@@ -146,7 +156,13 @@ class BlueZClient:
         """Internal handler for property changes - forwards to callback"""
         if self.on_properties_changed:
             self.on_properties_changed(interface, dict(changed), list(invalidated), path)
-    
+
+    def _on_volume_changed_internal(self, interface, changed, invalidated, path):
+        """Internal handler for property changes - forwards to callback"""
+        if self.on_volume_changed:
+            self.on_volume_changed(interface, dict(changed), list(invalidated), path)
+
+
     def register_agent(self) -> bool:
         """
         Register auto-pairing agent with BlueZ.
