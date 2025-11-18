@@ -17,7 +17,7 @@ import logging
 from typing import Optional, Callable, Dict, Any, List
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.DEBUG)
 
 class AutoPairAgent(dbus.service.Object):
     """Bluetooth pairing agent that auto-accepts all pairing requests"""
