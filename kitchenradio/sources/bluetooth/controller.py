@@ -442,7 +442,7 @@ class BluetoothController:
         """
         if self.monitor:
             status = self.monitor.get_status()
-            self.logger.info(f"xxx state: { status}")
+            logger.info(f"xxx state: { status}")
             if status:
                 return status.get('state', 'stopped')
         return None
