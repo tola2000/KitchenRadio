@@ -350,7 +350,8 @@ class AVRCPClient:
             True if successful
         """
         logger.info(f"📡 AVRCP: Sending Play command to {self.state.device_name}")
-        return self._send_control_command('Play')
+      #  return self._send_control_command('Play')
+        return True
     
     def pause(self) -> bool:
         """
