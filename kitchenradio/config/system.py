@@ -54,7 +54,7 @@ EXPECTED_VALUE_TIMEOUT = 2.0  # seconds - how long to use expected values before
 # Feature Flags
 # =============================================================================
 ENABLE_BLUETOOTH = True
-ENABLE_SPOTIFY = True
-ENABLE_MPD = True
+ENABLE_SPOTIFY = False
+ENABLE_MPD = False
 ENABLE_WEB_API = False
 ENABLE_REMOTE_CONTROL = False
