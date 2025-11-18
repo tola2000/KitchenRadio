@@ -236,13 +236,13 @@ class KitchenRadio:
             options = [
                  {
                     'id': 'cancel',
-                    'label': "cancel",
+                    'label': "Annuleer Menu",
                     'type': 'management',
                     'action': 'cancel'
                 },
                 {
                     'id': 'reboot',
-                    'label': "Reboot",
+                    'label': "Reboot Radio",
                     'type': 'management',
                     'action': 'reboot'
                 },
@@ -254,6 +254,18 @@ class KitchenRadio:
                 },
                 {
                     'id': 'restart',
+                    'label': "Herstart",
+                    'type': 'management',
+                    'action': 'herstart'
+                },
+                {
+                    'id': 'test',
+                    'label': "Herstart",
+                    'type': 'management',
+                    'action': 'herstart'
+                },
+                {
+                    'id': 'test2',
                     'label': "Herstart",
                     'type': 'management',
                     'action': 'herstart'
