@@ -611,22 +611,22 @@ class BluetoothMonitor:
             else:
                 logger.info("▶️  Track started")
                 self._trigger_callbacks('track_started', track=self._format_track_info(self.current_track))
-        elif status == PlaybackStatus.PAUSED and old_status == PlaybackStatus.PLAYING:
+        elif status_enum == PlaybackStatus.PAUSED and old_status == PlaybackStatus.PLAYING:
             logger.info("⏸️  Track paused")
             self._trigger_callbacks('track_paused', track=self._format_track_info(self.current_track))
-        elif status == PlaybackStatus.STOPPED:
+        elif status_enum == PlaybackStatus.STOPPED:
             logger.info("⏹️  Playback stopped")
             self._trigger_callbacks('track_ended', track=self._format_track_info(self.current_track))
 
         # Always trigger status_changed
         self._trigger_callbacks('status_changed', 
                                old_status=old_status.value, 
-                               new_status=status.value)
+                               new_status=status_enum.value)
 
         # Update the display when status changes
         if self.display_controller:
             try:
-                self.display_controller.render_bluetooth_status(status.value)
+                self.display_controller.render_bluetooth_status(status_enum.value)
             except Exception as e:
                 logger.error(f"Error updating Bluetooth display on status change: {e}")
     
