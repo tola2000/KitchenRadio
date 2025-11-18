@@ -44,20 +44,21 @@ class AVRCPClient:
             device_name: Device name for state tracking
             device_mac: Device MAC address for state tracking
         """
+        logger.info(f"Initializing AVRCPClient for device: {device_name} ({device_mac}), path: {device_path}")
         self.player_path: Optional[str] = None
         self.bus: Optional[dbus.SystemBus] = None
-        
+
         # State model - centralized state management
         self.state = AVRCPState()
-        
+
         if device_path:
             self.state.connect(device_name, device_mac, device_path)
-        
+
         # Callbacks
         self.on_track_changed: Optional[Callable[[TrackInfo], None]] = None
         self.on_status_changed: Optional[Callable[[PlaybackStatus], None]] = None
         self.on_state_changed: Optional[Callable[[AVRCPState], None]] = None
-        
+
         self._connect_dbus()
     
     def _connect_dbus(self):
