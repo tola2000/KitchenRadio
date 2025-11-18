@@ -316,28 +316,29 @@ class BluetoothMonitor:
     - AVRCP state changes
     """
     
-    def __init__(self, bluez_client: BlueZClient, display_controller=None):
+    def __init__(self, client, display_controller=None):
         """
         Initialize monitor with BlueZ client.
         
         Args:
-            bluez_client: BlueZ D-Bus client instance
+            client: BlueZ D-Bus client instance
+            display_controller: DisplayController instance (optional)
         """
-    self.client = bluez_client
-    self.display_controller = display_controller
-    self.callbacks = {}
-    self.current_track = None
-    self.current_status = PlaybackStatus.UNKNOWN
-    self.current_state = None
-    self.avrcp_client = None
-    self.is_monitoring = False
-    self._monitor_thread = None
-    self._stop_event = threading.Event()
+        self.client = client
+        self.display_controller = display_controller
+        self.callbacks = {}
+        self.current_track = None
+        self.current_status = PlaybackStatus.UNKNOWN
+        self.current_state = None
+        self.avrcp_client = None
+        self.is_monitoring = False
+        self._monitor_thread = None
+        self._stop_event = threading.Event()
 
-    # Track connected devices
-    self.connected_devices = set()  # MAC addresses
-    self.current_device_path = None
-    self.current_device_name = None
+        # Track connected devices
+        self.connected_devices = set()  # MAC addresses
+        self.current_device_path = None
+        self.current_device_name = None
         
     def add_callback(self, event: str, callback: Callable):
         """
