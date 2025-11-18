@@ -636,8 +636,8 @@ class DisplayController:
         else:
             # No device connected or no track playing - show "Connecteer een apparaat"
             display_data = {
-                'title': 'Connecteer een apparaat',
-                'artist': '',
+                'title': 'Spotify Connect',
+                'artist': 'Connecteer een apparaat',
                 'album': '',
                 'playing': False,
                 'pairing_mode': True,  # Use dimmed volume bar and no colon
@@ -720,7 +720,7 @@ class DisplayController:
             if not connected_devices:
                 display_data = {
                     'title': 'Koppelen Actief',
-                    'artist': 'Koppel Nieuw Toestel',
+                    'artist': 'Koppel Nieuw Apperaat',
                     'album': '',
                     'playing': False,  # Use pairing icon instead of play icon
                     'pairing_mode': True,  # Flag for pairing icon
@@ -782,7 +782,7 @@ class DisplayController:
         else:
             # No devices connected - show "Niet Verbonden" screen in track info format
             display_data = {
-                'title': 'Niet Verbonden',
+                'title': 'Bluetooth Actief',
                 'artist': 'Verbind Apparaat',
                 'album': '',
                 'playing': False,
