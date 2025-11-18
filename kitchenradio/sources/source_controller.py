@@ -703,8 +703,8 @@ class SourceController:
                         'state': 'stopped',
                         'volume': 0,
                         'current_track': {
-                            'title': 'Connecteer een apparaat',
-                            'artist': '',
+                            'title': '',
+                            'artist': 'Connecteer een apparaat',
                             'album': ''
                         }
                     }

@@ -606,10 +606,14 @@ class ButtonController:
         """Menu up navigation"""
         logger.info("Menu up navigation")
         try:
-            # Check if menu is available for current source
             status = self.source_controller.get_status()
+            if not status.get('powered_on', True):
+                # If powered off, show poweroff menu
+                if self.display_controller:
+                    self.display_controller.show_poweroff_menu()
+                return True
+            # ...existing menu up logic...
             current_source = status.get('current_source')
-            
             if current_source:
                 menu_options = self.source_controller.get_menu_options()
                 if not menu_options.get('has_menu', False):
@@ -617,23 +621,17 @@ class ButtonController:
                     if self.display_controller:
                         self.display_controller.show_status_message("Function not available", "⚠", "warning")
                     return False
-            
             menu_items = self._get_menu_items()
             if menu_items:
-                # Scroll up (previous item)
                 self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
                 logger.info(f"Menu scroll up to index {self._current_menu_index}")
-                
-                # Update display with menu
                 if self.display_controller:
-                        # Pass an on_selected handler so selection triggers menu action
                     self.display_controller.show_menu_overlay(
                         menu_items,
                         selected_index=self._current_menu_index,
                         timeout=self._menu_timeout_seconds,
                         on_selected=self._on_menu_item_selected
                     )
-
                 return True
         except Exception as e:
             logger.error(f"Error in menu up navigation: {e}")
@@ -643,10 +641,14 @@ class ButtonController:
         """Menu down navigation"""
         logger.info("Menu down navigation")
         try:
-            # Check if menu is available for current source
             status = self.source_controller.get_status()
+            if not status.get('powered_on', True):
+                # If powered off, show poweroff menu
+                if self.display_controller:
+                    self.display_controller.show_poweroff_menu()
+                return True
+            # ...existing menu down logic...
             current_source = status.get('current_source')
-            
             if current_source:
                 menu_options = self.source_controller.get_menu_options()
                 if not menu_options.get('has_menu', False):
@@ -654,23 +656,17 @@ class ButtonController:
                     if self.display_controller:
                         self.display_controller.show_status_message("Function not available", "⚠", "warning")
                     return False
-            
             menu_items = self._get_menu_items()
             if menu_items:
-                # Scroll down (next item)
                 self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
                 logger.info(f"Menu scroll down to index {self._current_menu_index}")
-                
-                # Update display with menu
                 if self.display_controller:
-                    # Pass an on_selected handler so selection triggers menu action
                     self.display_controller.show_menu_overlay(
                         menu_items,
                         selected_index=self._current_menu_index,
                         timeout=self._menu_timeout_seconds,
                         on_selected=self._on_menu_item_selected
                     )
-
                 return True
         except Exception as e:
             logger.error(f"Error in menu down navigation: {e}")
