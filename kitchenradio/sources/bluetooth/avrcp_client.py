@@ -514,7 +514,6 @@ class AVRCPClient:
             )
             
             logger.info(f"🔊 AVRCP volume set to {volume}")
-                def on_properties_changed(interface, changed, invalidated, path=None, **kwargs):
             
         except dbus.exceptions.DBusException as e:
             logger.warning(f"📡 AVRCP set volume failed (DBus): {e}")
