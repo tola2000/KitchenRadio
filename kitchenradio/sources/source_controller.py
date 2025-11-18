@@ -805,10 +805,13 @@ class SourceController:
         # Bluetooth monitoring
         if self.bluetooth_connected and self.bluetooth_controller:
             def _on_bluetooth_device_connected(name, address, *args, **kwargs):
+                self.logger.debug(f"[Bluetooth] Device connected event handler called with name={name}, address={address}, args={args}, kwargs={kwargs}")
                 self.logger.info(f"Bluetooth device connected event received for {name} ({address}). Powering on and switching source to Bluetooth.")
                 if not self.powered_on:
+                    self.logger.debug("[Bluetooth] Powering on due to device connection event.")
                     self.power_on(trigger_source=BackendType.BLUETOOTH)
                 else:
+                    self.logger.debug("[Bluetooth] Switching source to Bluetooth due to device connection event.")
                     self.set_source(BackendType.BLUETOOTH)
 
             # Register internal callback for device connected
@@ -820,15 +823,19 @@ class SourceController:
                     # Chain user callback after internal
                     orig_cb = self.bluetooth_controller.on_device_connected
                     def chained_cb(*args, **kwargs):
+                        self.logger.debug(f"[Bluetooth] Chained device connected callback called with args={args}, kwargs={kwargs}")
                         orig_cb(*args, **kwargs)
                         bluetooth_callbacks['connected'](*args, **kwargs)
                     self.bluetooth_controller.on_device_connected = chained_cb
                 if 'disconnected' in bluetooth_callbacks:
+                    self.logger.debug("[Bluetooth] Device disconnected callback registered.")
                     self.bluetooth_controller.on_device_disconnected = bluetooth_callbacks['disconnected']
                 if self.bluetooth_controller.monitor:
                     if 'track_changed' in bluetooth_callbacks:
+                        self.logger.debug("[Bluetooth] Track changed callback registered.")
                         self.bluetooth_controller.monitor.register_callback('track_changed', bluetooth_callbacks['track_changed'])
                     if 'status_changed' in bluetooth_callbacks:
+                        self.logger.debug("[Bluetooth] Status changed callback registered.")
                         self.bluetooth_controller.monitor.register_callback('status_changed', bluetooth_callbacks['status_changed'])
             self.logger.info("Started Bluetooth monitoring")
     

@@ -1,22 +1,3 @@
-class AVRCPClient:
-    # ...existing code...
-    def _debug_global_dbus_listener(self):
-        """Register a global DBus signal receiver for MediaPlayer1 PropertiesChanged events (debug only)."""
-        if not self.bus:
-            return
-        def debug_on_properties_changed(interface, changed, invalidated):
-            print(f"[AVRCPClient DEBUG] PropertiesChanged on {interface}")
-            print(f"  Changed: {dict(changed)}")
-            print(f"  Invalidated: {list(invalidated)}")
-        self.bus.add_signal_receiver(
-            debug_on_properties_changed,
-            signal_name='PropertiesChanged',
-            dbus_interface=self.PROPERTIES_INTERFACE,
-            path=None,
-            arg0=self.MEDIA_PLAYER_INTERFACE,
-        )
-        print("[AVRCPClient DEBUG] Global DBus listener for MediaPlayer1 PropertiesChanged events registered.")
-#!/usr/bin/env python3
 """
 AVRCP Client for Bluetooth Audio Control
 
