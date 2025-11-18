@@ -86,6 +86,16 @@ class AVRCPClient:
         """Connect to D-Bus"""
         try:
             self.bus = dbus.SystemBus()
+
+                # Listen for PropertiesChanged on any MediaPlayer1 object
+            self.bus.add_signal_receiver(
+                self.on_properties_changed_test,
+                signal_name='PropertiesChanged',
+                dbus_interface='org.freedesktop.DBus.Properties',
+                path=None,  # Listen globally
+                arg0='org.bluez.MediaPlayer1',
+            )
+
             logger.debug("AVRCP client connected to D-Bus")
         except Exception as e:
             logger.error(f"Failed to connect to D-Bus: {e}")
@@ -192,6 +202,11 @@ class AVRCPClient:
         except Exception as e:
             logger.error(f"Failed to subscribe to AVRCP changes: {e}")
     
+    def on_properties_changed_test(interface, changed, invalidated):
+        print(f"[DBUS EVENT] PropertiesChanged on {interface}")
+        print(f"  Changed: {dict(changed)}")
+        print(f"  Invalidated: {list(invalidated)}")
+        
     def _on_properties_changed(self, interface, changed, invalidated):
         """Handle property changes from media player"""
         try:
