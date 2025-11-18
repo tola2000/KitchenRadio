@@ -138,13 +138,22 @@ class BlueZClient:
                 path_keyword='path'
             )
 
-
+            # Subscribe to property changes
+            # self.bus.add_signal_receiver(
+            #     self._on_volume_changed_internal,
+            #     signal_name='PropertiesChanged',
+            #     dbus_interface=self.TRANSPORT_INTERFACE,
+            #     path_keyword='path'
+            #             path=None,
+            #      arg0='org.bluez.MediaTransport1',
+            # )
 
             self.bus.add_signal_receiver(
                 self._on_volume_changed_internal,
                 signal_name='PropertiesChanged',
-                dbus_interface='org.bluez.MediaTransport1',
+                dbus_interface='org.freedesktop.DBus.Properties',
                 path=None,
+                arg0='org.bluez.MediaTransport1',
             )
             
             logger.info("[OK] BlueZ D-Bus connection established")
