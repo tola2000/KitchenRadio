@@ -1,6 +1,7 @@
 
 
 import logging
+import traceback
 import time
 from typing import Optional, Dict, Any, Callable
 from enum import Enum
@@ -372,7 +373,7 @@ class SourceController:
                 self.logger.info(f"▶️ [{source_name}] Playing")
             return result
         except Exception as e:
-            self.logger.error(f"Error in play command: {e}")
+            self.logger.error(f"Error in play command: {e}\n{traceback.format_exc()}")
             return False
     
     def pause(self) -> bool:
@@ -393,7 +394,7 @@ class SourceController:
                 self.logger.info(f"⏸️ [{source_name}] Paused")
             return result
         except Exception as e:
-            self.logger.error(f"Error in pause command: {e}")
+            self.logger.error(f"Error in pause command: {e}\n{traceback.format_exc()}")
             return False
     
     def stop(self) -> bool:
@@ -414,7 +415,7 @@ class SourceController:
                 self.logger.info(f"⏹️ [{source_name}] Stopped")
             return result
         except Exception as e:
-            self.logger.error(f"Error in stop command: {e}")
+            self.logger.error(f"Error in stop command: {e}\n{traceback.format_exc()}")
             return False
     
     def play_pause(self) -> bool:
@@ -435,7 +436,7 @@ class SourceController:
                 self.logger.info(f"⏯️ [{source_name}] Play/Pause toggled")
             return result
         except Exception as e:
-            self.logger.error(f"Error in play/pause command: {e}")
+            self.logger.error(f"Error in play/pause command: {e}\n{traceback.format_exc()}")
             return False
     
     def next(self) -> bool:
@@ -460,7 +461,7 @@ class SourceController:
                 self.logger.info(f"⏭️ [{source_name}] Next track")
             return result
         except Exception as e:
-            self.logger.error(f"Error in next command: {e}")
+            self.logger.error(f"Error in next command: {e}\n{traceback.format_exc()}")
             return False
     
     def previous(self) -> bool:
@@ -485,7 +486,7 @@ class SourceController:
                 self.logger.info(f"⏮️ [{source_name}] Previous track")
             return result
         except Exception as e:
-            self.logger.error(f"Error in previous command: {e}")
+            self.logger.error(f"Error in previous command: {e}\n{traceback.format_exc()}")
             return False
     
     # =========================================================================
@@ -505,7 +506,7 @@ class SourceController:
         try:
             return controller.get_volume()
         except Exception as e:
-            self.logger.error(f"Error getting volume: {e}")
+            self.logger.error(f"Error getting volume: {e}\n{traceback.format_exc()}")
             return None
     
     def set_volume(self, volume: int) -> bool:
