@@ -984,12 +984,14 @@ class DisplayController:
         # Wake up the display loop to render immediately (no delay)
         self._wake_event.set()
 
-    def show_Notification_overlay(self, title: str, description:str,  timeout: float = 3):
-        """Show volume overlay using the generic overlay system"""
+    def show_Notification_overlay(self, title: str, description: str, timeout: float = 3, description2: str = None):
+        """Show notification overlay with up to two description lines"""
         notification_data = {
             'main_text': title,
-            'sub_text': description 
+            'sub_text': description
         }
+        if description2:
+            notification_data['sub_text2'] = description2
         self._render_display_content('notification', notification_data)
         self._activate_overlay('notification', timeout)
 
