@@ -350,15 +350,15 @@ class DisplayController:
                 # Check if we should ignore volume updates (recently changed by user)
                 time_since_volume_change = time.time() - self.last_volume_change_time
                 ignore_volume_updates = time_since_volume_change < self.volume_change_ignore_duration
-                
-                # Check for external update of the volume overlay
+
+                # If volume overlay is active, only update volume overlay, skip track info for both MPD and Spotify
                 if self.overlay_type == 'volume' and (current_volume != self.last_volume):
-                    # Only update if we're not ignoring volume updates
                     if not ignore_volume_updates:
                         self._render_volume_overlay(current_volume)
-                        # Update last_volume to prevent continuous re-rendering
                         self.last_volume = current_volume
-                    # Always return when overlay is active (volume changed or not)
+                    return
+                elif self.overlay_type == 'volume':
+                    # Always skip track info updates for MPD and Spotify when volume overlay is active
                     return
                 else:
                     # Non-volume overlay active, skip all updates
