@@ -326,7 +326,9 @@ class DisplayController:
             else:
                 logger.warning("No source_controller available for display updates")
                 return
-                
+            
+
+            logger.debug(f"[Got status] Full status: {current_status}") 
             # Update last volume for tracking
             current_volume = self._get_current_volume(current_status)
 

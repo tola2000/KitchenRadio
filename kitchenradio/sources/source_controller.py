@@ -764,6 +764,7 @@ class SourceController:
                 status['bluetooth'] = {'connected': False, 'error': str(e)}
         else:
             status['bluetooth'] = {'connected': False}
+            
         
         return status
     
