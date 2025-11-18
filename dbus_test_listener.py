@@ -30,7 +30,7 @@ if __name__ == "__main__":
         signal_name='PropertiesChanged',
         dbus_interface='org.freedesktop.DBus.Properties',
         path=None,  # Listen globally
-        arg0='org.bluez',
+        arg0='org.bluez.MediaPlayer1',
     )
 
     # Listen specifically for volume changes on MediaPlayer1
@@ -43,7 +43,7 @@ if __name__ == "__main__":
         signal_name='PropertiesChanged',
         dbus_interface='org.freedesktop.DBus.Properties',
         path=None,
-        arg0='org.bluez.MediaPlayer1',
+        arg0='org.bluez.MediaTransport1',
     )
 
     print("Listening for DBus PropertiesChanged events on org.bluez.MediaPlayer1...")
