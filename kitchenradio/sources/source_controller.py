@@ -1,6 +1,7 @@
 
 
 import logging
+from tkinter import S
 import traceback
 import time
 from typing import Optional, Dict, Any, Callable
@@ -761,6 +762,7 @@ class SourceController:
                 }
                 self.logger.debug(f"[get_status bluethooth] Full status: {status['bluetooth']}")
             except Exception as e:
+                self.logger.error(f"Error getting Bluetooth state: {e}")
                 status['bluetooth'] = {'connected': False, 'error': str(e)}
         else:
             status['bluetooth'] = {'connected': False}
