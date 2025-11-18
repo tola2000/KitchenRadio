@@ -441,8 +441,9 @@ class BluetoothController:
         Returns:
             Status string ('playing', 'paused', 'stopped', etc.) or None
         """
-
-        return self.current_state
+        if self.monitor:
+            return self.monitor.get_status()['state']
+        return None
     
     def play(self) -> bool:
         """
