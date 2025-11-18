@@ -246,7 +246,6 @@ class KitchenRadio:
                     'type': 'management',
                     'action': 'update_restart'
                 },
-                ,
                 {
                     'id': 'restart',
                     'label': "Herstart",
