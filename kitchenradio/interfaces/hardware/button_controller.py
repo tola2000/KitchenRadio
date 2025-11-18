@@ -622,7 +622,11 @@ class ButtonController:
                 return False
             menu_items = [opt.get('label', str(opt)) for opt in menu_options.get('options', [])]
             if menu_items:
-                self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
+                # If overlay is not active, reset menu index to 0 to ensure overlay stays visible
+                if self.display_controller and not self.display_controller.overlay_active:
+                    self._current_menu_index = 0
+                else:
+                    self._current_menu_index = (self._current_menu_index - 1) % len(menu_items)
                 logger.info(f"Menu scroll up to index {self._current_menu_index}")
                 if self.display_controller:
                     self.display_controller.show_menu_overlay(
@@ -654,7 +658,11 @@ class ButtonController:
                 return False
             menu_items = [opt.get('label', str(opt)) for opt in menu_options.get('options', [])]
             if menu_items:
-                self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
+                # If overlay is not active, reset menu index to 0 to ensure overlay stays visible
+                if self.display_controller and not self.display_controller.overlay_active:
+                    self._current_menu_index = 0
+                else:
+                    self._current_menu_index = (self._current_menu_index + 1) % len(menu_items)
                 logger.info(f"Menu scroll down to index {self._current_menu_index}")
                 if self.display_controller:
                     self.display_controller.show_menu_overlay(
