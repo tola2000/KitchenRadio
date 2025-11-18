@@ -1,3 +1,8 @@
+    def _on_librespot_track_started(self, **kwargs):
+        """Callback for Librespot track started event - switch source to LIBRESPOT."""
+        from kitchenradio.sources.source_controller import BackendType
+        self.set_source(BackendType.LIBRESPOT)
+        self.logger.info("Source switched to Spotify (LIBRESPOT) due to track_started event.")
 #!/usr/bin/env python3
 """
 Source Controller - Manages all music playback backends
@@ -804,6 +809,8 @@ class SourceController:
                 self.librespot_monitor.add_callback('state_changed', librespot_state_callback)
             if on_client_changed:
                 self.librespot_monitor.add_callback('any', on_client_changed)
+            # Always add internal callback to switch source on playback
+            self.librespot_monitor.add_callback('track_started', self._on_librespot_track_started)
             if on_spotify_track_started:
                 self.librespot_monitor.add_callback('track_started', on_spotify_track_started)
             self.librespot_monitor.start_monitoring()
