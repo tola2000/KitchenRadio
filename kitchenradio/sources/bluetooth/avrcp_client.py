@@ -627,8 +627,6 @@ class AVRCPClient:
         Returns:
             True if media player is available
         """
-        if self.player_path:
-            return True
         
         return self._find_media_player()
     
@@ -685,34 +683,34 @@ if __name__ == "__main__":
     def on_status_changed(status):
         print(f"\n▶️ Status Changed: {status}")
     
-    client.on_track_changed = on_track_changed
-    client.on_status_changed = on_status_changed
-    
-    # Get initial state
-    print("Getting initial state...")
-    
-    if client.is_available():
-        print("✅ AVRCP media player is available\n")
+        client.on_track_changed = on_track_changed
+        client.on_status_changed = on_status_changed
         
-        track = client.get_track_info()
-        if track:
-            print("Current Track:")
-            print(f"  Title:  {track.get('title', 'Unknown')}")
-            print(f"  Artist: {track.get('artist', 'Unknown')}")
-            print(f"  Album:  {track.get('album', 'Unknown')}")
+        # Get initial state
+        print("Getting initial state...")
         
-        status = client.get_status()
-        if status:
-            print(f"\nPlayback Status: {status}")
+        if client.is_available():
+            print("✅ AVRCP media player is available\n")
+            
+            track = client.get_track_info()
+            if track:
+                print("Current Track:")
+                print(f"  Title:  {track.get('title', 'Unknown')}")
+                print(f"  Artist: {track.get('artist', 'Unknown')}")
+                print(f"  Album:  {track.get('album', 'Unknown')}")
+            
+            status = client.get_status()
+            if status:
+                print(f"\nPlayback Status: {status}")
+            
+            position = client.get_position()
+            if position:
+                print(f"Position: {position}ms")
+        else:
+            print("❌ AVRCP media player not available")
+            print("Make sure device is connected and playing audio")
         
-        position = client.get_position()
-        if position:
-            print(f"Position: {position}ms")
-    else:
-        print("❌ AVRCP media player not available")
-        print("Make sure device is connected and playing audio")
-    
-    print("\nMonitoring for changes... (Ctrl+C to stop)")
+        print("\nMonitoring for changes... (Ctrl+C to stop)")
     
     # Run main loop
     mainloop = GLib.MainLoop()
