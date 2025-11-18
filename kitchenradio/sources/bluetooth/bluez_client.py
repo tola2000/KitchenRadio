@@ -163,7 +163,7 @@ class BlueZClient:
             raise
 
     def on_volume_changed_test(interface, changed, invalidated):
-         logger.info("[OK] BlueZ D-Bus connection established")
+         logger.info(f"Volume change detected on {changed}")
 
     def _on_properties_changed_internal(self, interface, changed, invalidated, path):
         """Internal handler for property changes - forwards to callback"""
