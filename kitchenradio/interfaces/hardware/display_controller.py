@@ -714,7 +714,14 @@ class DisplayController:
         volume = bluetooth_status.get('volume', 50)  # Get Bluetooth volume
         current_track = bluetooth_status.get('current_track')  # Get track info from monitor
         playback_state = bluetooth_status.get('state', 'stopped')
-        
+
+        logger.debug(f"[BluetoothDisplay] is_discoverable={is_discoverable}, connected_devices={connected_devices}")
+        if connected_devices:
+            for idx, device in enumerate(connected_devices):
+                logger.debug(f"[BluetoothDisplay] Device {idx}: name={device.get('name')}, mac={device.get('mac')}")
+        else:
+            logger.debug("[BluetoothDisplay] No connected devices found.")
+
         if is_discoverable:
             # Show pairing mode in track info format (no connected device yet)
             if not connected_devices:
