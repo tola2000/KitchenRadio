@@ -234,6 +234,12 @@ class KitchenRadio:
         
         try:
             options = [
+                 {
+                    'id': 'cancel',
+                    'label': "cancel",
+                    'type': 'management',
+                    'action': 'cancel'
+                },
                 {
                     'id': 'reboot',
                     'label': "Reboot",
@@ -305,6 +311,12 @@ class KitchenRadio:
                         'status': 'error',
                         'message': 'Restart failed'
                     }
+            elif action == 'cancel':    
+                self.logger.info("Cancel action selected from menu")
+                return {
+                    'status': 'success',
+                    'message': 'Action cancelled'
+                }
             else:
                 self.logger.warning(f"Unknown menu action: {action}")
                 return {
