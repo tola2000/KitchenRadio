@@ -330,7 +330,11 @@ class BluetoothMonitor:
         self.current_track = None
         self.current_status = PlaybackStatus.UNKNOWN
         self.current_state = None
-        self.avrcp_client = None
+        from .avrcp_client import AVRCPClient
+        self.avrcp_client = AVRCPClient()
+        self.avrcp_client.on_track_changed = self._on_track_changed
+        self.avrcp_client.on_status_changed = self._on_status_changed
+        self.avrcp_client.on_state_changed = self._on_state_changed
         self.is_monitoring = False
         self._monitor_thread = None
         self._stop_event = threading.Event()
