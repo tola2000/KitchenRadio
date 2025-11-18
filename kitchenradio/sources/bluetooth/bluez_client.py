@@ -159,6 +159,7 @@ class BlueZClient:
 
     def _on_volume_changed_internal(self, interface, changed, invalidated, path):
         """Internal handler for property changes - forwards to callback"""
+        logger.debug(f"Volume change detected on {interface} at {path}: {changed}") 
         if self.on_volume_changed:
             self.on_volume_changed(interface, dict(changed), list(invalidated), path)
 
