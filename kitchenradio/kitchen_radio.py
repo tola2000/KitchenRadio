@@ -250,7 +250,7 @@ class KitchenRadio:
                     'id': 'update',
                     'label': "Update",
                     'type': 'management',
-                    'action': 'update_restart'
+                    'action': 'update'
                 },
                 {
                     'id': 'restart',
