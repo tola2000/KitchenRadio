@@ -758,7 +758,7 @@ class SourceController:
                     'connected_devices': connected_devices,
                     'volume': bluetooth_volume,
                     'current_track': current_track,
-                    'playback_status': playback_status,
+                    'state': playback_status,
                 }
                 self.logger.info(f"xxxGetting status from {status['bluetooth']}")
                 
