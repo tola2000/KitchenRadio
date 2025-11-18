@@ -70,31 +70,39 @@ class BluetoothController:
             try:
                 # Create BlueZ client
                 self.client = BlueZClient(self.adapter_path)
-                
-                # Create and start Bluetooth monitor
-                self.monitor = BluetoothMonitor(self.client)
-                self.monitor.start_monitoring()
-                logger.info("✅ BluetoothController: Monitor started")
-                
-                # Set up property change callback (controller still needs this for pairing)
-                self.client.on_properties_changed = self._on_properties_changed
-                
+
                 # Register agent
                 self.client.register_agent()
-                
+
                 # Initialize adapter
                 self._initialize_adapter()
-                
+
                 # Scan existing devices
                 self._scan_existing_devices()
-                
+
+                # Create Bluetooth monitor
+                self.monitor = BluetoothMonitor(self.client)
+
+                # Initialize AVRCP client (device-independent)
+                from .avrcp_client import AVRCPClient
+                self.avrcp_client = AVRCPClient()
+                self.monitor.avrcp_client = self.avrcp_client
+                logger.info("✅ BluetoothController: AVRCPClient initialized and assigned to monitor")
+
+                # Start Bluetooth monitor
+                self.monitor.start_monitoring()
+                logger.info("✅ BluetoothController: Monitor started")
+
+                # Set up property change callback (controller still needs this for pairing)
+                self.client.on_properties_changed = self._on_properties_changed
+
                 logger.info("✅ BluetoothController: Client initialized")
-                
+
                 # Start GLib main loop
                 self.mainloop = GLib.MainLoop()
                 self.running = True
                 self.mainloop.run()
-                
+
             except Exception as e:
                 logger.error(f"❌ BluetoothController: Failed to setup client: {e}")
                 self.running = False

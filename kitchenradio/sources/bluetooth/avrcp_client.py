@@ -60,35 +60,55 @@ class AVRCPClient:
     PROPERTIES_INTERFACE = 'org.freedesktop.DBus.Properties'
     OBJECT_MANAGER_INTERFACE = 'org.freedesktop.DBus.ObjectManager'
     
-    def __init__(self, device_path: Optional[str] = None, device_name: str = "Unknown", device_mac: str = ""):
+    def __init__(self):
         """
-        Initialize AVRCP client.
-        
-        Args:
-            device_path: D-Bus path to Bluetooth device (optional)
-            device_name: Device name for state tracking
-            device_mac: Device MAC address for state tracking
+        Initialize AVRCP client (device-independent).
+        Tracks all MediaPlayer1 objects and listens globally for events.
         """
         logger.debug("[TEST] AVRCPClient.__init__ called - DEBUG log should appear if logger is configured correctly.")
-        logger.info(f"Initializing AVRCPClient for device: {device_name} ({device_mac}), path: {device_path}")
-        self.player_path: Optional[str] = None
+        logger.info("Initializing AVRCPClient (device-independent mode)")
         self.bus: Optional[dbus.SystemBus] = None
 
-        # State model - centralized state management
-        self.state = AVRCPState()
-
-        if device_path:
-            self.state.connect(device_name, device_mac, device_path)
+        # Track all MediaPlayer1 objects
+        self.media_players: Dict[str, Dict[str, Any]] = {}
 
         # Callbacks
-        self.on_track_changed: Optional[Callable[[TrackInfo], None]] = None
-        self.on_status_changed: Optional[Callable[[PlaybackStatus], None]] = None
-        self.on_state_changed: Optional[Callable[[AVRCPState], None]] = None
+        self.on_track_changed: Optional[Callable[[str, TrackInfo], None]] = None  # device_path, track_info
+        self.on_status_changed: Optional[Callable[[str, PlaybackStatus], None]] = None  # device_path, status
 
         self._connect_dbus()
+        self._register_global_media_player_listener()
 
-        # DEBUG: Register global DBus listener for troubleshooting event delivery
-        self._debug_global_dbus_listener()
+    def _register_global_media_player_listener(self):
+        """
+        Register a global DBus signal receiver for MediaPlayer1 PropertiesChanged events (all devices).
+        """
+        if not self.bus:
+            return
+        def on_properties_changed(interface, changed, invalidated, path=None):
+            logger.debug(f"[AVRCPClient] PropertiesChanged on {interface} at {path}")
+            logger.debug(f"  Changed: {dict(changed)}")
+            logger.debug(f"  Invalidated: {list(invalidated)}")
+            # Track state for each player
+            if path:
+                if path not in self.media_players:
+                    self.media_players[path] = {}
+                self.media_players[path].update(changed)
+                # Callbacks for track/status changes
+                if self.on_track_changed and 'Track' in changed:
+                    self.on_track_changed(path, changed['Track'])
+                if self.on_status_changed and 'Status' in changed:
+                    self.on_status_changed(path, changed['Status'])
+        self.bus.add_signal_receiver(
+            on_properties_changed,
+            signal_name='PropertiesChanged',
+            dbus_interface=self.PROPERTIES_INTERFACE,
+            path=None,
+            arg0=self.MEDIA_PLAYER_INTERFACE,
+            sender_keyword='sender',
+            path_keyword='path',
+        )
+        logger.info("[AVRCPClient] Global DBus listener for MediaPlayer1 PropertiesChanged events registered.")
     
     def _connect_dbus(self):
         """Connect to D-Bus"""
@@ -99,122 +119,18 @@ class AVRCPClient:
         except Exception as e:
             logger.error(f"Failed to connect to D-Bus: {e}")
     
-    def set_device(self, device_path: str, device_name: str = "Unknown", device_mac: str = ""):
-        """
-        Set the Bluetooth device to monitor.
-        
-        Args:
-            device_path: D-Bus path to device (e.g., /org/bluez/hci0/dev_XX_XX_XX_XX_XX_XX)
-            device_name: Device name
-            device_mac: Device MAC address
-        """
-        self.state.connect(device_name, device_mac, device_path)
-        self.player_path = None
-        self._find_media_player()
+    # Device-specific methods removed; now tracks all devices globally
     
-    def _find_media_player(self) -> bool:
-        """
-        Find MediaPlayer1 object for current device.
-        
-        Returns:
-            True if player found, False otherwise
-        """
-        if not self.state.device_path or not self.bus:
-            return False
-        
-        try:
-            # Get object manager
-            obj_manager_obj = self.bus.get_object(
-                self.BLUEZ_SERVICE, 
-                '/'
-            )
-            obj_manager = dbus.Interface(
-                obj_manager_obj, 
-                self.OBJECT_MANAGER_INTERFACE
-            )
-            
-            # Find all media player objects
-            objects = obj_manager.GetManagedObjects()
-            
-            # Debug: Log all available objects
-            media_players_found = []
-            for path, interfaces in objects.items():
-                if self.MEDIA_PLAYER_INTERFACE in interfaces:
-                    media_players_found.append(str(path))
-            
-            if media_players_found:
-                logger.info(f"🔍 Available MediaPlayer objects: {media_players_found}")
-                logger.info(f"🎯 Looking for device: {self.state.device_path}")
-            else:
-                logger.info(f"❌ No MediaPlayer objects found in BlueZ")
-                logger.info(f"   Searching for device: {self.state.device_path}")
-            
-            for path, interfaces in objects.items():
-                # Check if this is a media player for our device
-                path_str = str(path)
-                device_path_str = str(self.state.device_path)
-                
-                if self.MEDIA_PLAYER_INTERFACE in interfaces:
-                    logger.debug(f"   Checking player: {path_str}")
-                    logger.debug(f"   Does '{path_str}' start with '{device_path_str}'? {path_str.startswith(device_path_str)}")
-                    
-                    if path_str.startswith(device_path_str):
-                        self.player_path = path
-                        logger.info(f"📻 Found AVRCP media player: {path}")
-                        
-                        # Update state
-                        self.state.set_avrcp_available(True)
-                        
-                        # Subscribe to property changes
-                        self._subscribe_to_changes()
-                        
-                        # Trigger state change callback
-                        if self.on_state_changed:
-                            self.on_state_changed(self.state)
-                        
-                        return True
-            
-            logger.warning(f"❌ No AVRCP media player found for device {self.state.device_path}")
-            if media_players_found:
-                logger.warning(f"   Available players: {media_players_found}")
-                logger.warning(f"   None matched device path prefix")
-            self.state.set_avrcp_available(False)
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error finding media player: {e}")
-            return False
-    
-    def _subscribe_to_changes(self):
-        """Subscribe to property changes on media player"""
-        if not self.bus or not self.player_path:
-            return
-        
-        try:
-            self.bus.add_signal_receiver(
-                self._on_properties_changed,
-                signal_name='PropertiesChanged',
-                dbus_interface=self.PROPERTIES_INTERFACE,
-                path=self.player_path
-            )
-            logger.debug("Subscribed to AVRCP property changes")
-        except Exception as e:
-            logger.error(f"Failed to subscribe to AVRCP changes: {e}")
-    
-    def on_properties_changed_test(interface, changed, invalidated):
-        print(f"[DBUS EVENT] PropertiesChanged on {interface}")
-        print(f"  Changed: {dict(changed)}")
-        print(f"  Invalidated: {list(invalidated)}")
+    # Device-specific media player finding removed; now tracks all players globally
         
     def _on_properties_changed(self, interface, changed, invalidated):
         """Handle property changes from media player"""
-        try:
-            logger.debug(f"_on_properties_changed called with interface={interface}, changed={changed}, invalidated={invalidated}")
-            if interface != self.MEDIA_PLAYER_INTERFACE:
-                logger.debug(f"Ignoring property change for interface {interface}")
-                return
+        logger.debug(f"_on_properties_changed called with interface={interface}, changed={changed}, invalidated={invalidated}")
+        if interface != self.MEDIA_PLAYER_INTERFACE:
+            logger.debug(f"Ignoring property change for interface {interface}")
+            return
 
-            # Log ALL AVRCP data received
+        # Log ALL AVRCP data received
             logger.info(f"📡 AVRCP DATA RECEIVED - Properties changed: {dict(changed)}")
             if invalidated:
                 logger.info(f"📡 AVRCP DATA RECEIVED - Invalidated properties: {list(invalidated)}")
@@ -272,8 +188,6 @@ class AVRCPClient:
                 logger.debug("Calling on_state_changed callback")
                 self.on_state_changed(self.state)
 
-        except Exception as e:
-            logger.error(f"❌ Error handling AVRCP property change: {e}", exc_info=True)
     
     def _parse_track_metadata(self, track_data: Dict) -> TrackInfo:
         """
