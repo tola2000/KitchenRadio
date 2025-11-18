@@ -696,20 +696,33 @@ class SourceController:
                 current_track = self.librespot_monitor.get_current_track()
                 librespot_status = self.librespot_monitor.get_status()
                 
-                status['librespot'] = {
-                    'connected': True,
-                    'state': (
-                        'stopped' if librespot_status.get('stopped') else
-                        'paused' if librespot_status.get('paused') else
-                        'playing'
-                    ) if librespot_status else 'unknown',
-                    'volume': librespot_status.get('volume', 'unknown') if librespot_status else 'unknown',
-                    'current_track': {
-                        'title': current_track.get('title', 'Unknown') if current_track else None,
-                        'artist': current_track.get('artist', 'Unknown') if current_track else None,
-                        'album': current_track.get('album', 'Unknown') if current_track else None,
-                    } if current_track else None,
-                }
+                # If no librespot_status or no current_track, show friendly message
+                if not librespot_status or not current_track:
+                    status['librespot'] = {
+                        'connected': True,
+                        'state': 'stopped',
+                        'volume': 0,
+                        'current_track': {
+                            'title': 'Connecteer een apparaat',
+                            'artist': '',
+                            'album': ''
+                        }
+                    }
+                else:
+                    status['librespot'] = {
+                        'connected': True,
+                        'state': (
+                            'stopped' if librespot_status.get('stopped') else
+                            'paused' if librespot_status.get('paused') else
+                            'playing'
+                        ),
+                        'volume': librespot_status.get('volume', 0),
+                        'current_track': {
+                            'title': current_track.get('title', ''),
+                            'artist': current_track.get('artist', ''),
+                            'album': current_track.get('album', '')
+                        }
+                    }
             except Exception as e:
                 self.logger.error(f"Error getting librespot status: {e}")
                 status['librespot'] = {'connected': True, 'error': str(e)}
