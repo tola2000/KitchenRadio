@@ -219,12 +219,6 @@ class BluetoothController:
                         self.current_device_name = name
                         logger.info(f"🟢 DEVICE CONNECTED: {name} ({address})")
                         
-                        # Prevent PulseAudio from auto-suspending the Bluetooth sink
-                        self._unsuspend_bluetooth_sink()
-                        
-                        # Refresh volume cache on connection
-                        GLib.timeout_add(2000, self.refresh_volume)  # Delay 2s for sink to be ready
-                        
                         # Trigger callback
                         if self.on_device_connected:
                             self.on_device_connected(name, address)
@@ -236,9 +230,6 @@ class BluetoothController:
                             self.current_device_name = None
                         logger.info(f"🔴 DEVICE DISCONNECTED: {name} ({address})")
                         
-                        # Invalidate volume cache on disconnection
-                        self._volume_cache_valid = False
-                        self._cached_volume = None
                         
                         # Trigger callback
                         if self.on_device_disconnected:
