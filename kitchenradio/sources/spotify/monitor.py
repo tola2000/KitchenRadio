@@ -53,7 +53,7 @@ class LibrespotMonitor:
 
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
-        
+        logger.info(f"[DEBUG] Emitting event '{event}' with kwargs={kwargs}")
         # Trigger 'any' callbacks if registered
         if 'any' in self.callbacks:
             for callback in self.callbacks['any']:

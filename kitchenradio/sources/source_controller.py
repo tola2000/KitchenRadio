@@ -819,6 +819,7 @@ class SourceController:
         Callback for Librespot 'track_started' event.
         Switches source to Librespot automatically when playback starts.
         """
+        self.logger.info("[DEBUG] _on_librespot_track_started called with args=%s kwargs=%s", args, kwargs)
         self.logger.info("Librespot track started event received. Switching source to Spotify (Librespot).")
         self.set_source(BackendType.LIBRESPOT)
     
