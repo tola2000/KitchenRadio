@@ -139,11 +139,21 @@ class BlueZClient:
             )
 
             # Subscribe to property changes
+            # self.bus.add_signal_receiver(
+            #     self._on_volume_changed_internal,
+            #     signal_name='PropertiesChanged',
+            #     dbus_interface=self.TRANSPORT_INTERFACE,
+            #     path_keyword='path'
+            #             path=None,
+            #      arg0='org.bluez.MediaTransport1',
+            # )
+
             self.bus.add_signal_receiver(
-                self._on_volume_changed_internal,
+                self.on_volume_changed_test,
                 signal_name='PropertiesChanged',
-                dbus_interface=self.TRANSPORT_INTERFACE,
-                path_keyword='path'
+                dbus_interface='org.freedesktop.DBus.Properties',
+                path=None,
+                arg0='org.bluez.MediaTransport1',
             )
             
             logger.info("[OK] BlueZ D-Bus connection established")
@@ -151,7 +161,10 @@ class BlueZClient:
         except Exception as e:
             logger.error(f"[X] Failed to setup BlueZ D-Bus: {e}")
             raise
-    
+
+    def on_volume_changed_test(interface, changed, invalidated):
+         logger.info("[OK] BlueZ D-Bus connection established")
+
     def _on_properties_changed_internal(self, interface, changed, invalidated, path):
         """Internal handler for property changes - forwards to callback"""
         if self.on_properties_changed:
