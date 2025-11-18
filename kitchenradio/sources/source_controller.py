@@ -816,6 +816,14 @@ class SourceController:
         if self.librespot_monitor:
             self.librespot_monitor.stop_monitoring()
             self.logger.info("Stopped Librespot monitoring")
+
+        def _on_librespot_track_started(self, *args, **kwargs):
+            """
+            Callback for Librespot 'track_started' event.
+            Switches source to Librespot automatically when playback starts.
+            """
+            self.logger.info("Librespot track started event received. Switching source to Spotify (Librespot).")
+            self.set_source(BackendType.LIBRESPOT)
     
     # =========================================================================
     # Cleanup
