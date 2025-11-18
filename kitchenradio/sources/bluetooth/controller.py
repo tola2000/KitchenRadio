@@ -167,6 +167,8 @@ class BluetoothController:
         if "Volume" in changed:
             self.current_volume = changed["Volume"]
             print(f"Bluetooth volume changed: {self.current_volume} (0–127)")
+        else:    
+            logger.info(f"Property changed  {changed} on {path}")
 
     def _on_properties_changed(self, interface: str, changed: Dict, invalidated: list, path: str):
         """Handle property changes from BlueZ client"""
