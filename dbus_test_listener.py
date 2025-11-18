@@ -30,7 +30,7 @@ if __name__ == "__main__":
         signal_name='PropertiesChanged',
         dbus_interface='org.freedesktop.DBus.Properties',
         path=None,  # Listen globally
-        arg0='org.bluez.MediaPlayer1',
+        arg0='org.bluez',
     )
 
     # Listen specifically for volume changes on MediaPlayer1
