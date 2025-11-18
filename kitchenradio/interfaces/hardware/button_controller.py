@@ -150,14 +150,14 @@ class ButtonController:
             shutdown_callback: Callback function to initiate system shutdown/reboot
         """
 
-    # Store SourceController reference
-    self.source_controller = source_controller
-    # Store shutdown callback for long press power button
-    self.shutdown_callback = shutdown_callback
-    # Store display controller for volume screen
-    self.display_controller = display_controller
-    # Store KitchenRadio reference
-    self.kitchen_radio = kitchen_radio
+        # Store SourceController reference
+        self.source_controller = source_controller
+        # Store shutdown callback for long press power button
+        self.shutdown_callback = shutdown_callback
+        # Store display controller for volume screen
+        self.display_controller = display_controller
+        # Store KitchenRadio reference
+        self.kitchen_radio = kitchen_radio
         
         # Timing configuration - use config defaults if not specified
         self.debounce_time = debounce_time if debounce_time is not None else buttons_config.DEBOUNCE_TIME
