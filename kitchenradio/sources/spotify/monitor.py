@@ -109,25 +109,28 @@ class LibrespotMonitor:
         try:
             # Get current status
             status = self.client.get_status()
-            if not status:
+            if not status or not isinstance(status, dict):
+                logger.warning("Spotify monitor: status is None or not a dict, skipping change check.")
                 return
-            
+
+            # Defensive: ensure self.current_status is a dict
+            if not isinstance(self.current_status, dict):
+                self.current_status = {}
+
             # Check for playing state changes
-            # Use None as default to detect first update
             old_paused = self.current_status.get('paused', None)
             new_paused = status.get('paused', False)
             old_stopped = self.current_status.get('stopped', None)
             new_stopped = status.get('stopped', False)
-            
+
             # Skip state change detection on first update (when old values are None)
             if old_paused is None or old_stopped is None:
-                # First update - just set current status and skip change detection
                 logger.debug("First Spotify status update - initializing state")
                 self.current_status = status
                 if status.get('track'):
                     self.current_track = self._format_track_info(status)
                 return
-            
+
             old_playing = not old_paused and not old_stopped
             new_playing = not new_paused and not new_stopped
 
@@ -136,45 +139,46 @@ class LibrespotMonitor:
                 self._trigger_callbacks('state_changed', 
                                       old_state='play' if old_playing else 'pause', 
                                       new_state='play' if new_playing else 'pause')
-                
+
                 track_info = self._format_track_info(status)
-                
+
                 if new_playing and not old_playing:
                     # Started or resumed playing
                     if self._is_same_track(status, self.current_status):
-                        logger.info(f"Track resumed: {track_info['artist']} - {track_info['name']}")
+                        logger.info(f"Track resumed: {track_info.get('artist', '')} - {track_info.get('name', '')}")
                         self._trigger_callbacks('track_resumed', track=track_info)
                     else:
-                        logger.info(f"Track started: {track_info['artist']} - {track_info['name']}")
+                        logger.info(f"Track started: {track_info.get('artist', '')} - {track_info.get('name', '')}")
                         self._trigger_callbacks('track_started', track=track_info)
-                        
+
                 elif not new_playing and old_playing:
-                    # Paused
                     logger.info("Track paused")
                     self._trigger_callbacks('track_paused', track=track_info)
-            
+
             # Check for track changes (different track URI)
             if self._is_different_track(status, self.current_status) and new_playing:
                 track_info = self._format_track_info(status)
                 self.current_track = track_info
                 logger.info(f"New track: {track_info}")
                 self._trigger_callbacks('track_started', track=track_info)
-            
+
             # Check for volume changes
-            old_volume = self.current_status.get('device', {}).get('volume_percent', 0)
-            new_volume = status.get('device', {}).get('volume_percent', 0)
-            
+            old_device = self.current_status.get('device', {}) if isinstance(self.current_status.get('device', {}), dict) else {}
+            new_device = status.get('device', {}) if isinstance(status.get('device', {}), dict) else {}
+            old_volume = old_device.get('volume_percent', 0)
+            new_volume = new_device.get('volume_percent', 0)
+
             if old_volume != new_volume:
                 logger.info(f"Volume changed: {old_volume}% → {new_volume}%")
                 self._trigger_callbacks('volume_changed', volume=new_volume)
-            
+
             # Update current status
             self.current_status = status
             if status.get('track'):
                 self.current_track = self._format_track_info(status)
-                
+
         except Exception as e:
-            logger.error(f"Error checking for changes: {e}")
+            logger.error(f"Error checking for changes: {e}", exc_info=True)
     
     def _is_same_track(self, status1: Dict, status2: Dict) -> bool:
         """Check if two status objects represent the same track."""
