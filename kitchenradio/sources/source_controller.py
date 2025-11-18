@@ -1,3 +1,4 @@
+
 class SourceController:
     """
     Manages all music playback backends and provides unified control interface.
@@ -8,26 +9,8 @@ class SourceController:
         from kitchenradio.sources.source_controller import BackendType
         self.set_source(BackendType.LIBRESPOT)
         self.logger.info("Source switched to Spotify (LIBRESPOT) due to track_started event.")
-#!/usr/bin/env python3
-"""
-Source Controller - Manages all music playback backends
 
-Handles MPD, Librespot (Spotify), and Bluetooth backends with unified
-interface for playback control, volume management, and source switching.
-
-Responsibilities:
-- Backend initialization and connection management
-- Unified playback control (play, pause, stop, next, previous)
-- Unified volume control (up, down, set, get)
-- Source switching and exclusive playback
-- Status aggregation from all backends
-- Power management with state restoration
-
-This class does NOT handle:
-- UI concerns (handled by DisplayController, ButtonController)
-- System lifecycle management (handled by KitchenRadio facade)
-- Callback propagation to UI (handled by KitchenRadio facade)
-"""
+    # ...existing code...
 
 import logging
 import time
