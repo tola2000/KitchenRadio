@@ -85,7 +85,7 @@ class AVRCPClient:
         """
         if not self.bus:
             return
-        def on_properties_changed(interface, changed, invalidated, path=None):
+    def on_properties_changed(interface, changed, invalidated, path=None, **kwargs):
             logger.debug(f"[AVRCPClient] PropertiesChanged on {interface} at {path}")
             logger.debug(f"  Changed: {dict(changed)}")
             logger.debug(f"  Invalidated: {list(invalidated)}")
@@ -514,7 +514,7 @@ class AVRCPClient:
             )
             
             logger.info(f"🔊 AVRCP volume set to {volume}")
-            return True
+                def on_properties_changed(interface, changed, invalidated, path=None, **kwargs):
             
         except dbus.exceptions.DBusException as e:
             logger.warning(f"📡 AVRCP set volume failed (DBus): {e}")
