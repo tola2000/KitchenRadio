@@ -52,10 +52,7 @@ class BluetoothController:
         self.current_device_path: Optional[str] = None
         self.current_device_name: Optional[str] = None
         self.current_volume: Optional[int] = None
-        
-        # Volume cache (to avoid constant PulseAudio polling)
-        self._cached_volume: Optional[int] = None
-        self._volume_cache_valid = False
+        self.current_state: Optional[str] = None
         
         # Callbacks
         self.on_device_connected: Optional[Callable[[str, str], None]] = None  # (name, mac)
@@ -166,9 +163,8 @@ class BluetoothController:
     def _on_volume_changed(self, interface: str, changed: Dict, invalidated: list, path: str):
         if "Volume" in changed:
             self.current_volume = changed["Volume"]
-            print(f"Bluetooth volume changed: {self.current_volume} (0–127)")
-        else:    
-            logger.info(f"Property changed  {changed} on {path}")
+        elif "State" in changed:
+            self.current_state = changed["State"]   
 
     def _on_properties_changed(self, interface: str, changed: Dict, invalidated: list, path: str):
         """Handle property changes from BlueZ client"""
@@ -442,12 +438,8 @@ class BluetoothController:
         Returns:
             Status string ('playing', 'paused', 'stopped', etc.) or None
         """
-        if self.monitor:
-            status = self.monitor.get_status()
-            logger.info(f"xxx state: { status}")
-            if status:
-                return status.get('state', 'stopped')
-        return None
+
+        return self.current_state
     
     def play(self) -> bool:
         """
