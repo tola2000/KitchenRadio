@@ -63,6 +63,7 @@ class AVRCPClient:
             device_name: Device name for state tracking
             device_mac: Device MAC address for state tracking
         """
+        logger.debug("[TEST] AVRCPClient.__init__ called - DEBUG log should appear if logger is configured correctly.")
         logger.info(f"Initializing AVRCPClient for device: {device_name} ({device_mac}), path: {device_path}")
         self.player_path: Optional[str] = None
         self.bus: Optional[dbus.SystemBus] = None
