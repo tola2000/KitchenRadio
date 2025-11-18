@@ -323,7 +323,6 @@ class DisplayController:
             # Get status from source_controller
             if self.source_controller:
                 current_status = self.source_controller.get_status()
-                logger.debug("_update_display: get_status() completed")
             else:
                 logger.warning("No source_controller available for display updates")
                 return
