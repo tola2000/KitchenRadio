@@ -751,7 +751,7 @@ class SourceController:
                 bluetooth_volume = self.bluetooth_controller.get_volume() if hasattr(self.bluetooth_controller, 'get_volume') else None
                 current_track = self.bluetooth_controller.get_current_track() if hasattr(self.bluetooth_controller, 'get_current_track') else None
                 playback_status = self.bluetooth_controller.get_playback_status() if hasattr(self.bluetooth_controller, 'get_playback_status') else None
-                self.logger.info(f"playback status: {playback_status}")
+
                 status['bluetooth'] = {
                     'connected': True,
                     'discoverable': self.bluetooth_controller.pairing_mode if hasattr(self.bluetooth_controller, 'pairing_mode') else False,
