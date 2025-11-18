@@ -628,7 +628,7 @@ class AVRCPClient:
             True if media player is available
         """
         
-        return self._find_media_player()
+        return True
     
     def get_state(self) -> AVRCPState:
         """

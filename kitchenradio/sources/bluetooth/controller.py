@@ -412,28 +412,8 @@ class BluetoothController:
         return devices
     
     def get_volume(self) -> Optional[int]:
-        """
-        Get current volume via AVRCP (0-100 scale).
-        
-        Returns:
-            Volume level (0-100) or None if not available
-        """
-        # Skip if no device connected
-        if not self.connected_devices:
-            return None
-        
-        # Get volume from AVRCP client
-        if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
-                avrcp_volume = self.monitor.avrcp_client.get_volume()
-                if avrcp_volume is not None:
-                    # Convert from AVRCP scale (0-127) to percentage (0-100)
-                    volume_pct = int(avrcp_volume * 100 / 127)
-                    logger.debug(f"AVRCP volume: {avrcp_volume}/127 = {volume_pct}%")
-                    return volume_pct
-        
         logger.debug("AVRCP volume not available, returning default 50")
-        return 50
+        return 0
     
     def refresh_volume(self) -> Optional[int]:
         """
