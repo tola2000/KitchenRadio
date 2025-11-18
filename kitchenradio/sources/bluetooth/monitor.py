@@ -560,14 +560,24 @@ class BluetoothMonitor:
     
     def _on_track_changed(self, path: str, track: TrackInfo):
         """Handle track change from AVRCP"""
-        self.current_track = track
-        logger.info(f"🎵 Track changed: {track.title} - {track.artist}")
+        # Convert dbus.Dictionary to TrackInfo if needed
+        if hasattr(track, 'title'):
+            track_info_obj = track
+        else:
+            # Extract fields from dbus.Dictionary
+            title = str(track.get('Title', 'Unknown'))
+            artist = str(track.get('Artist', 'Unknown'))
+            album = str(track.get('Album', ''))
+            duration = int(track.get('Duration', 0))
+            track_info_obj = TrackInfo(title=title, artist=artist, album=album, duration=duration)
+        self.current_track = track_info_obj
+        logger.info(f"🎵 Track changed: {track_info_obj.title} - {track_info_obj.artist}")
 
-        track_info = self._format_track_info(track)
+        track_info = self._format_track_info(track_info_obj)
         self._trigger_callbacks('track_changed', track=track_info)
 
         # Also trigger as track_started if we have a new track
-        if track.title != 'Unknown':
+        if track_info_obj.title != 'Unknown':
             self._trigger_callbacks('track_started', track=track_info)
 
         # Update the display when track changes
