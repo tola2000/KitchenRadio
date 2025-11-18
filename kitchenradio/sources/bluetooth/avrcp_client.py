@@ -173,57 +173,69 @@ class AVRCPClient:
     def _on_properties_changed(self, interface, changed, invalidated):
         """Handle property changes from media player"""
         try:
+            logger.debug(f"_on_properties_changed called with interface={interface}, changed={changed}, invalidated={invalidated}")
             if interface != self.MEDIA_PLAYER_INTERFACE:
+                logger.debug(f"Ignoring property change for interface {interface}")
                 return
-            
+
             # Log ALL AVRCP data received
             logger.info(f"📡 AVRCP DATA RECEIVED - Properties changed: {dict(changed)}")
             if invalidated:
                 logger.info(f"📡 AVRCP DATA RECEIVED - Invalidated properties: {list(invalidated)}")
-            
+
             logger.debug(f"AVRCP property changed: {dict(changed)}")
-            
+
             state_changed = False
-            
+
+            # Extra debug: log all keys in changed
+            logger.debug(f"AVRCP changed keys: {list(changed.keys())}")
+
             # Handle track changes
             if 'Track' in changed:
                 logger.info(f"📡 AVRCP TRACK DATA: {changed['Track']}")
+                logger.debug(f"Raw track dict: {changed['Track']}")
                 track = self._parse_track_metadata(changed['Track'])
+                logger.debug(f"Parsed track: title={track.title}, artist={track.artist}, album={track.album}, duration={track.duration}, track_number={track.track_number}, total_tracks={track.total_tracks}")
                 self.state.update_track(track)
                 logger.info(f"🎵 Track changed: {track.title} - {track.artist} ({track.album})")
                 state_changed = True
-                
+
                 if self.on_track_changed:
+                    logger.debug("Calling on_track_changed callback")
                     self.on_track_changed(track)
-            
+
             # Handle status changes
             if 'Status' in changed:
                 logger.info(f"📡 AVRCP STATUS DATA: {changed['Status']}")
                 status_str = str(changed['Status'])
+                logger.debug(f"Raw status string: {status_str}")
                 try:
                     status = PlaybackStatus(status_str)
                 except ValueError:
+                    logger.warning(f"Unknown PlaybackStatus value: {status_str}")
                     status = PlaybackStatus.UNKNOWN
-                
+
                 self.state.update_status(status)
                 logger.info(f"▶️ Status changed: {status.value}")
                 state_changed = True
-                
+
                 if self.on_status_changed:
+                    logger.debug("Calling on_status_changed callback")
                     self.on_status_changed(status)
-            
+
             # Handle position changes
             if 'Position' in changed:
                 position = int(changed['Position'])
-                self.state.update_position(position)
                 logger.info(f"📡 AVRCP POSITION DATA: {position}ms")
                 logger.debug(f"⏱️ Position: {position}ms")
+                self.state.update_position(position)
                 state_changed = True
-            
+
             # Trigger state change callback if state was modified
             if state_changed and self.on_state_changed:
+                logger.debug("Calling on_state_changed callback")
                 self.on_state_changed(self.state)
-                
+
         except Exception as e:
             logger.error(f"❌ Error handling AVRCP property change: {e}", exc_info=True)
     
