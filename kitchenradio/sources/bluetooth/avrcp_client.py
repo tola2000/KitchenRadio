@@ -95,15 +95,6 @@ class AVRCPClient:
         try:
             self.bus = dbus.SystemBus()
 
-                # Listen for PropertiesChanged on any MediaPlayer1 object
-            self.bus.add_signal_receiver(
-                self.on_properties_changed_test,
-                signal_name='PropertiesChanged',
-                dbus_interface='org.freedesktop.DBus.Properties',
-                path=None,  # Listen globally
-                arg0='org.bluez.MediaPlayer1',
-            )
-
             logger.debug("AVRCP client connected to D-Bus")
         except Exception as e:
             logger.error(f"Failed to connect to D-Bus: {e}")
