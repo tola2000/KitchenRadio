@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-KitchenRadio Daemon - Main application daemon
-"""
-
 import sys
 import os
 import time
@@ -274,7 +269,25 @@ class KitchenRadio:
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}", exc_info=True)
     
- 
+    def update_and_restart(self): 
+        """
+        Update KitchenRadio from git and restart the service.
+        This method is now part of the main KitchenRadio class.
+        """
+        import subprocess
+        import os
+        home_dir = os.path.expanduser('~')
+        kr_dir = os.path.join(home_dir, 'KitchenRadio')
+        try:
+            self.logger.info(f"Updating KitchenRadio in {kr_dir}...")
+            subprocess.run(['git', 'pull'], cwd=kr_dir, check=True)
+            self.logger.info("Git pull successful. Restarting kitchenradio service...")
+            subprocess.run(['sudo', 'systemctl', 'restart', 'kitchenradio'], check=True)
+            self.logger.info("KitchenRadio service restarted.")
+            return True
+        except Exception as e:
+            self.logger.error(f"Update/restart failed: {e}")
+            return False
     
     def shutdown(self):
         """
