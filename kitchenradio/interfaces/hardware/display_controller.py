@@ -614,11 +614,13 @@ class DisplayController:
         """Update display for Spotify/librespot source"""
         current_track = librespot_status.get('current_track', {})
         volume = librespot_status.get('volume', 50)
-        
-        if current_track:
+        connected = librespot_status.get('connected', False)
+
+        # Determine if a device is connected and a track is playing
+        if connected and current_track and (current_track.get('title') or current_track.get('name')):
             # Use unified track info formatter with progress bar for Spotify
             track_data = {
-                'title': current_track.get('title', 'Unknown'),  # Spotify uses 'name' instead of 'title'
+                'title': current_track.get('title') or current_track.get('name', 'Unknown'),
                 'artist': current_track.get('artist', 'Unknown'),
                 'album': current_track.get('album', 'Unknown'),
                 'playing': librespot_status.get('state') == 'playing',
@@ -626,18 +628,16 @@ class DisplayController:
                 'source': 'Spotify',
                 'scroll_offsets': self.current_scroll_offsets
             }
-            
             # Track current display state
             self.current_display_type = 'track_info'
             self.current_display_data = track_data
-            
             # Render the display content
             self._render_display_content('track_info', track_data)
         else:
-            # No track playing - show "Niet Actief" screen in track info format
+            # No device connected or no track playing - show "Connecteer een apparaat"
             display_data = {
-                'title': 'Niet Actief',
-                'artist': 'Start Spotify stream',
+                'title': 'Connecteer een apparaat',
+                'artist': '',
                 'album': '',
                 'playing': False,
                 'pairing_mode': True,  # Use dimmed volume bar and no colon
@@ -645,11 +645,9 @@ class DisplayController:
                 'source': 'Spotify',
                 'scroll_offsets': self.current_scroll_offsets
             }
-            
             # Track current display state
             self.current_display_type = 'track_info'
             self.current_display_data = display_data
-            
             # Render the display content
             self._render_display_content('track_info', display_data)
     
@@ -785,7 +783,7 @@ class DisplayController:
             # No devices connected - show "Niet Verbonden" screen in track info format
             display_data = {
                 'title': 'Niet Verbonden',
-                'artist': 'Verbind Toestel',
+                'artist': 'Verbind Apparaat',
                 'album': '',
                 'playing': False,
                 'pairing_mode': True,  # Use dimmed volume bar and no colon

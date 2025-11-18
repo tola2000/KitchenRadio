@@ -257,18 +257,6 @@ class KitchenRadio:
                     'label': "Herstart",
                     'type': 'management',
                     'action': 'herstart'
-                },
-                {
-                    'id': 'test',
-                    'label': "Herstart",
-                    'type': 'management',
-                    'action': 'herstart'
-                },
-                {
-                    'id': 'test2',
-                    'label': "Herstart",
-                    'type': 'management',
-                    'action': 'herstart'
                 }
             ]
             return {
