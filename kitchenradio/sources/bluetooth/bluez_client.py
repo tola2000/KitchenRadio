@@ -152,7 +152,7 @@ class BlueZClient:
                 self._on_volume_changed_internal,
                 signal_name='PropertiesChanged',
                 dbus_interface='org.freedesktop.DBus.Properties',
-                path=None,
+                path_keyword='path'
                 arg0='org.bluez.MediaTransport1',
             )
             
