@@ -782,7 +782,7 @@ class DisplayController:
         else:
             # No devices connected - show "Niet Verbonden" screen in track info format
             display_data = {
-                'title': 'Bluetooth Actief',
+                'title': 'BT Actief',
                 'artist': 'Verbind Apparaat',
                 'album': '',
                 'playing': False,
