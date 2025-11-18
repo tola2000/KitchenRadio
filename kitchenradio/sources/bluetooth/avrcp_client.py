@@ -122,25 +122,26 @@ class AVRCPClient:
                 # Check if this is a media player for our device
                 path_str = str(path)
                 device_path_str = str(self.state.device_path)
-                
+
                 if self.MEDIA_PLAYER_INTERFACE in interfaces:
                     logger.debug(f"   Checking player: {path_str}")
                     logger.debug(f"   Does '{path_str}' start with '{device_path_str}'? {path_str.startswith(device_path_str)}")
-                    
+
                     if path_str.startswith(device_path_str):
                         self.player_path = path
                         logger.info(f"📻 Found AVRCP media player: {path}")
-                        
+                        logger.debug(f"Subscribing to PropertiesChanged on player path: {self.player_path}")
+
                         # Update state
                         self.state.set_avrcp_available(True)
-                        
+
                         # Subscribe to property changes
                         self._subscribe_to_changes()
-                        
+
                         # Trigger state change callback
                         if self.on_state_changed:
                             self.on_state_changed(self.state)
-                        
+
                         return True
             
             logger.warning(f"❌ No AVRCP media player found for device {self.state.device_path}")
@@ -157,16 +158,18 @@ class AVRCPClient:
     def _subscribe_to_changes(self):
         """Subscribe to property changes on media player"""
         if not self.bus or not self.player_path:
+            logger.debug(f"Cannot subscribe: bus={self.bus}, player_path={self.player_path}")
             return
-        
+
         try:
+            logger.debug(f"Adding signal receiver for PropertiesChanged on path: {self.player_path}")
             self.bus.add_signal_receiver(
                 self._on_properties_changed,
                 signal_name='PropertiesChanged',
                 dbus_interface=self.PROPERTIES_INTERFACE,
                 path=self.player_path
             )
-            logger.debug("Subscribed to AVRCP property changes")
+            logger.info(f"Subscribed to AVRCP property changes on path: {self.player_path}")
         except Exception as e:
             logger.error(f"Failed to subscribe to AVRCP changes: {e}")
     
