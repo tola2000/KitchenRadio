@@ -113,7 +113,7 @@ class KitchenRadio:
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.StreamHandler(sys.stdout),
-                logging.FileHandler('kitchenradio.log') if not self.config['debug'] else logging.NullHandler()
+     #           logging.FileHandler('kitchenradio.log') if not self.config['debug'] else logging.NullHandler()
             ]
         )
     
