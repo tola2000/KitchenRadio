@@ -715,12 +715,12 @@ class BluetoothMonitor:
         Returns:
             Status dict with state, device info, etc.
         """
-        if not self.current_device_name:
-            return {
-                'connected': False,
-                'state': 'stopped',
-                'device': None
-            }
+        # if not self.current_device_name:
+        #     return {
+        #         'connected': False,
+        #         'state': 'stopped',
+        #         'device': None
+        #     }
         
         return {
             'connected': True,
