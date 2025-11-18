@@ -1,3 +1,5 @@
+class AVRCPClient:
+    # ...existing code...
     def _debug_global_dbus_listener(self):
         """Register a global DBus signal receiver for MediaPlayer1 PropertiesChanged events (debug only)."""
         if not self.bus:
