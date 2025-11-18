@@ -316,27 +316,28 @@ class BluetoothMonitor:
     - AVRCP state changes
     """
     
-    def __init__(self, bluez_client: BlueZClient):
+    def __init__(self, bluez_client: BlueZClient, display_controller=None):
         """
         Initialize monitor with BlueZ client.
         
         Args:
             bluez_client: BlueZ D-Bus client instance
         """
-        self.client = bluez_client
-        self.callbacks = {}
-        self.current_track: Optional[TrackInfo] = None
-        self.current_status: PlaybackStatus = PlaybackStatus.UNKNOWN
-        self.current_state: Optional[AVRCPState] = None
-        self.avrcp_client: Optional[AVRCPClient] = None
-        self.is_monitoring = False
-        self._monitor_thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        
-        # Track connected devices
-        self.connected_devices: Set[str] = set()  # MAC addresses
-        self.current_device_path: Optional[str] = None
-        self.current_device_name: Optional[str] = None
+    self.client = bluez_client
+    self.display_controller = display_controller
+    self.callbacks = {}
+    self.current_track: Optional[TrackInfo] = None
+    self.current_status: PlaybackStatus = PlaybackStatus.UNKNOWN
+    self.current_state: Optional[AVRCPState] = None
+    self.avrcp_client: Optional[AVRCPClient] = None
+    self.is_monitoring = False
+    self._monitor_thread: Optional[threading.Thread] = None
+    self._stop_event = threading.Event()
+
+    # Track connected devices
+    self.connected_devices: Set[str] = set()  # MAC addresses
+    self.current_device_path: Optional[str] = None
+    self.current_device_name: Optional[str] = None
         
     def add_callback(self, event: str, callback: Callable):
         """
@@ -556,21 +557,28 @@ class BluetoothMonitor:
         """Handle track change from AVRCP"""
         self.current_track = track
         logger.info(f"🎵 Track changed: {track.title} - {track.artist}")
-        
+
         track_info = self._format_track_info(track)
         self._trigger_callbacks('track_changed', track=track_info)
-        
+
         # Also trigger as track_started if we have a new track
         if track.title != 'Unknown':
             self._trigger_callbacks('track_started', track=track_info)
+
+        # Update the display when track changes
+        if self.display_controller:
+            try:
+                self.display_controller.render_bluetooth_track(track_info)
+            except Exception as e:
+                logger.error(f"Error updating Bluetooth display on track change: {e}")
     
     def _on_status_changed(self, status: PlaybackStatus):
         """Handle playback status change from AVRCP"""
         old_status = self.current_status
         self.current_status = status
-        
+
         logger.info(f"▶️  Status changed: {old_status.value} → {status.value}")
-        
+
         # Trigger specific events based on status transition
         if status == PlaybackStatus.PLAYING and old_status != PlaybackStatus.PLAYING:
             if old_status == PlaybackStatus.PAUSED:
@@ -585,11 +593,18 @@ class BluetoothMonitor:
         elif status == PlaybackStatus.STOPPED:
             logger.info("⏹️  Playback stopped")
             self._trigger_callbacks('track_ended', track=self._format_track_info(self.current_track))
-        
+
         # Always trigger status_changed
         self._trigger_callbacks('status_changed', 
                                old_status=old_status.value, 
                                new_status=status.value)
+
+        # Update the display when status changes
+        if self.display_controller:
+            try:
+                self.display_controller.render_bluetooth_status(status.value)
+            except Exception as e:
+                logger.error(f"Error updating Bluetooth display on status change: {e}")
     
     def _on_state_changed(self, state: AVRCPState):
         """Handle complete state change from AVRCP"""
