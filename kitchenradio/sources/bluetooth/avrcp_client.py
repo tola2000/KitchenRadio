@@ -85,7 +85,7 @@ class AVRCPClient:
         """
         if not self.bus:
             return
-    def on_properties_changed(interface, changed, invalidated, path=None, **kwargs):
+        def on_properties_changed(interface, changed, invalidated, path=None, **kwargs):
             logger.debug(f"[AVRCPClient] PropertiesChanged on {interface} at {path}")
             logger.debug(f"  Changed: {dict(changed)}")
             logger.debug(f"  Invalidated: {list(invalidated)}")
