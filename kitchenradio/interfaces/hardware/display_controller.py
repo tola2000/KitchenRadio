@@ -27,7 +27,6 @@ from .display_formatter import DisplayFormatter
 from .display_interface import DisplayInterface
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 class DisplayController:
     """

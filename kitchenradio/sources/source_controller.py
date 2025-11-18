@@ -49,7 +49,7 @@ class SourceController:
             config_dict: Configuration dictionary. If None, loads from config module.
         """
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
+
  
         # Configuration
         self.config = config_dict or self._load_default_config()
