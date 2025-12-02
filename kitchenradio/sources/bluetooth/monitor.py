@@ -307,7 +307,7 @@ class BluetoothMonitor:
         old_status = self.current_status
         self.current_status = status_enum
 
-        logger.info(f"▶️  Status changed: {old_status.value if old_status else 'None'} → {status_enum.value}")
+        logger.info(f"🎵 [Bluetooth] Playback status changed: {old_status.value if old_status else 'None'} → {status_enum.value}")
 
         # Always trigger playback_state_changed
         self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
