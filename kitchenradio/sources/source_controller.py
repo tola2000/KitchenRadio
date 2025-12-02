@@ -1029,15 +1029,15 @@ class SourceController:
         
         # Start MPD monitoring
         if self.mpd_connected and self.mpd_monitor:
-            # MPD monitor uses its own thread
-            pass 
+            self.mpd_monitor.start_monitoring()
+            self.logger.info("✅ MPD monitoring started")
             
         # Start Librespot monitoring
         if self.librespot_connected and self.librespot_monitor:
-            # Librespot monitor uses its own thread
-            pass
+            self.librespot_monitor.start_monitoring()
+            self.logger.info("✅ Librespot monitoring started")
             
         # Start Bluetooth monitoring
         if self.bluetooth_connected and self.bluetooth_monitor:
-            # Bluetooth monitor uses its own thread
-            pass
+            self.bluetooth_monitor.start_monitoring()
+            self.logger.info("✅ Bluetooth monitoring started")
