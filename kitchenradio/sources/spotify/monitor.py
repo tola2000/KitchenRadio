@@ -53,10 +53,13 @@ class LibrespotMonitor:
         logger.debug(f"Added callback for {event}")
 
     def _on_client_changed(self, **kwargs):
+        """Handle WebSocket events from Spotify client"""
+        event_name = kwargs.get('event', 'unknown')
+        logger.debug(f"[Spotify] Received WebSocket event: {event_name}")
         try:
             self._wake_event.set()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Error setting wake event: {e}")
 
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
@@ -148,14 +151,17 @@ class LibrespotMonitor:
     def _check_for_changes(self):
         """Check for status and track changes. Only emit events when state or track changes."""
         try:
+            logger.debug("[Spotify] _check_for_changes called")
             status = self.client.get_status()
             if not status or not isinstance(status, dict):
                 logger.debug("[Spotify] No status data received")
                 return
 
+            logger.debug(f"[Spotify] Raw status from client: {status}")
+            
             # Check for playback state change
             new_state = self._parse_playback_status(status)
-            logger.debug(f"[Spotify] Checking changes - Current: {self.current_status.status.value}, New: {new_state.status.value}")
+            logger.debug(f"[Spotify] Checking changes - Current: {self.current_status.status.value}, New: {new_state.status.value}, Current Vol: {self.current_status.volume}, New Vol: {new_state.volume}")
             
             # Compare states (status and volume)
             status_changed = self.current_status.status != new_state.status
@@ -197,6 +203,7 @@ class LibrespotMonitor:
         logger.info("Starting go-librespot monitoring loop")
         
         while not self._stop_event.is_set():
+            logger.debug(f"[Spotify] Monitor loop iteration - connected: {self.client.is_connected()}")
             if self.client.is_connected():
                 self._check_for_changes()
             else:
@@ -208,10 +215,13 @@ class LibrespotMonitor:
                 
             try:
                 # Wait either for wake_event (set by callback) or timeout
+                logger.debug("[Spotify] Waiting for wake event (timeout=1s)...")
                 self._wake_event.wait(timeout=1)
+                logger.debug("[Spotify] Wake event triggered or timeout reached")
                 # Clear wake flag so next wait will block again until next callback
                 self._wake_event.clear()
             except Exception as e:
+                logger.error(f"[Spotify] Exception in monitor loop wait: {e}")
                 # Fallback to small sleep if wait fails for any reason
                 time.sleep(1.0)
         

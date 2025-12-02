@@ -217,20 +217,25 @@ class KitchenRadioLibrespotClient:
         try:
             data = json.loads(message)
             message_type = data.get('type', 'unknown')
+            logger.debug(f"[Spotify WebSocket] Received message type: {message_type}")
             
             if message_type == 'metadata':
+                logger.debug(f"[Spotify WebSocket] Metadata event: {data}")
                 self._trigger_callbacks('metadata', data=data)
                 return
                 
             elif message_type == 'state':
+                logger.debug(f"[Spotify WebSocket] State event: {data}")
                 self._trigger_callbacks('state', data=data)
                 return
                 
             elif message_type == 'volume':
+                logger.debug(f"[Spotify WebSocket] Volume event: {data}")
                 self._trigger_callbacks('volume', data=data)
                 return
 
             else:
+                logger.debug(f"[Spotify WebSocket] Other event: {message_type}")
                 self._trigger_callbacks('other', data=data)
                 return
 
