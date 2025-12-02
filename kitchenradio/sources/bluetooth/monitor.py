@@ -282,7 +282,10 @@ class BluetoothMonitor:
             duration = int(track.get('Duration', 0))
             track_info_obj = TrackInfo(title=title, artist=artist, album=album, duration=duration)
         self.current_track = track_info_obj
-        logger.info(f"🎵 Track changed: {track_info_obj.title} - {track_info_obj.artist}")
+        
+        # Log with full track details including album
+        album_display = f" [{track_info_obj.album}]" if track_info_obj.album else ""
+        logger.info(f"🎵 [Bluetooth] Track changed: {track_info_obj.artist} - {track_info_obj.title}{album_display}")
 
         self._trigger_callbacks('track_changed', track_info=track_info_obj)
 
@@ -307,7 +310,13 @@ class BluetoothMonitor:
         old_status = self.current_status
         self.current_status = status_enum
 
-        logger.info(f"🎵 [Bluetooth] Playback status changed: {old_status.value if old_status else 'None'} → {status_enum.value}")
+        # Log with full track details
+        if self.current_track:
+            track_display = f"{self.current_track.artist} - {self.current_track.title}" if self.current_track.title != 'Unknown' else "No track"
+            album_display = f" [{self.current_track.album}]" if self.current_track.album else ""
+            logger.info(f"🎵 [Bluetooth] Playback status changed: {old_status.value if old_status else 'None'} → {status_enum.value} | Track: {track_display}{album_display}")
+        else:
+            logger.info(f"🎵 [Bluetooth] Playback status changed: {old_status.value if old_status else 'None'} → {status_enum.value}")
 
         # Always trigger playback_state_changed
         self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())

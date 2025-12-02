@@ -162,9 +162,14 @@ class LibrespotMonitor:
             volume_changed = self.current_status.volume != new_state.volume
             
             if status_changed or volume_changed:
+                # Parse track info for logging
+                new_track = self._parse_track_info(status)
+                
                 # If status changed (enum)
                 if status_changed:
-                    logger.info(f"🎵 [Spotify] Playback status changed: {self.current_status.status.value} → {new_state.status.value}")
+                    track_display = f"{new_track.artist} - {new_track.title}" if new_track and new_track.title != 'Unknown' else "No track"
+                    album_display = f" [{new_track.album}]" if new_track and new_track.album else ""
+                    logger.info(f"🎵 [Spotify] Playback status changed: {self.current_status.status.value} → {new_state.status.value} | Track: {track_display}{album_display}")
                 
                 # If volume changed
                 if volume_changed:
@@ -177,7 +182,10 @@ class LibrespotMonitor:
             new_track = self._parse_track_info(status)
             
             if self.current_track != new_track:
-                logger.info(f"Track changed: {self.current_track.title} → {new_track.title}")
+                # Format old and new track with full details
+                old_display = f"{self.current_track.artist} - {self.current_track.title} [{self.current_track.album}]" if self.current_track and self.current_track.title != 'Unknown' else 'None'
+                new_display = f"{new_track.artist} - {new_track.title} [{new_track.album}]" if new_track and new_track.title != 'Unknown' else 'None'
+                logger.info(f"🎵 [Spotify] Track changed: {old_display} → {new_display}")
                 self.current_track = new_track
                 self._trigger_callbacks('track_changed', track_info=self.get_track_info())
 

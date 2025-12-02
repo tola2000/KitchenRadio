@@ -185,9 +185,14 @@ class MPDMonitor:
             volume_changed = self.current_status.volume != mpd_volume
             
             if status_changed or volume_changed:
-                # Log changes
+                # Parse track info for logging
+                new_track = self._parse_track_info(song_data)
+                
+                # Log changes with full track details
                 if status_changed:
-                    logger.info(f"🎵 [MPD] Playback status changed: {self.current_status.status.value} → {mpd_status.value}")
+                    track_display = f"{new_track.artist} - {new_track.title}" if new_track and new_track.title != 'Unknown' else "No track"
+                    album_display = f" [{new_track.album}]" if new_track and new_track.album else ""
+                    logger.info(f"🎵 [MPD] Playback status changed: {self.current_status.status.value} → {mpd_status.value} | Track: {track_display}{album_display}")
                 if volume_changed:
                     logger.info(f"🔊 [MPD] Volume changed: {self.current_status.volume} → {mpd_volume}")
                 
@@ -214,10 +219,13 @@ class MPDMonitor:
                 logger.debug(f"[MPD] Track objects differ: {self.current_track.title} vs {new_track.title}")
             
             if track_changed:
-                logger.info(f"🎵 [MPD] Track changed: {self.current_track.title if self.current_track else 'None'} → {new_track.title if new_track else 'None'}")
+                # Format old and new track with full details
+                old_display = f"{self.current_track.artist} - {self.current_track.title} [{self.current_track.album}]" if self.current_track and self.current_track.title != 'Unknown' else 'None'
+                new_display = f"{new_track.artist} - {new_track.title} [{new_track.album}]" if new_track and new_track.title != 'Unknown' else 'None'
+                logger.info(f"🎵 [MPD] Track changed: {old_display} → {new_display}")
                 self.current_track = new_track
                 self._trigger_callbacks('track_changed', track_info=self.get_track_info())
-                logger.debug(f"[MPD] Emitted track_changed callback with track: {new_track.title if new_track else 'None'}")
+                logger.debug(f"[MPD] Emitted track_changed callback with track: {new_display}")
             else:
                 logger.debug(f"[MPD] Track unchanged: {new_track.title if new_track else 'None'}")
             
