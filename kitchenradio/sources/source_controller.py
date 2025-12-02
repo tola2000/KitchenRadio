@@ -700,17 +700,20 @@ class SourceController:
     # Status
     # =========================================================================
     
-    def get_playback_state(self) -> PlaybackState:
+    def get_playback_state(self, force_refresh: bool = False) -> PlaybackState:
         """
         Get current playback state from active source.
+        
+        Args:
+            force_refresh: If True, fetch fresh state from source instead of cached value
         
         Returns:
             Playback state object
         """
         if self.source == SourceType.MPD and self.mpd_connected and self.mpd_monitor:
-            return self.mpd_monitor.get_playback_state()
+            return self.mpd_monitor.get_playback_state(force_refresh=force_refresh)
         elif self.source == SourceType.LIBRESPOT and self.librespot_connected and self.librespot_monitor:
-            return self.librespot_monitor.get_playback_state()
+            return self.librespot_monitor.get_playback_state(force_refresh=force_refresh)
         elif self.source == SourceType.BLUETOOTH and self.bluetooth_connected and self.bluetooth_monitor:
             return self.bluetooth_monitor.get_playback_state()
         

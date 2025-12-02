@@ -350,16 +350,40 @@ class MPDMonitor:
         """
         return self.current_track
         
-    def get_playback_state(self) -> PlaybackState:
+    def get_playback_state(self, force_refresh: bool = False) -> PlaybackState:
         """
         Get current playback state.
+        
+        Args:
+            force_refresh: If True, fetch fresh state from MPD instead of using cached value
         
         Returns:
             Playback state object
         """
-        # Clear any expired expected values before returning state
-        self._clear_expired_expected_values()
+        # If force_refresh requested or expected values expired, get fresh state from MPD
+        if force_refresh or not self._is_expected_state_valid():
+            try:
+                status_data = self.client.get_status()
+                if status_data:
+                    # Parse without expected state override
+                    state_str = status_data.get('state', 'stop')
+                    mpd_status = PlaybackStatus.STOPPED
+                    if state_str == 'play':
+                        mpd_status = PlaybackStatus.PLAYING
+                    elif state_str == 'pause':
+                        mpd_status = PlaybackStatus.PAUSED
+                    
+                    mpd_volume = 0
+                    try:
+                        mpd_volume = int(status_data.get('volume', 0))
+                    except (ValueError, TypeError):
+                        pass
+                    
+                    return PlaybackState(status=mpd_status, volume=mpd_volume)
+            except Exception as e:
+                logger.debug(f"Error fetching fresh playback state: {e}")
         
+        # Fall back to cached current_status
         if isinstance(self.current_status, PlaybackState):
             return self.current_status
         return PlaybackState(status=PlaybackStatus.UNKNOWN, volume=0)

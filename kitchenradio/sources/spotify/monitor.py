@@ -271,13 +271,26 @@ class LibrespotMonitor:
         """
         return self.current_source_info
 
-    def get_playback_state(self) -> PlaybackState:
+    def get_playback_state(self, force_refresh: bool = False) -> PlaybackState:
         """
         Get current playback state.
+        
+        Args:
+            force_refresh: If True, fetch fresh state from Spotify instead of using cached value
         
         Returns:
             Playback state object
         """
+        # If force_refresh requested, get fresh state from Spotify
+        if force_refresh:
+            try:
+                status = self.client.get_status()
+                if status:
+                    return self._parse_playback_status(status)
+            except Exception as e:
+                logger.debug(f"Error fetching fresh playback state: {e}")
+        
+        # Fall back to cached current_status
         if isinstance(self.current_status, PlaybackState):
             return self.current_status
             

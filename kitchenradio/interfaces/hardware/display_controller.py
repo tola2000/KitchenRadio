@@ -196,11 +196,12 @@ class DisplayController:
         if source_changed and self.source_controller:
             logger.info("🔄 Refreshing display cache for new source...")
             try:
-                self.cached_playback_state = self.source_controller.get_playback_state()
+                # Force fresh state query from monitors (not cached values with expected states)
+                self.cached_playback_state = self.source_controller.get_playback_state(force_refresh=True)
                 self.cached_track_info = self.source_controller.get_track_info()
                 self.cached_source_info = self.source_controller.get_source_info()
                 self.cached_powered_on = self.source_controller.powered_on
-                logger.info(f"✅ Display cache refreshed - Track: {self.cached_track_info.title if self.cached_track_info else 'None'}")
+                logger.info(f"✅ Display cache refreshed - Status: {self.cached_playback_state.status.value if self.cached_playback_state else 'unknown'}, Track: {self.cached_track_info.title if self.cached_track_info else 'None'}")
             except Exception as e:
                 logger.error(f"Error refreshing cache for new source: {e}")
         else:
