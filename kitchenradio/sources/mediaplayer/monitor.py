@@ -222,10 +222,21 @@ class MPDMonitor:
             # Check for track change
             new_track = self._parse_track_info(song_data)
             
-            if self.current_track != new_track:
-                logger.info(f"Track changed: {self.current_track.title if self.current_track else 'None'} → {new_track.title}")
+            # Always update track if it changed, even if one is None
+            track_changed = False
+            if self.current_track is None and new_track is not None:
+                track_changed = True
+            elif self.current_track is not None and new_track is None:
+                track_changed = True
+            elif self.current_track != new_track:
+                track_changed = True
+            
+            if track_changed:
+                logger.info(f"🎵 [MPD] Track changed: {self.current_track.title if self.current_track else 'None'} → {new_track.title if new_track else 'None'}")
                 self.current_track = new_track
                 self._trigger_callbacks('track_changed', track_info=self.get_track_info())
+            else:
+                logger.debug(f"[MPD] Track unchanged: {new_track.title if new_track else 'None'}")
             
             # Logic to clear expected values:
             mpd_state = status_data.get('state')

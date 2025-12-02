@@ -182,8 +182,11 @@ class DisplayController:
         # Update cache from event data
         if 'playback_state' in kwargs:
             self.cached_playback_state = kwargs['playback_state']
+            logger.debug(f"Display cache updated: playback_state = {kwargs['playback_state']}")
         if 'track_info' in kwargs:
             self.cached_track_info = kwargs['track_info']
+            track = kwargs['track_info']
+            logger.info(f"📀 Display cache updated: track_info = {track.title if track else 'None'}")
         if 'source_info' in kwargs:
             self.cached_source_info = kwargs['source_info']
         if 'powered_on' in kwargs:
@@ -620,16 +623,20 @@ class DisplayController:
         playback_state = status.get('playback_state')
         track_info = status.get('track_info')
         
-        logger.debug(f"MPD render - track_info: {track_info}, has_content: {bool(track_info)}")
+        # Get playback status
+        if isinstance(playback_state, PlaybackState):
+            status_value = playback_state.status
+            playing = status_value == PlaybackStatus.PLAYING
+            volume = playback_state.volume
+        else:
+            status_value = playback_state.get('status') if playback_state else PlaybackStatus.STOPPED
+            playing = status_value == PlaybackStatus.PLAYING
+            volume = playback_state.get('volume', 50) if playback_state else 50
         
+        logger.debug(f"MPD render - track_info: {track_info}, status: {status_value}")
+        
+        # Show track info if available, otherwise show status message
         if track_info:
-            if isinstance(playback_state, PlaybackState):
-                playing = playback_state.status == PlaybackStatus.PLAYING
-                volume = playback_state.volume
-            else:
-                playing = playback_state.get('status') == 'playing'
-                volume = playback_state.get('volume', 50)
-            
             # Use unified track info formatter without progress bar for MPD
             track_data = {
                 'track_info': track_info,
@@ -646,10 +653,23 @@ class DisplayController:
             # Render the display content
             self._render_display_content('track_info', track_data)
         else:
-            # No track playing
+            # No track info - show status based message
+            if status_value == PlaybackStatus.STOPPED:
+                message = 'MPD Ready - Stopped'
+                icon = '⏹'
+            elif status_value == PlaybackStatus.PLAYING:
+                message = 'MPD Playing'
+                icon = '▶'
+            elif status_value == PlaybackStatus.PAUSED:
+                message = 'MPD Paused'
+                icon = '⏸'
+            else:
+                message = 'MPD Connected'
+                icon = '♪'
+            
             message_data = {
-                'message': 'MPD Connected',
-                'icon': '♪',
+                'message': message,
+                'icon': icon,
                 'message_type': 'info',
                 'scroll_offsets': self.current_scroll_offsets
             }
