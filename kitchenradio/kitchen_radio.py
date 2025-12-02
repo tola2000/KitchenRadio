@@ -13,7 +13,7 @@ from enum import Enum
 from kitchenradio import config
 
 # Import SourceController
-from kitchenradio.sources.source_controller import SourceController, BackendType
+from kitchenradio.sources.source_controller import SourceController, SourceType
 
 
 class KitchenRadio:
@@ -158,25 +158,29 @@ class KitchenRadio:
         self.source_controller.start_monitoring()
         self.logger.info("[OK] SourceController initialized")
         
-        # Initialize Display Controller (if enabled)
-        if self.enable_display:
-            self.logger.info("Initializing Display Controller...")
-            try:
-                from kitchenradio.interfaces.hardware.display_controller import DisplayController
-                self.display_controller = DisplayController(
-                    source_controller=self.source_controller,
-                    kitchen_radio=self,  # For backward compatibility
-                    refresh_rate=getattr(config, 'DISPLAY_REFRESH_RATE', 1.0),
-                    use_hardware_display=getattr(config, 'DISPLAY_USE_HARDWARE', True)
-                )
-                if not self.display_controller.initialize():
-                    self.logger.warning("Display Controller initialization failed - continuing without display")
-                    self.display_controller = None
-                else:
-                    self.logger.info("[OK] Display Controller initialized")
-            except Exception as e:
-                self.logger.error(f"Failed to load Display Controller: {e}")
-                self.display_controller = None
+        # Initialize Display Controller (always create, but control hardware usage)
+        # This allows other components (like ButtonController) to safely call display methods
+        # even when hardware display is disabled
+        self.logger.info("Initializing Display Controller...")
+        try:
+            from kitchenradio.interfaces.hardware.display_controller import DisplayController
+            # Use hardware only if explicitly enabled AND hardware is requested
+            use_hardware = self.enable_display and getattr(config, 'DISPLAY_USE_HARDWARE', True)
+            self.display_controller = DisplayController(
+                source_controller=self.source_controller,
+                kitchen_radio=self,  # For backward compatibility
+                refresh_rate=getattr(config, 'DISPLAY_REFRESH_RATE', 1.0),
+                use_hardware_display=use_hardware
+            )
+            if not self.display_controller.initialize():
+                self.logger.warning("Display Controller initialization failed - continuing in headless mode")
+                # Don't set to None - keep it for programmatic access
+            else:
+                mode = "with hardware" if use_hardware else "in headless mode"
+                self.logger.info(f"[OK] Display Controller initialized {mode}")
+        except Exception as e:
+            self.logger.error(f"Failed to load Display Controller: {e}")
+            self.display_controller = None
         
         # Initialize Button Controller (if enabled)
         if self.enable_buttons:
@@ -361,9 +365,10 @@ class KitchenRadio:
                 except Exception as e:
                     self.logger.error(f"Error stopping display controller: {e}")
             
-            # Stop SourceController
-            self.source_controller.stop_monitoring()
-            self.source_controller.cleanup()
+            # SourceController cleanup
+            # Note: SourceController doesn't have stop_monitoring() or cleanup() methods
+            # The individual backend clients (MPD, Librespot) will be cleaned up automatically
+            # when the Python process exits
             
             self.logger.info("[OK] KitchenRadio daemon stopped")
             

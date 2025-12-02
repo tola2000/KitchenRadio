@@ -14,10 +14,10 @@ from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
 
 
 from typing import TYPE_CHECKING
-from kitchenradio.sources.source_model import BackendType, TrackInfo, SourceInfo, PlaybackState, PlaybackStatus
-if TYPE_CHECKING:
-    from kitchenradio.kitchen_radio import KitchenRadio
-    from kitchenradio.sources.source_controller import SourceController
+from kitchenradio.sources.source_model import SourceType, TrackInfo, SourceInfo, PlaybackState, PlaybackStatus
+
+from kitchenradio.kitchen_radio import KitchenRadio
+from kitchenradio.sources.source_controller import SourceController
 
 # Import configuration
 from kitchenradio import config
@@ -94,6 +94,22 @@ class DisplayController:
         self.cached_track_info = None
         self.cached_source_info = SourceInfo()
         self.cached_powered_on = False
+        self.cached_available_sources = []
+        self.cached_current_source = 'none'
+        
+        # Display rendering state
+        self.current_display_type = None
+        self.current_display_data = None
+        self.last_truncation_info = {}
+        self.current_scroll_offsets = {}
+        self.scroll_pause_until = {}
+        
+        # Overlay state
+        self.overlay_active = False
+        self.overlay_type = None
+        self.overlay_end_time = 0
+        self.last_volume = None
+        self.selected_index = 0
         
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
         self._kitchen_radio_was_running = False
@@ -142,6 +158,9 @@ class DisplayController:
                     self.cached_track_info = self.source_controller.get_track_info()
                     self.cached_source_info = self.source_controller.get_source_info()
                     self.cached_powered_on = self.source_controller.powered_on
+                    self.cached_available_sources = [s.value for s in self.source_controller.get_available_sources()]
+                    current_source_enum = self.source_controller.get_current_source()
+                    self.cached_current_source = current_source_enum.value if current_source_enum else 'none'
                 except Exception as e:
                     logger.warning(f"Could not initialize display cache: {e}")
             
@@ -167,6 +186,10 @@ class DisplayController:
             self.cached_source_info = kwargs['source_info']
         if 'powered_on' in kwargs:
             self.cached_powered_on = kwargs['powered_on']
+        if 'current_source' in kwargs:
+            self.cached_current_source = kwargs['current_source']
+        if 'available_sources' in kwargs:
+            self.cached_available_sources = kwargs['available_sources']
             
         try:
             self._wake_event.set()
@@ -338,8 +361,8 @@ class DisplayController:
                 
                 # Derive current source from source_info
                 current_source = 'none'
-                if source_info and source_info.source_name:
-                    current_source = source_info.source_name.lower()
+                if source_info and source_info.source:
+                    current_source = source_info.source.value
                 
                 # Construct a status object compatible with existing logic for now
                 # Or better, adapt the logic below to use these directly

@@ -7,7 +7,7 @@ from enum import Enum
 
 # Import configuration
 from kitchenradio import config
-from kitchenradio.sources.source_model import TrackInfo, SourceInfo, PlaybackState, PlaybackStatus
+from kitchenradio.sources.source_model import TrackInfo, SourceInfo, PlaybackState, PlaybackStatus, SourceType
 
 # Import backends
 
@@ -22,14 +22,6 @@ except ImportError:
     BLUETOOTH_AVAILABLE = False
     BluetoothController = None
     BluetoothMonitor = None
-
-
-class BackendType(Enum):
-    """Supported backend types"""
-    MPD = "mpd"
-    LIBRESPOT = "librespot"
-    BLUETOOTH = "bluetooth"
-    NONE = "none"
 
 
 class SourceController:
@@ -73,8 +65,8 @@ class SourceController:
         self.bluetooth_connected = False
         
         # Current active source
-        self.source = BackendType.NONE
-        self.previous_source = BackendType.NONE
+        self.source = SourceType.NONE
+        self.previous_source = SourceType.NONE
         
         # Power state
         self.powered_on = False
@@ -226,7 +218,7 @@ class SourceController:
     # Source Management
     # =========================================================================
     
-    def get_current_source(self) -> BackendType:
+    def get_current_source(self) -> SourceType:
         """Get currently active source"""
         return self.source
     
@@ -234,14 +226,14 @@ class SourceController:
         """Get list of available (connected) sources"""
         sources = []
         if self.mpd_connected:
-            sources.append(BackendType.MPD)
+            sources.append(SourceType.MPD)
         if self.librespot_connected:
-            sources.append(BackendType.LIBRESPOT)
+            sources.append(SourceType.LIBRESPOT)
         if self.bluetooth_connected:
-            sources.append(BackendType.BLUETOOTH)
+            sources.append(SourceType.BLUETOOTH)
         return sources
     
-    def set_source(self, source: BackendType) -> bool:
+    def set_source(self, source: SourceType) -> bool:
         """
         Switch to specified source.
         
@@ -259,7 +251,7 @@ class SourceController:
         self.logger.info(f"Setting audio source to: {source.value}")
         
         # Validate source
-        if source not in [BackendType.MPD, BackendType.LIBRESPOT, BackendType.BLUETOOTH, BackendType.NONE]:
+        if source not in [SourceType.MPD, SourceType.LIBRESPOT, SourceType.BLUETOOTH, SourceType.NONE]:
             self.logger.error(f"Invalid source: {source}")
             return False
         
@@ -267,14 +259,14 @@ class SourceController:
         previous_source = self.source
         
         # Stop current source if different
-        if self.source and self.source != source and self.source != BackendType.NONE:
+        if self.source and self.source != source and self.source != SourceType.NONE:
             self._stop_source(self.source)
         
         # Set new source
         self.source = source
         
         # Handle source-specific logic
-        if source == BackendType.BLUETOOTH:
+        if source == SourceType.BLUETOOTH:
             if not self.bluetooth_connected:
                 self.logger.warning(f"Source set to {source.value} but backend is not available")
             elif self.bluetooth_controller:
@@ -282,29 +274,29 @@ class SourceController:
                     self.logger.info(f"✅ Active source set to: {source.value} (device connected)")
                 else:
                     # Enter pairing mode if BT pressed again while already on BT
-                    if previous_source == BackendType.BLUETOOTH:
+                    if previous_source == SourceType.BLUETOOTH:
                         self.logger.info(f"BT button pressed while already on BT - entering pairing mode")
                         self.bluetooth_controller.enter_pairing_mode(timeout_seconds=60)
                     else:
                         self.logger.info(f"✅ Source set to {source.value} - showing disconnected state")
         else:
             # MPD or Librespot - check if connected
-            if source == BackendType.MPD and not self.mpd_connected:
+            if source == SourceType.MPD and not self.mpd_connected:
                 self.logger.warning(f"Source set to {source.value} but backend is not connected")
-            elif source == BackendType.LIBRESPOT and not self.librespot_connected:
+            elif source == SourceType.LIBRESPOT and not self.librespot_connected:
                 self.logger.warning(f"Source set to {source.value} but backend is not connected")
             else:
                 self.logger.info(f"✅ Active source set to: {source.value}")
                 
                 # Auto-play when switching sources
                 try:
-                    if source == BackendType.MPD and self.mpd_monitor:
+                    if source == SourceType.MPD and self.mpd_monitor:
                         mpd_state = self.mpd_monitor.get_playback_state()
                         # Check if we should resume playback (if paused or stopped)
                         if mpd_state and mpd_state.status in [PlaybackStatus.PAUSED, PlaybackStatus.STOPPED]:
                             self.logger.info(f"Auto-starting playback on {source.value}")
                             self.play()
-                    elif source == BackendType.LIBRESPOT:
+                    elif source == SourceType.LIBRESPOT:
                         self.logger.info(f"Auto-starting playback on {source.value}")
                         self.play()
                 except Exception as e:
@@ -317,28 +309,28 @@ class SourceController:
     
     # def switch_to_mpd(self) -> bool:
     #     """Switch to MPD source"""
-    #     return self.set_source(BackendType.MPD)
+    #     return self.set_source(SourceType.MPD)
     
     # def switch_to_spotify(self) -> bool:
     #     """Switch to Spotify (librespot) source"""
-    #     return self.set_source(BackendType.LIBRESPOT)
+    #     return self.set_source(SourceType.LIBRESPOT)
     
     # def switch_to_bluetooth(self) -> bool:
     #     """Switch to Bluetooth source"""
-    #     return self.set_source(BackendType.BLUETOOTH)
+    #     return self.set_source(SourceType.BLUETOOTH)
     
-    def _stop_source(self, source: BackendType):
+    def _stop_source(self, source: SourceType):
         """Stop playback on specified source"""
         self.logger.info(f"Stopping playback on: {source.value}")
         
         try:
-            if source == BackendType.MPD and self.mpd_connected and self.mpd_controller:
+            if source == SourceType.MPD and self.mpd_connected and self.mpd_controller:
                 self.mpd_controller.stop()
                 self.logger.info("🛑 Stopped MPD playback")
-            elif source == BackendType.LIBRESPOT and self.librespot_connected and self.librespot_controller:
+            elif source == SourceType.LIBRESPOT and self.librespot_connected and self.librespot_controller:
                 self.librespot_controller.stop()
                 self.logger.info("🛑 Stopped Spotify playback")
-            elif source == BackendType.BLUETOOTH and self.bluetooth_connected and self.bluetooth_controller:
+            elif source == SourceType.BLUETOOTH and self.bluetooth_connected and self.bluetooth_controller:
                 if self.bluetooth_controller.pairing_mode:
                     self.logger.info("Exiting Bluetooth pairing mode (switching sources)")
                     self.bluetooth_controller.exit_pairing_mode()
@@ -355,11 +347,11 @@ class SourceController:
         Returns:
             Tuple of (controller, source_name, is_connected)
         """
-        if self.source == BackendType.MPD:
+        if self.source == SourceType.MPD:
             return self.mpd_controller, "MPD", self.mpd_connected
-        elif self.source == BackendType.LIBRESPOT:
+        elif self.source == SourceType.LIBRESPOT:
             return self.librespot_controller, "Spotify", self.librespot_connected
-        elif self.source == BackendType.BLUETOOTH:
+        elif self.source == SourceType.BLUETOOTH:
             return self.bluetooth_controller, "Bluetooth", self.bluetooth_connected
         else:
             return None, None, False
@@ -464,7 +456,7 @@ class SourceController:
             self.logger.warning(f"Active source {source_name} is not connected")
             return False
         
-        if self.source == BackendType.NONE:
+        if self.source == SourceType.NONE:
             self.logger.warning("No active source selected for next command")
             return False
         
@@ -489,7 +481,7 @@ class SourceController:
             self.logger.warning(f"Active source {source_name} is not connected")
             return False
         
-        if self.source == BackendType.NONE:
+        if self.source == SourceType.NONE:
             self.logger.warning("No active source selected for previous command")
             return False
         
@@ -513,11 +505,11 @@ class SourceController:
         if not controller or not is_connected:
             return None
         
-        if self.source == BackendType.NONE:
+        if self.source == SourceType.NONE:
             return None
         
         # Special handling for Bluetooth volume via controller
-        if self.source == BackendType.BLUETOOTH and self.bluetooth_controller:
+        if self.source == SourceType.BLUETOOTH and self.bluetooth_controller:
             try:
                 return self.bluetooth_controller.get_volume()
             except Exception as e:
@@ -542,7 +534,7 @@ class SourceController:
             self.logger.warning(f"Active source {source_name} is not connected")
             return False
         
-        if self.source == BackendType.NONE:
+        if self.source == SourceType.NONE:
             self.logger.warning("No active source selected for set volume")
             return False
         
@@ -551,7 +543,7 @@ class SourceController:
             return False
         
         # Special handling for Bluetooth volume via controller
-        if self.source == BackendType.BLUETOOTH and self.bluetooth_controller:
+        if self.source == SourceType.BLUETOOTH and self.bluetooth_controller:
             try:
                 return self.bluetooth_controller.set_volume(volume)
             except Exception as e:
@@ -574,11 +566,11 @@ class SourceController:
         if not controller or not is_connected:
             return None
         
-        if self.source == BackendType.NONE:
+        if self.source == SourceType.NONE:
             return None
         
         # Special handling for Bluetooth volume via controller
-        if self.source == BackendType.BLUETOOTH and self.bluetooth_controller:
+        if self.source == SourceType.BLUETOOTH and self.bluetooth_controller:
             try:
                 if self.bluetooth_controller.volume_up(step):
                     # Return new volume if possible
@@ -604,11 +596,11 @@ class SourceController:
         if not controller or not is_connected:
             return None
         
-        if self.source == BackendType.NONE:
+        if self.source == SourceType.NONE:
             return None
         
         # Special handling for Bluetooth volume via controller
-        if self.source == BackendType.BLUETOOTH and self.bluetooth_controller:
+        if self.source == SourceType.BLUETOOTH and self.bluetooth_controller:
             try:
                 if self.bluetooth_controller.volume_down(step):
                     # Return new volume if possible
@@ -631,7 +623,7 @@ class SourceController:
     # Power Management
     # =========================================================================
     
-    def power_on(self, trigger_source: 'BackendType' = None) -> bool:
+    def power_on(self, trigger_source: 'SourceType' = None) -> bool:
         """Power on - restore source and start playback. If trigger_source is provided, use it as initial source."""
         if self.powered_on:
             self.logger.info("Already powered on")
@@ -645,7 +637,7 @@ class SourceController:
         if trigger_source is not None:
             source_to_use = trigger_source
             self.logger.info(f"Power-on triggered by source: {source_to_use.value}")
-        elif self.previous_source and self.previous_source != BackendType.NONE:
+        elif self.previous_source and self.previous_source != SourceType.NONE:
             source_to_use = self.previous_source
             self.logger.info(f"Restoring previous source: {source_to_use.value}")
         else:
@@ -678,17 +670,17 @@ class SourceController:
         self.logger.info("Powering off...")
         
         # Save current source
-        if self.source and self.source != BackendType.NONE:
+        if self.source and self.source != SourceType.NONE:
             self.previous_source = self.source
             self.logger.info(f"Saving current source: {self.previous_source.value}")
         
         # Stop all playback
-        self._stop_source(BackendType.MPD)
-        self._stop_source(BackendType.LIBRESPOT)
-        self._stop_source(BackendType.BLUETOOTH)
+        self._stop_source(SourceType.MPD)
+        self._stop_source(SourceType.LIBRESPOT)
+        self._stop_source(SourceType.BLUETOOTH)
         
         # Clear source
-        self.source = BackendType.NONE
+        self.source = SourceType.NONE
         self.powered_on = False
         
         self._emit_callback('client_changed', 'power_changed', powered_on=False)
@@ -713,11 +705,11 @@ class SourceController:
         Returns:
             Playback state object
         """
-        if self.source == BackendType.MPD and self.mpd_connected and self.mpd_monitor:
+        if self.source == SourceType.MPD and self.mpd_connected and self.mpd_monitor:
             return self.mpd_monitor.get_playback_state()
-        elif self.source == BackendType.LIBRESPOT and self.librespot_connected and self.librespot_monitor:
+        elif self.source == SourceType.LIBRESPOT and self.librespot_connected and self.librespot_monitor:
             return self.librespot_monitor.get_playback_state()
-        elif self.source == BackendType.BLUETOOTH and self.bluetooth_connected and self.bluetooth_monitor:
+        elif self.source == SourceType.BLUETOOTH and self.bluetooth_connected and self.bluetooth_monitor:
             return self.bluetooth_monitor.get_playback_state()
         
         return PlaybackState(status=PlaybackStatus.STOPPED, volume=0)
@@ -729,11 +721,11 @@ class SourceController:
         Returns:
             Track info object or None
         """
-        if self.source == BackendType.MPD and self.mpd_connected and self.mpd_monitor:
+        if self.source == SourceType.MPD and self.mpd_connected and self.mpd_monitor:
             return self.mpd_monitor.get_track_info()
-        elif self.source == BackendType.LIBRESPOT and self.librespot_connected and self.librespot_monitor:
+        elif self.source == SourceType.LIBRESPOT and self.librespot_connected and self.librespot_monitor:
             return self.librespot_monitor.get_track_info()
-        elif self.source == BackendType.BLUETOOTH and self.bluetooth_connected and self.bluetooth_monitor:
+        elif self.source == SourceType.BLUETOOTH and self.bluetooth_connected and self.bluetooth_monitor:
             return self.bluetooth_monitor.get_track_info()
             
         return None
@@ -745,35 +737,35 @@ class SourceController:
         Returns:
             Source info object
         """
-        monitor, source_name, is_connected = self._get_active_monitor()
+        controller, source_name, is_connected = self._get_active_controller()
         
-        if monitor and is_connected:
-            info = monitor.get_source_info()
-            # Enrich with source name
+        if controller and is_connected:
+            info = controller.get_source_info()
+            # Enrich with source type enum
             if isinstance(info, SourceInfo):
-                info.source_name = source_name
+                info.source = self.source
             return info
         
-        return SourceInfo(source_name="None", device_name="None")
+        return SourceInfo(source=SourceType.NONE, device_name="Unknown")
     
     def _trigger_source_update(self):
-        """Fetch current state from active monitor and trigger callbacks"""
-        monitor, source_name, is_connected = self._get_active_monitor()
+        """Fetch current state from active controller and trigger callbacks"""
+        controller, source_name, is_connected = self._get_active_controller()
         
         # Default empty state
         playback_state = PlaybackState(status=PlaybackStatus.STOPPED, volume=0)
         track_info = None
-        source_info = SourceInfo(source_name=source_name, device_name="Unknown")
+        source_info = SourceInfo(source=self.source, device_name="Unknown")
         
-        if monitor and is_connected:
+        if controller and is_connected:
             try:
-                playback_state = monitor.get_playback_state()
-                track_info = monitor.get_track_info()
-                source_info = monitor.get_source_info()
+                playback_state = controller.get_playback_state()
+                track_info = controller.get_track_info()
+                source_info = controller.get_source_info()
                 if isinstance(source_info, SourceInfo):
-                    source_info.source_name = source_name
+                    source_info.source = self.source
                 elif isinstance(source_info, dict):
-                    source_info['source_name'] = source_name
+                    source_info['source'] = self.source.value
             except Exception as e:
                 self.logger.error(f"Error fetching state for update: {e}")
 
@@ -782,12 +774,19 @@ class SourceController:
         self._emit_callback('client_changed', 'track_changed', track_info=track_info)
         self._emit_callback('client_changed', 'source_info_changed', source_info=source_info)
         
+        # Emit current source and available sources
+        current_source = self.get_current_source()
+        self._emit_callback('client_changed', 'current_source_changed', current_source=current_source.value if current_source else 'none')
+        
+        available_sources = [s.value for s in self.get_available_sources()]
+        self._emit_callback('client_changed', 'available_sources_changed', available_sources=available_sources)
+        
 
-    def _handle_monitor_event(self, source_type: BackendType, event_name: str, **kwargs):
+    def _handle_monitor_event(self, source_type: SourceType, event_name: str, **kwargs):
         """Handle events from any monitor"""
         
         # 1. Auto-switching logic (e.g. Spotify starts playing)
-        if source_type == BackendType.LIBRESPOT and event_name == 'playback_state_changed':
+        if source_type == SourceType.LIBRESPOT and event_name == 'playback_state_changed':
              playback_state = kwargs.get('playback_state')
              # Handle both object and dict for backward compatibility during transition
              is_playing = False
@@ -797,9 +796,9 @@ class SourceController:
                  is_playing = playback_state.get('status') == 'playing'
                  
              if is_playing:
-                 if self.source != BackendType.LIBRESPOT:
+                 if self.source != SourceType.LIBRESPOT:
                      self.logger.info("Auto-switching to Spotify")
-                     self.set_source(BackendType.LIBRESPOT)
+                     self.set_source(SourceType.LIBRESPOT)
                      # set_source triggers update, so we can return or continue. 
                      # If we continue, we might send duplicate events, but that's usually fine.
         
@@ -809,7 +808,7 @@ class SourceController:
             self._emit_callback('client_changed', event_name, **kwargs)
             
             # Specific callbacks (Bluetooth only for now)
-            if source_type == BackendType.BLUETOOTH:
+            if source_type == SourceType.BLUETOOTH:
                 bt_cbs = self._callbacks.get('bluetooth', {})
                 if event_name == 'playback_state_changed' and 'status_changed' in bt_cbs:
                     try:
@@ -820,6 +819,53 @@ class SourceController:
                         bt_cbs['track_changed'](**kwargs)
                     except Exception:
                         pass
+
+    # =========================================================================
+    # Event System
+    # =========================================================================
+
+    def add_callback(self, event_name: str, callback: Callable):
+        """Add a callback for an event"""
+        if event_name not in self._callbacks:
+            self._callbacks[event_name] = []
+        
+        if callback not in self._callbacks[event_name]:
+            self._callbacks[event_name].append(callback)
+            self.logger.debug(f"Added callback for event: {event_name}")
+
+    def remove_callback(self, event_name: str, callback: Callable):
+        """Remove a callback for an event"""
+        if event_name in self._callbacks and callback in self._callbacks[event_name]:
+            self._callbacks[event_name].remove(callback)
+            self.logger.debug(f"Removed callback for event: {event_name}")
+
+    def _emit_callback(self, event_name: str, sub_event: str = None, **kwargs):
+        """Emit an event to registered callbacks"""
+        # 1. Specific event callbacks
+        if event_name in self._callbacks:
+            for callback in self._callbacks[event_name]:
+                try:
+                    if sub_event:
+                        # If sub_event provided, pass it (useful for 'client_changed')
+                        callback(event=sub_event, **kwargs)
+                    else:
+                        callback(**kwargs)
+                except Exception as e:
+                    self.logger.error(f"Error in callback for {event_name}: {e}")
+        
+        # 2. 'any' event callbacks (catch-all)
+        if 'any' in self._callbacks:
+            for callback in self._callbacks['any']:
+                try:
+                    # Pass the event name as 'event' kwarg
+                    full_kwargs = kwargs.copy()
+                    full_kwargs['event_type'] = event_name
+                    if sub_event:
+                        full_kwargs['sub_event'] = sub_event
+                    
+                    callback(**full_kwargs)
+                except Exception as e:
+                    self.logger.error(f"Error in 'any' callback: {e}")
 
     # =========================================================================
     # Monitoring

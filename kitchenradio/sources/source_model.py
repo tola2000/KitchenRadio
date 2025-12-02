@@ -11,6 +11,14 @@ from enum import Enum
 from typing import Optional, Dict, Any
 
 
+class SourceType(Enum):
+    """Supported source types"""
+    MPD = "mpd"
+    LIBRESPOT = "librespot"
+    BLUETOOTH = "bluetooth"
+    NONE = "none"
+
+
 class PlaybackStatus(Enum):
     """Playback status enum matching AVRCP/BlueZ/Librespot status values"""
     STOPPED = "stopped"
@@ -68,14 +76,14 @@ class SourceInfo:
     """
     Source device information.
     """
-    source_name: str = "Unknown"
+    source: SourceType = SourceType.NONE
     device_name: str = "Unknown"
     device_mac: str = ""
     path: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'source_name': self.source_name,
+            'source': self.source.value,
             'device_name': self.device_name,
             'device_mac': self.device_mac,
             'path': self.path

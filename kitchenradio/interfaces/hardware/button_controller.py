@@ -12,7 +12,7 @@ from typing import Dict, Callable, Optional, Any, TYPE_CHECKING
 from enum import Enum
 
 if TYPE_CHECKING:
-    from kitchenradio.sources.source_controller import SourceController, BackendType
+    from kitchenradio.sources.source_controller import SourceController, SourceType
 
 # Import configuration
 from kitchenradio import config
@@ -513,20 +513,22 @@ class ButtonController:
         """
         if button_type not in self.button_actions:
             logger.warning(f"No action defined for button: {button_type.value}")
-            self.display_controller.show_Notification_overlay("Oeps", f"Niet Toegewezen {button_type.value}", timeout=2 )
+            if self.display_controller:
+                self.display_controller.show_Notification_overlay("Oeps", f"Niet Toegewezen {button_type.value}", timeout=2 )
             return False
         
         try:
             action_method = self.button_actions[button_type]
             result = action_method()
             logger.debug(f"Button action {button_type.value} result: {result}")
-            if not result:
+            if not result and self.display_controller:
                 self.display_controller.show_Notification_overlay("Oeps", f"Functie Niet Beschikbaar {button_type.value}", timeout=2)  
             
             return result
         except Exception as e:
             logger.error(f"Error executing action for button {button_type.value}: {e}")
-            self.display_controller.show_Notification_overlay("Oeps Error", f"{e}", timeout=2) 
+            if self.display_controller:
+                self.display_controller.show_Notification_overlay("Oeps Error", f"{e}", timeout=2) 
             return False
 
 
@@ -534,21 +536,21 @@ class ButtonController:
     
     def _select_mpd(self) -> bool:
         """Switch to MPD source"""
-        from kitchenradio.sources.source_controller import BackendType
+        from kitchenradio.sources.source_controller import SourceType
         logger.info("Switching to MPD source")
-        return self.source_controller.set_source(BackendType.MPD)
+        return self.source_controller.set_source(SourceType.MPD)
     
     def _select_spotify(self) -> bool:
         """Switch to Spotify (librespot) source"""
-        from kitchenradio.sources.source_controller import BackendType
+        from kitchenradio.sources.source_controller import SourceType
         logger.info("Switching to Spotify source")
-        return self.source_controller.set_source(BackendType.LIBRESPOT)
+        return self.source_controller.set_source(SourceType.LIBRESPOT)
     
     def _select_bluetooth(self) -> bool:
         """Switch to Bluetooth source and enter pairing mode"""
-        from kitchenradio.sources.source_controller import BackendType
+        from kitchenradio.sources.source_controller import SourceType
         logger.info("Switching to Bluetooth source")
-        return self.source_controller.set_source(BackendType.BLUETOOTH)
+        return self.source_controller.set_source(SourceType.BLUETOOTH)
     
     def _play_pause(self) -> bool:
         """Toggle play/pause"""
@@ -579,10 +581,11 @@ class ButtonController:
         
         # Show volume screen - display will get volume from status (with expected values)
         if new_volume is not None:
-            try:
-                self.display_controller.show_volume_overlay()
-            except Exception as e:
-                logger.warning(f"Failed to show volume screen: {e}")
+            if self.display_controller:
+                try:
+                    self.display_controller.show_volume_overlay()
+                except Exception as e:
+                    logger.warning(f"Failed to show volume screen: {e}")
         
         return new_volume is not None
     
@@ -595,10 +598,11 @@ class ButtonController:
         
         # Show volume screen - display will get volume from status (with expected values)
         if new_volume is not None:
-            try:
-                self.display_controller.show_volume_overlay()
-            except Exception as e:
-                logger.warning(f"Failed to show volume screen: {e}")
+            if self.display_controller:
+                try:
+                    self.display_controller.show_volume_overlay()
+                except Exception as e:
+                    logger.warning(f"Failed to show volume screen: {e}")
         
         return new_volume is not None
     

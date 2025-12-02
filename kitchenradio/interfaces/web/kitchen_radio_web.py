@@ -17,7 +17,8 @@ import base64
 
 from kitchenradio.interfaces.hardware.button_controller import ButtonController, ButtonType, ButtonEvent
 from kitchenradio.interfaces.hardware.display_controller import DisplayController
-from kitchenradio.sources.source_controller import SourceController, BackendType
+from kitchenradio.sources.source_controller import SourceController, SourceType
+from kitchenradio.sources.source_model import PlaybackStatus
 from kitchenradio.interfaces.hardware.display_interface import DisplayInterface
 
 logger = logging.getLogger(__name__)
@@ -75,9 +76,21 @@ class KitchenRadioWeb:
         self.port = port
  
         # Flask app for REST API
+        # Use absolute paths to templates/static folders
+        # Path structure: KitchenRadio/kitchenradio/interfaces/web/kitchen_radio_web.py
+        # We need to go up 4 levels: web -> interfaces -> kitchenradio -> KitchenRadio
+        base_dir = Path(__file__).resolve().parent.parent.parent.parent  # Go up to KitchenRadio root
+        template_dir = base_dir / 'frontend' / 'templates'
+        static_dir = base_dir / 'frontend' / 'static'
+        
+        logger.info(f"Flask template directory: {template_dir}")
+        logger.info(f"Flask static directory: {static_dir}")
+        logger.info(f"Template directory exists: {template_dir.exists()}")
+        logger.info(f"Static directory exists: {static_dir.exists()}")
+        
         self.app = Flask(__name__, 
-                        template_folder='../../frontend/templates',
-                        static_folder='../../frontend/static')
+                        template_folder=str(template_dir),
+                        static_folder=str(static_dir))
         self.app.logger.setLevel(logging.WARNING)  # Reduce Flask noise
         
         # Setup routes
@@ -91,6 +104,45 @@ class KitchenRadioWeb:
         self.button_stats = {button.value: 0 for button in ButtonType}
         self.last_button_press = None
         self.api_start_time = None
+        
+    def _get_status_dict(self):
+        """Helper to construct status dict from DisplayController cache"""
+        if not self.display_controller:
+            return {}
+            
+        # Use cached state from DisplayController to avoid direct SourceController access
+        playback_state = self.display_controller.cached_playback_state
+        track_info = self.display_controller.cached_track_info
+        source_info = self.display_controller.cached_source_info
+        current_source = self.display_controller.cached_current_source
+        powered_on = self.display_controller.cached_powered_on
+        available_sources = self.display_controller.cached_available_sources
+        
+        # Derive connection status from available sources
+        mpd_connected = 'mpd' in available_sources
+        librespot_connected = 'librespot' in available_sources
+        
+        return {
+            'current_source': current_source,
+            'powered_on': powered_on,
+            'available_sources': available_sources,
+            'playback_state': playback_state,
+            'track_info': track_info,
+            'source_info': source_info,
+            # Legacy fields for compatibility
+            'mpd': {
+                'connected': mpd_connected,
+                'state': playback_state.status.value if current_source == 'mpd' else 'stopped',
+                'volume': playback_state.volume if current_source == 'mpd' else 0,
+                'current_track': track_info.to_dict() if track_info and current_source == 'mpd' else {}
+            },
+            'librespot': {
+                'connected': librespot_connected,
+                'state': playback_state.status.value if current_source == 'librespot' else 'stopped',
+                'volume': playback_state.volume if current_source == 'librespot' else 0,
+                'current_track': track_info.to_dict() if track_info and current_source == 'librespot' else {}
+            }
+        }
         
     def _setup_routes(self):
         """Setup Flask routes for the API"""
@@ -161,17 +213,9 @@ class KitchenRadioWeb:
                     'success': result
                 }
                 
-                # If it's a source button and the press was successful, update the display
-                if result and button_name in ['source_mpd', 'source_spotify'] and self.display_interface:
-                    try:
-                        from kitchenradio.interfaces.hardware.display_formatter import DisplayFormatter
-                        formatter = DisplayFormatter()
-                        status_data = self.source_controller.get_status()
-                        draw_func = formatter.format_status(status_data)
-                        self.display_interface.render_frame(draw_func)
-                        logger.info(f"Display updated after {button_name} press")
-                    except Exception as display_error:
-                        logger.warning(f"Failed to update display after {button_name}: {display_error}")
+                # If it's a source button and the press was successful, the SourceController
+                # will emit an event which the DisplayController will pick up.
+                # No manual display update needed here.
                 
                 logger.info(f"API button press: {button_name} -> {result}")
                 
@@ -246,7 +290,7 @@ class KitchenRadioWeb:
         @self.app.route('/api/status', methods=['GET'])
         def api_status():
             """Get API status and SourceController status"""
-            kitchen_status = self.source_controller.get_status()
+            kitchen_status = self._get_status_dict()
             
             return jsonify({
                 'api_running': self.running,
@@ -452,180 +496,20 @@ class KitchenRadioWeb:
                 logger.error(f"Error getting display status: {e}")
                 return jsonify({'error': str(e)}), 500
         
-        # Menu API endpoints
-        @self.app.route('/api/menu', methods=['GET'])
-        def get_menu():
-            """Get menu options for the active source"""
-            try:
-                # Get current source from SourceController
-                status = self.source_controller.get_status()
-                active_source = status.get('current_source', 'none')
-                available_sources = status.get('available_sources', [])
-                
-                if active_source == 'mpd' and 'mpd' in available_sources:
-                    # MPD menu - playlists
-                    menu_items = [
-                        {'id': 'playlist_1', 'label': 'Classic Rock', 'type': 'playlist'},
-                        {'id': 'playlist_2', 'label': 'Jazz Collection', 'type': 'playlist'},
-                        {'id': 'playlist_3', 'label': 'Electronic', 'type': 'playlist'},
-                        {'id': 'playlist_4', 'label': 'Ambient', 'type': 'playlist'},
-                    ]
-                elif active_source == 'spotify' and 'librespot' in available_sources:
-                    # Spotify menu - settings
-                    menu_items = [
-                        {'id': 'shuffle', 'label': 'Shuffle: Off', 'type': 'toggle'},
-                        {'id': 'repeat', 'label': 'Repeat: Off', 'type': 'cycle'},
-                        {'id': 'quality', 'label': 'Quality: High', 'type': 'setting'},
-                    ]
-                elif not available_sources:
-                    # No backends available
-                    menu_items = [
-                        {'id': 'no_backends', 'label': 'No backends connected', 'type': 'info'},
-                        {'id': 'reconnect', 'label': 'Try reconnecting...', 'type': 'action'},
-                    ]
-                else:
-                    # No source selected but backends available
-                    menu_items = [
-                        {'id': 'select_source', 'label': 'Select a source first', 'type': 'info'},
-                    ]
-                    # Add available sources as options
-                    if 'mpd' in available_sources:
-                        menu_items.append({'id': 'switch_to_mpd', 'label': 'Switch to MPD', 'type': 'action'})
-                    if 'librespot' in available_sources:
-                        menu_items.append({'id': 'switch_to_spotify', 'label': 'Switch to Spotify', 'type': 'action'})
-                
-                return jsonify({
-                    'active_source': active_source,
-                    'available_sources': available_sources,
-                    'menu_items': menu_items,
-                    'timestamp': time.time()
-                })
-            except Exception as e:
-                logger.error(f"Error getting menu: {e}")
-                return jsonify({'error': str(e)}), 500
-        
-        @self.app.route('/api/menu/action', methods=['POST'])
-        def menu_action():
-            """Execute a menu action"""
-            try:
-                data = request.get_json()
-                action = data.get('action')
-                item_id = data.get('item_id')
-                
-                logger.info(f"Menu action: {action} on item {item_id}")
-                
-                # Handle special actions
-                if action == 'select' and item_id:
-                    if item_id == 'reconnect':
-                        # Attempt to reconnect backends
-                        if not self.kitchen_radio:
-                            return jsonify({
-                                'success': False,
-                                'message': 'KitchenRadio instance not available for reconnect operation',
-                                'action': 'backends_reconnect_failed'
-                            })
-                        
-                        results = self.kitchen_radio.reconnect_backends()
-                        return jsonify({
-                            'success': True,
-                            'message': 'Reconnection attempted',
-                            'action': 'backends_reconnected',
-                            'results': results
-                        })
-                    elif item_id == 'switch_to_mpd':
-                        # Switch to MPD source
-                        try:
-                            success = self.source_controller.set_source(BackendType.MPD)
-                            return jsonify({
-                                'success': success,
-                                'message': 'Switched to MPD' if success else 'Failed to switch to MPD',
-                                'action': 'source_changed'
-                            })
-                        except Exception as e:
-                            return jsonify({
-                                'success': False,
-                                'message': f'Error switching to MPD: {e}',
-                                'action': 'source_change_failed'
-                            })
-                    elif item_id == 'switch_to_spotify':
-                        # Switch to Spotify source
-                        try:
-                            success = self.source_controller.set_source(BackendType.LIBRESPOT)
-                            return jsonify({
-                                'success': success,
-                                'message': 'Switched to Spotify' if success else 'Failed to switch to Spotify',
-                                'action': 'source_changed'
-                            })
-                        except Exception as e:
-                            return jsonify({
-                                'success': False,
-                                'message': f'Error switching to Spotify: {e}',
-                                'action': 'source_change_failed'
-                            })
-                    elif item_id.startswith('playlist_'):
-                        # Load playlist
-                        return jsonify({
-                            'success': True,
-                            'message': f'Playlist {item_id} loaded',
-                            'action': 'playlist_loaded'
-                        })
-                    elif item_id == 'shuffle':
-                        # Toggle shuffle
-                        return jsonify({
-                            'success': True,
-                            'message': 'Shuffle toggled',
-                            'action': 'shuffle_toggled'
-                        })
-                    elif item_id == 'repeat':
-                        # Cycle repeat mode
-                        return jsonify({
-                            'success': True,
-                            'message': 'Repeat mode changed',
-                            'action': 'repeat_cycled'
-                        })
-                
-                return jsonify({
-                    'success': True,
-                    'message': f'Action {action} executed',
-                    'timestamp': time.time()
-                })
-            except Exception as e:
-                logger.error(f"Error executing menu action: {e}")
-                return jsonify({'error': str(e)}), 500
-        
+
         @self.app.route('/api/display/update', methods=['POST'])
         def update_display():
             """Update display with current SourceController status"""
             try:
-                if not self.display_interface:
-                    return jsonify({'error': 'Display interface not available'}), 503
-                
-                # Get current status from SourceController
-                status_data = self.source_controller.get_status()
-                
-                # Import display formatter here to avoid circular imports
-                try:
-                    from kitchenradio.interfaces.hardware.display_formatter import DisplayFormatter
-                    formatter = DisplayFormatter()
-                    
-                    # Format status for display
-                    draw_func = formatter.format_status(status_data)
-                    
-                    # Render to display interface
-                    result = self.display_interface.render_frame(draw_func)
-                    
+                if self.display_controller:
+                    self.display_controller.request_update()
                     return jsonify({
-                        'success': result,
-                        'message': 'Display updated with current status' if result else 'Display update failed',
-                        'status_data': status_data,
+                        'success': True,
+                        'message': 'Display update requested',
                         'timestamp': time.time()
                     })
-                    
-                except ImportError as e:
-                    return jsonify({
-                        'error': f'Display formatter not available: {e}',
-                        'success': False
-                    }), 503
+                else:
+                    return jsonify({'error': 'Display controller not available'}), 503
                     
             except Exception as e:
                 logger.error(f"Error updating display: {e}")
@@ -635,38 +519,24 @@ class KitchenRadioWeb:
         def show_text_on_display():
             """Show custom text on display"""
             try:
-                if not self.display_interface:
-                    return jsonify({'error': 'Display interface not available'}), 503
+                if not self.display_controller:
+                    return jsonify({'error': 'Display controller not available'}), 503
                 
                 # Get text from request
                 data = request.get_json() or {}
                 main_text = data.get('main_text', 'KitchenRadio')
                 sub_text = data.get('sub_text', '')
                 
-                # Import display formatter
-                try:
-                    from kitchenradio.interfaces.hardware.display_formatter import DisplayFormatter
-                    formatter = DisplayFormatter()
-                    
-                    # Format text for display
-                    draw_func = formatter.format_simple_text(main_text, sub_text)
-                    
-                    # Render to display interface
-                    result = self.display_interface.render_frame(draw_func)
-                    
-                    return jsonify({
-                        'success': result,
-                        'message': f'Text displayed: "{main_text}"' if result else 'Text display failed',
-                        'main_text': main_text,
-                        'sub_text': sub_text,
-                        'timestamp': time.time()
-                    })
-                    
-                except ImportError as e:
-                    return jsonify({
-                        'error': f'Display formatter not available: {e}',
-                        'success': False
-                    }), 503
+                # Use DisplayController to show notification/text
+                self.display_controller.show_Notification_overlay(main_text, sub_text)
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Text displayed: "{main_text}"',
+                    'main_text': main_text,
+                    'sub_text': sub_text,
+                    'timestamp': time.time()
+                })
                     
             except Exception as e:
                 logger.error(f"Error showing text on display: {e}")
@@ -704,8 +574,7 @@ class KitchenRadioWeb:
             return "transport"
         elif button_type in [ButtonType.VOLUME_UP, ButtonType.VOLUME_DOWN]:
             return "volume"
-        elif button_type in [ButtonType.MENU_UP, ButtonType.MENU_DOWN, ButtonType.MENU_OK,
-                           ButtonType.MENU_EXIT, ButtonType.MENU_TOGGLE, ButtonType.MENU_SET]:
+        elif button_type in [ButtonType.MENU_UP, ButtonType.MENU_DOWN]:
             return "menu"
         elif button_type == ButtonType.POWER:
             return "power"
