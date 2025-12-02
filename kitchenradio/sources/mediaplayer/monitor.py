@@ -37,12 +37,10 @@ class MPDMonitor:
         self._monitor_thread = None
         self._stop_event = threading.Event()
         
-        # Track expected values from commands (set by client events)
+        # Track expected volume from commands (set by client events)
         self.expected_volume = None
         self.expected_volume_timestamp = None
-        self.expected_state = None
-        self.expected_state_timestamp = None
-        self.expected_value_timeout = 2.0  # Expire expected values after 2 seconds
+        self.expected_value_timeout = 2.0  # Expire expected volume after 2 seconds
         
         # Subscribe to client command events
         self.client.add_callback('volume_command', self._on_volume_command)
@@ -79,22 +77,9 @@ class MPDMonitor:
     def _on_playback_command(self, command: str, expected_state: str, **kwargs):
         """
         Handle playback command from client.
-        Notifies monitor of expected state BEFORE MPD status updates.
+        Log the command but don't update state - let actual MPD status drive display.
         """
-        logger.info(f"🎵 Client sent playback command: {command}, expected state: {expected_state}")
-        self.expected_state = expected_state
-        self.expected_state_timestamp = time.time()
-        
-        # Update current status immediately
-        if self.current_status:
-            if expected_state == 'play':
-                self.current_status.status = PlaybackStatus.PLAYING
-            elif expected_state == 'pause':
-                self.current_status.status = PlaybackStatus.PAUSED
-            elif expected_state == 'stop':
-                self.current_status.status = PlaybackStatus.STOPPED
-                
-            self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
+        logger.info(f"🎵 Client sent playback command: {command}, will wait for MPD status update")
     
     def _is_expected_volume_valid(self) -> bool:
         """Check if expected volume is still valid (not expired)."""
@@ -102,23 +87,12 @@ class MPDMonitor:
             return False
         return (time.time() - self.expected_volume_timestamp) < self.expected_value_timeout
     
-    def _is_expected_state_valid(self) -> bool:
-        """Check if expected state is still valid (not expired)."""
-        if self.expected_state is None or self.expected_state_timestamp is None:
-            return False
-        return (time.time() - self.expected_state_timestamp) < self.expected_value_timeout
-    
     def _clear_expired_expected_values(self):
-        """Clear expected values that have expired."""
+        """Clear expected volume if it has expired."""
         if self.expected_volume is not None and not self._is_expected_volume_valid():
             logger.debug(f"⏱️ Expected volume expired: {self.expected_volume}")
             self.expected_volume = None
             self.expected_volume_timestamp = None
-        
-        if self.expected_state is not None and not self._is_expected_state_valid():
-            logger.debug(f"⏱️ Expected state expired: {self.expected_state}")
-            self.expected_state = None
-            self.expected_state_timestamp = None
     
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
@@ -171,16 +145,6 @@ class MPDMonitor:
             playback_status = PlaybackStatus.PLAYING
         elif state_str == 'pause':
             playback_status = PlaybackStatus.PAUSED
-            
-        # Handle expected state override
-        if self._is_expected_state_valid():
-            expected = self.expected_state
-            if expected == 'play':
-                playback_status = PlaybackStatus.PLAYING
-            elif expected == 'pause':
-                playback_status = PlaybackStatus.PAUSED
-            elif expected == 'stop':
-                playback_status = PlaybackStatus.STOPPED
         
         # Handle volume
         volume = 0
@@ -189,7 +153,7 @@ class MPDMonitor:
         except (ValueError, TypeError):
             pass
             
-        # Handle expected volume override
+        # Handle expected volume override for immediate UI feedback
         if self._is_expected_volume_valid():
             volume = self.expected_volume
             
@@ -257,17 +221,12 @@ class MPDMonitor:
             else:
                 logger.debug(f"[MPD] Track unchanged: {new_track.title if new_track else 'None'}")
             
-            # Logic to clear expected values:
-            mpd_state = status_data.get('state')
-            mpd_volume = int(status_data.get('volume', 0)) if status_data.get('volume') else 0
-            
-            if self._is_expected_state_valid():
-                if mpd_state == self.expected_state:
-                     self.expected_state = None # Matched
-            
+            # Clear expected volume if it matches actual MPD volume
             if self._is_expected_volume_valid():
+                mpd_volume = int(status_data.get('volume', 0)) if status_data.get('volume') else 0
                 if mpd_volume == self.expected_volume:
-                    self.expected_volume = None # Matched
+                    self.expected_volume = None  # Matched, clear expected value
+                    logger.debug(f"✅ Expected volume matched MPD volume: {mpd_volume}")
             
             self._clear_expired_expected_values()
                 
@@ -360,12 +319,12 @@ class MPDMonitor:
         Returns:
             Playback state object
         """
-        # If force_refresh requested or expected values expired, get fresh state from MPD
-        if force_refresh or not self._is_expected_state_valid():
+        # If force_refresh requested, get fresh state from MPD
+        if force_refresh:
             try:
                 status_data = self.client.get_status()
                 if status_data:
-                    # Parse without expected state override
+                    # Parse actual MPD state
                     state_str = status_data.get('state', 'stop')
                     mpd_status = PlaybackStatus.STOPPED
                     if state_str == 'play':
