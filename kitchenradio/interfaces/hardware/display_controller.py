@@ -725,6 +725,7 @@ class DisplayController:
         """Update display for Spotify/librespot source"""
         playback_state = status.get('playback_state')
         track_info = status.get('track_info')
+        source_info = status.get('source_info')
         
         if isinstance(playback_state, PlaybackState):
             volume = playback_state.volume
@@ -733,14 +734,30 @@ class DisplayController:
             volume = playback_state.get('volume', 50)
             playing = playback_state.get('status') == 'playing'
         
-        # Determine if a track is playing
+        # Determine if a device is connected by checking source_info
+        # A device is connected if:
+        # 1. source_info exists and has a meaningful device_name (not default values)
+        # 2. OR we're playing/paused (which means a device must be connected)
+        device_connected = False
+        if source_info:
+            device_name = source_info.device_name if hasattr(source_info, 'device_name') else source_info.get('device_name', '')
+            # Consider device connected if device_name is not a default/placeholder value
+            device_connected = bool(device_name and device_name not in ['Spotify Connect', 'Unknown', 'unknown', ''])
+        
+        # If no device detected from source_info, check if we're actively playing/paused
+        if not device_connected and playback_state:
+            status_val = playback_state.status if isinstance(playback_state, PlaybackState) else playback_state.get('status')
+            device_connected = status_val in [PlaybackStatus.PLAYING, PlaybackStatus.PAUSED]
+        
+        # Determine if we have valid track info to show
         has_track = False
         if isinstance(track_info, TrackInfo):
-            has_track = bool(track_info.title)
+            has_track = bool(track_info.title and track_info.title not in ['Unknown', 'unknown', ''])
         elif track_info:
-            has_track = bool(track_info.get('title') or track_info.get('name'))
+            title = track_info.get('title') or track_info.get('name')
+            has_track = bool(title and title not in ['Unknown', 'unknown', ''])
             
-        if has_track:
+        if device_connected and has_track:
             # Use unified track info formatter with progress bar for Spotify
             track_data = {
                 'track_info': track_info,
