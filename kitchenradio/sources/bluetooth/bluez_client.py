@@ -87,6 +87,7 @@ class BlueZClient:
     BLUEZ_SERVICE = 'org.bluez'
     ADAPTER_INTERFACE = 'org.bluez.Adapter1'
     DEVICE_INTERFACE = 'org.bluez.Device1'
+    MEDIA_PLAYER_INTERFACE = 'org.bluez.MediaPlayer1'
     TRANSPORT_INTERFACE = 'org.bluez.MediaTransport1'
     PROPERTIES_INTERFACE = 'org.freedesktop.DBus.Properties'
     OBJECT_MANAGER_INTERFACE = 'org.freedesktop.DBus.ObjectManager'
@@ -105,10 +106,13 @@ class BlueZClient:
         self.adapter_props = None
         self.obj_manager = None
         self.agent: Optional[AutoPairAgent] = None
+        self.active_player_path: Optional[str] = None
         
         # Callbacks
         self.on_properties_changed: Optional[Callable[[str, Dict, List, str], None]] = None
         self.on_volume_changed: Optional[Callable[[str, Dict, List, str], None]] = None
+        self.on_track_changed: Optional[Callable[[Dict], None]] = None
+        self.on_status_changed: Optional[Callable[[str], None]] = None
         
         # Initialize D-Bus
         self._setup_dbus()
@@ -144,6 +148,14 @@ class BlueZClient:
                 dbus_interface='org.freedesktop.DBus.Properties',
                 path_keyword='path',
                 arg0='org.bluez.MediaTransport1',
+            )
+
+            self.bus.add_signal_receiver(
+                self._on_media_player_properties_changed,
+                signal_name='PropertiesChanged',
+                dbus_interface=self.PROPERTIES_INTERFACE,
+                path_keyword='path',
+                arg0=self.MEDIA_PLAYER_INTERFACE
             )
             
             logger.info("[OK] BlueZ D-Bus connection established")
@@ -415,3 +427,235 @@ class BlueZClient:
         except Exception as e:
             logger.error(f"Error stopping discovery: {e}")
             return False
+
+    def _on_media_player_properties_changed(self, interface, changed, invalidated, path):
+        """
+        Handle MediaPlayer1 property changes.
+        
+        Args:
+            interface: Interface name
+            changed: Dictionary of changed properties
+            invalidated: List of invalidated properties
+            path: Object path
+        """
+        # If we have an active player, only process events for it
+        if self.active_player_path and path != self.active_player_path:
+            return
+            
+        # If we don't have an active player, auto-select this one
+        if not self.active_player_path:
+            logger.info(f"Auto-selecting active player: {path}")
+            self.active_player_path = path
+
+        if 'Track' in changed:
+            track_data = changed['Track']
+            # Convert dbus types to python types
+            track = {
+                'title': str(track_data.get('Title', 'Unknown')),
+                'artist': str(track_data.get('Artist', 'Unknown')),
+                'album': str(track_data.get('Album', '')),
+                'duration': int(track_data.get('Duration', 0))
+            }
+            if self.on_track_changed:
+                self.on_track_changed(track)
+        
+        if 'Status' in changed:
+            status_str = str(changed['Status'])
+            if self.on_status_changed:
+                self.on_status_changed(status_str)
+
+    def set_active_player(self, player_path: str):
+        """
+        Set the active media player path.
+        
+        Args:
+            player_path: D-Bus path to media player
+        """
+        self.active_player_path = player_path
+        logger.info(f"Active player set to: {player_path}")
+
+    def _get_player_interface(self) -> Optional[dbus.Interface]:
+        """Get MediaPlayer1 interface for active player"""
+        if not self.active_player_path:
+            logger.warning("No active player selected")
+            return None
+            
+        try:
+            player_obj = self.bus.get_object(self.BLUEZ_SERVICE, self.active_player_path)
+            return dbus.Interface(player_obj, self.MEDIA_PLAYER_INTERFACE)
+        except Exception as e:
+            logger.error(f"Error getting player interface: {e}")
+            return None
+
+    def play(self) -> bool:
+        """Send Play command"""
+        player = self._get_player_interface()
+        if player:
+            try:
+                player.Play()
+                return True
+            except Exception as e:
+                logger.error(f"Error sending Play: {e}")
+        return False
+
+    def pause(self) -> bool:
+        """Send Pause command"""
+        player = self._get_player_interface()
+        if player:
+            try:
+                player.Pause()
+                return True
+            except Exception as e:
+                logger.error(f"Error sending Pause: {e}")
+        return False
+
+    def stop(self) -> bool:
+        """Send Stop command"""
+        player = self._get_player_interface()
+        if player:
+            try:
+                player.Stop()
+                return True
+            except Exception as e:
+                logger.error(f"Error sending Stop: {e}")
+        return False
+
+    def next(self) -> bool:
+        """Send Next command"""
+        player = self._get_player_interface()
+        if player:
+            try:
+                player.Next()
+                return True
+            except Exception as e:
+                logger.error(f"Error sending Next: {e}")
+        return False
+
+    def previous(self) -> bool:
+        """Send Previous command"""
+        player = self._get_player_interface()
+        if player:
+            try:
+                player.Previous()
+                return True
+            except Exception as e:
+                logger.error(f"Error sending Previous: {e}")
+        return False
+
+    def get_player_status(self) -> str:
+        """Get current playback status"""
+        if not self.active_player_path:
+            return "unknown"
+            
+        try:
+            player_obj = self.bus.get_object(self.BLUEZ_SERVICE, self.active_player_path)
+            props = dbus.Interface(player_obj, self.PROPERTIES_INTERFACE)
+            status_str = props.Get(self.MEDIA_PLAYER_INTERFACE, 'Status')
+            return str(status_str)
+        except Exception as e:
+            logger.error(f"Error getting status: {e}")
+            return "unknown"
+
+    def get_track_info(self) -> Optional[Dict[str, Any]]:
+        """Get current track info"""
+        if not self.active_player_path:
+            return None
+            
+        try:
+            player_obj = self.bus.get_object(self.BLUEZ_SERVICE, self.active_player_path)
+            props = dbus.Interface(player_obj, self.PROPERTIES_INTERFACE)
+            track_data = props.Get(self.MEDIA_PLAYER_INTERFACE, 'Track')
+            
+            return {
+                'title': str(track_data.get('Title', 'Unknown')),
+                'artist': str(track_data.get('Artist', 'Unknown')),
+                'album': str(track_data.get('Album', '')),
+                'duration': int(track_data.get('Duration', 0))
+            }
+        except Exception as e:
+            logger.error(f"Error getting track info: {e}")
+            return None
+
+    def get_volume(self) -> Optional[int]:
+        """
+        Get current volume from AVRCP MediaPlayer.
+        
+        Returns:
+            Volume level (0-127) or None if not available
+        """
+        if not self.active_player_path:
+            return None
+        
+        try:
+            player_obj = self.bus.get_object(self.BLUEZ_SERVICE, self.active_player_path)
+            props = dbus.Interface(player_obj, self.PROPERTIES_INTERFACE)
+            
+            # Check if Volume property exists
+            try:
+                volume = props.Get(self.MEDIA_PLAYER_INTERFACE, 'Volume')
+                return int(volume)
+            except dbus.exceptions.DBusException:
+                return None
+            
+        except Exception as e:
+            logger.error(f"Error getting AVRCP volume: {e}")
+            return None
+    
+    def set_volume(self, volume: int) -> bool:
+        """
+        Set volume via AVRCP MediaPlayer.
+        
+        Args:
+            volume: Volume level (0-127)
+            
+        Returns:
+            True if successful
+        """
+        if not self.active_player_path:
+            return False
+        
+        try:
+            # Clamp volume to valid range
+            volume = max(0, min(127, volume))
+            
+            player_obj = self.bus.get_object(self.BLUEZ_SERVICE, self.active_player_path)
+            props = dbus.Interface(player_obj, self.PROPERTIES_INTERFACE)
+            
+            props.Set(self.MEDIA_PLAYER_INTERFACE, 'Volume', dbus.UInt16(volume))
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error setting AVRCP volume: {e}")
+            return False
+
+    def volume_up(self, step: int = 10) -> bool:
+        """
+        Increase volume on the Bluetooth device via AVRCP.
+        
+        Args:
+            step: Volume increase step (default 10, AVRCP uses 0-127 range)
+            
+        Returns:
+            True if successful
+        """
+        current = self.get_volume()
+        if current is not None:
+            new_volume = min(127, current + step)
+            return self.set_volume(new_volume)
+        return False
+
+    def volume_down(self, step: int = 10) -> bool:
+        """
+        Decrease volume on the Bluetooth device via AVRCP.
+        
+        Args:
+            step: Volume decrease step (default 10, AVRCP uses 0-127 range)
+            
+        Returns:
+            True if successful
+        """
+        current = self.get_volume()
+        if current is not None:
+            new_volume = max(0, current - step)
+            return self.set_volume(new_volume)
+        return False

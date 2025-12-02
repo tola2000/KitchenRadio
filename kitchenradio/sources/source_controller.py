@@ -17,7 +17,7 @@ from kitchenradio.sources.spotify import KitchenRadioLibrespotClient, LibrespotC
 
 # Bluetooth imports are optional (Linux only)
 try:
-    from kitchenradio.sources.bluetooth import AVRCPClient, BlueZClient, BluetoothController, BluetoothMonitor
+    from kitchenradio.sources.bluetooth import BlueZClient, BluetoothController, BluetoothMonitor
     BLUETOOTH_AVAILABLE = True
 except ImportError:
     BLUETOOTH_AVAILABLE = False
@@ -205,10 +205,9 @@ class SourceController:
             return False
         
         try:
-            self.bluetooth_avrcp_client = AVRCPClient()
             self.bluetooth_bluez_client = BlueZClient()
-            self.bluetooth_monitor = BluetoothMonitor(self.bluetooth_bluez_client, self.bluetooth_avrcp_client)
-            self.bluetooth_controller = BluetoothController(self.bluetooth_bluez_client)
+            self.bluetooth_monitor = BluetoothMonitor(self.bluetooth_bluez_client)
+            self.bluetooth_controller = BluetoothController(self.bluetooth_bluez_client, self.bluetooth_monitor)
 
             # Give it time to initialize
             time.sleep(0.5)

@@ -65,16 +65,18 @@ class PlaybackState:
     """
     Current playback state.
     
-    Tracks playback status and volume.
+    Tracks playback status, volume and device name.
     """
     status: PlaybackStatus = PlaybackStatus.UNKNOWN
     volume: Optional[int] = None
+    device_name: str = "Unknown"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             'status': self.status.value,
-            'volume': self.volume
+            'volume': self.volume,
+            'device_name': self.device_name
         }
 
 
@@ -88,7 +90,6 @@ import time
 from typing import Optional, Callable, Dict, Any, Set
 
 from .bluez_client import BlueZClient
-from .avrcp_client import AVRCPClient
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ class BluetoothMonitor:
     - AVRCP state changes
     """
     
-    def __init__(self, client, avrcp_client,  display_controller=None):
+    def __init__(self, client: BlueZClient, display_controller=None):
         """
         Initialize monitor with BlueZ client.
         
@@ -122,9 +123,9 @@ class BluetoothMonitor:
         self.current_track = None
         self.current_status = None
 
-        self.avrcp_client = avrcp_client
-        self.avrcp_client.on_track_changed = self._on_track_changed
-        self.avrcp_client.on_status_changed = self._on_status_changed
+        # Set up callbacks on the client
+        self.client.on_track_changed = self._on_track_changed
+        self.client.on_status_changed = self._on_status_changed
 
         self.is_monitoring = False
         self._monitor_thread = None
@@ -246,10 +247,9 @@ class BluetoothMonitor:
             logger.info(f"🔴 Device disconnected: {device_name} ({device_mac})")
             
             # Clean up AVRCP client
-            if self.avrcp_client:
+            if self.client.active_player_path == device_path:
                 logger.info("🧹 Cleaning up AVRCP connection...")
-                self.avrcp_client.clear_cache()
-                self.avrcp_client = None
+                self.client.set_active_player(None)
             
             self.current_track = None
             self.current_status = None
@@ -310,12 +310,8 @@ class BluetoothMonitor:
             address: Device MAC address
         """
         try:
-            # Create AVRCP client immediately
-            self.avrcp_client = AVRCPClient(device_path, name, address)
-            
-            # Set up AVRCP callbacks
-            self.avrcp_client.on_track_changed = self._on_track_changed
-            self.avrcp_client.on_status_changed = self._on_status_changed
+            # Set active player in BlueZ client
+            self.client.set_active_player(device_path)
             
             # Try to establish AVRCP connection with retries
             logger.info("⏳ Attempting to establish AVRCP MediaPlayer connection...")
@@ -323,10 +319,26 @@ class BluetoothMonitor:
             retry_delay = 1.0  # 1 second between retries
             
             for attempt in range(max_retries):
-                if self.avrcp_client.is_available():
+                # Check if we can get status (implies interface is available)
+                status_str = self.client.get_player_status()
+                if status_str != "unknown":
                     logger.info(f"✅ AVRCP connection established on attempt {attempt + 1}")
-                    self.current_track = self.avrcp_client.get_track_info()
-                    self.current_status = self.avrcp_client.get_status() or PlaybackStatus.UNKNOWN
+                    
+                    # Get initial track
+                    track_dict = self.client.get_track_info()
+                    if track_dict:
+                        self.current_track = TrackInfo(
+                            title=track_dict.get('title', 'Unknown'),
+                            artist=track_dict.get('artist', 'Unknown'),
+                            album=track_dict.get('album', ''),
+                            duration=track_dict.get('duration', 0)
+                        )
+                    
+                    # Get initial status
+                    try:
+                        self.current_status = PlaybackStatus(status_str)
+                    except ValueError:
+                        self.current_status = PlaybackStatus.UNKNOWN
                     
                     # Log initial track info if available
                     if self.current_track and self.current_track.title != 'Unknown':
@@ -451,10 +463,9 @@ class BluetoothMonitor:
         
         self.is_monitoring = False
         
-        # Clean up AVRCP client
-        if self.avrcp_client:
-            self.avrcp_client.clear_cache()
-            self.avrcp_client = None
+        # Clean up AVRCP connection
+        if self.client.active_player_path:
+            self.client.set_active_player(None)
         
         logger.info("✅ Bluetooth monitor stopped")
     
@@ -474,15 +485,14 @@ class BluetoothMonitor:
         Get current playback state.
         
         Returns:
-            Playback state dict (status, volume)
+            Playback state dict (status, volume, device_name)
         """
-        volume = None
-        if self.avrcp_client:
-             volume = self.avrcp_client.get_volume()
+        volume = self.client.get_volume()
              
         return {
             'status': self.current_status.value if self.current_status else 'unknown',
-            'volume': volume
+            'volume': volume,
+            'device_name': self.current_device_name or "Unknown"
         }
     
     def print_current_track(self):
