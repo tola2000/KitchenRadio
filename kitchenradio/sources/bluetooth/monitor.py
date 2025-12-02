@@ -69,35 +69,20 @@ class PlaybackState:
     """
     Current playback state.
     
-    Tracks playback status, position, and current track information.
+    Tracks playback status and current track information.
     """
     status: PlaybackStatus = PlaybackStatus.UNKNOWN
-    position: int = 0  # Position in milliseconds
     track: Optional[TrackInfo] = None
-    play_started_at: Optional[datetime] = None
-    pause_started_at: Optional[datetime] = None
+    volume: Optional[int] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             'status': self.status.value,
-            'position': self.position,
             'track': self.track.to_dict() if self.track else None,
-            'play_started_at': self.play_started_at.isoformat() if self.play_started_at else None,
-            'pause_started_at': self.pause_started_at.isoformat() if self.pause_started_at else None
+            'volume': self.volume
         }
-    
-    def get_progress_percentage(self) -> float:
-        """
-        Calculate playback progress as percentage.
-        
-        Returns:
-            Progress from 0.0 to 100.0, or 0.0 if no track or no duration
-        """
-        if not self.track or self.track.duration <= 0:
-            return 0.0
-        
-        return (self.position / self.track.duration) * 100.0
+
 
 
 @dataclass
@@ -173,27 +158,21 @@ class AVRCPState:
         old_status = self.playback.status
         self.playback.status = status
         
-        # Track timing for play/pause events
-        if status == PlaybackStatus.PLAYING and old_status != PlaybackStatus.PLAYING:
-            self.playback.play_started_at = datetime.now()
-            self.playback.pause_started_at = None
-        elif status == PlaybackStatus.PAUSED and old_status != PlaybackStatus.PAUSED:
-            self.playback.pause_started_at = datetime.now()
-        
         self.last_updated = datetime.now()
         self.state_changes += 1
-    
-    def update_position(self, position: int):
+
+
+    def update_volume(self, volume: int):
         """
         Update playback position.
         
         Args:
             position: Position in milliseconds
         """
-        self.playback.position = position
+        self.playback.volume = volume
         self.last_updated = datetime.now()
         self.state_changes += 1
-    
+
     def reset(self):
         """Reset all state to initial values"""
         self.device_name = ""
@@ -251,8 +230,6 @@ class AVRCPState:
             except ValueError:
                 state.playback.status = PlaybackStatus.UNKNOWN
             
-            state.playback.position = playback_data.get('position', 0)
-        
         # Restore timestamps
         last_updated_str = data.get('last_updated')
         if last_updated_str:
@@ -316,7 +293,7 @@ class BluetoothMonitor:
     - AVRCP state changes
     """
     
-    def __init__(self, client, display_controller=None):
+    def __init__(self, client, avrcp_client,  display_controller=None):
         """
         Initialize monitor with BlueZ client.
         
@@ -328,13 +305,13 @@ class BluetoothMonitor:
         self.display_controller = display_controller
         self.callbacks = {}
         self.current_track = None
-        self.current_status = PlaybackStatus.UNKNOWN
-        self.current_state = None
-        from .avrcp_client import AVRCPClient
-        self.avrcp_client = AVRCPClient()
+        self.current_status = None
+
+
+        self.avrcp_client = avrcp_client
         self.avrcp_client.on_track_changed = self._on_track_changed
         self.avrcp_client.on_status_changed = self._on_status_changed
-        self.avrcp_client.on_state_changed = self._on_state_changed
+
         self.is_monitoring = False
         self._monitor_thread = None
         self._stop_event = threading.Event()
@@ -461,7 +438,7 @@ class BluetoothMonitor:
                 self.avrcp_client = None
             
             self.current_track = None
-            self.current_status = PlaybackStatus.UNKNOWN
+            self.current_status = None
             
             # Trigger callback
             self._trigger_callbacks('device_disconnected', name=device_name, mac=device_mac)

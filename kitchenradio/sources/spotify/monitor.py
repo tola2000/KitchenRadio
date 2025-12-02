@@ -105,9 +105,8 @@ class LibrespotMonitor:
 
     
     def _check_for_changes(self):
-        """Check for status and track changes."""
+        """Check for status and track changes. Only emit events when state or track changes."""
         try:
-            # Get current status
             status = self.client.get_status()
             if not status or not isinstance(status, dict):
                 logger.debug("Spotify monitor: status is None or not a dict, skipping change check.")
@@ -117,66 +116,24 @@ class LibrespotMonitor:
             if not isinstance(self.current_status, dict):
                 self.current_status = {}
 
-            # Check for playing state changes
-            old_paused = self.current_status.get('paused', None)
-            new_paused = status.get('paused', False)
-            old_stopped = self.current_status.get('stopped', None)
-            new_stopped = status.get('stopped', False)
+            # Check for playback state change (playing/paused/stopped)
+            old_state = self.current_status.get('state')
+            new_state = status.get('state')
+            if old_state != new_state:
+                logger.info(f"Playback state changed: {old_state} → {new_state}")
+                self._trigger_callbacks('state_changed', old_state=old_state, new_state=new_state)
 
-            # Skip state change detection on first update (when old values are None)
-            if old_paused is None or old_stopped is None:
-                logger.debug("First Spotify status update - initializing state")
-                self.current_status = status
-                if status.get('track'):
-                    self.current_track = self._format_track_info(status)
-                return
-
-            old_playing = not old_paused and not old_stopped
-            new_playing = not new_paused and not new_stopped
-
-            if old_playing != new_playing:
-                logger.info(f"Playback state changed: {old_playing}→{new_playing} ({'playing' if new_playing else 'paused'})")
-                self._trigger_callbacks('state_changed', 
-                                      old_state='play' if old_playing else 'pause', 
-                                      new_state='play' if new_playing else 'pause')
-
+            # Check for track change (track URI)
+            old_track = self.current_status.get('track', {}).get('uri') if self.current_status.get('track') else None
+            new_track = status.get('track', {}).get('uri') if status.get('track') else None
+            if old_track != new_track:
+                logger.info(f"Track changed: {old_track} → {new_track}")
                 track_info = self._format_track_info(status)
-
-                if new_playing and not old_playing:
-                    # Started or resumed playing
-                    if self._is_same_track(status, self.current_status):
-                        logger.info(f"Track resumed: {track_info.get('artist', '')} - {track_info.get('name', '')}")
-                        self._trigger_callbacks('track_resumed', track=track_info)
-                    else:
-                        logger.info(f"Track started: {track_info.get('artist', '')} - {track_info.get('name', '')}")
-                        self._trigger_callbacks('track_started', track=track_info)
-
-                elif not new_playing and old_playing:
-                    logger.info("Track paused")
-                    self._trigger_callbacks('track_paused', track=track_info)
-
-            # Check for track changes (different track URI)
-            if self._is_different_track(status, self.current_status) and new_playing:
-                track_info = self._format_track_info(status)
+                self._trigger_callbacks('track_changed', track=track_info)
                 self.current_track = track_info
-                logger.info(f"New track: {track_info}")
-                self._trigger_callbacks('track_started', track=track_info)
-
-            # Check for volume changes
-            old_device = self.current_status.get('device', {}) if isinstance(self.current_status.get('device', {}), dict) else {}
-            new_device = status.get('device', {}) if isinstance(status.get('device', {}), dict) else {}
-            old_volume = old_device.get('volume_percent', 0)
-            new_volume = new_device.get('volume_percent', 0)
-
-            if old_volume != new_volume:
-                logger.info(f"Volume changed: {old_volume}% → {new_volume}%")
-                self._trigger_callbacks('volume_changed', volume=new_volume)
 
             # Update current status
             self.current_status = status
-            if status.get('track'):
-                self.current_track = self._format_track_info(status)
-
         except Exception as e:
             logger.error(f"Error checking for changes: {e}", exc_info=True)
     
@@ -281,17 +238,17 @@ class LibrespotMonitor:
             logger.error(f"Error getting current status: {e}")
             return None
            
-    def print_current_track(self):
-        """Print current track to console."""
-        track = self.get_current_track()
-        if track and track['name'] != 'No Track':
-            progress = track.get('progress_ms', 0) // 1000
-            duration = track.get('duration_ms', 0) // 1000
-            progress_str = f" ({progress//60}:{progress%60:02d}/{duration//60}:{duration%60:02d})"
-            playing_status = "▶️" if track.get('is_playing') else "⏸️"
-            print(f"🎵 {playing_status} Now playing: {track['artists']} - {track['name']}{progress_str}")
-        else:
-            print("🎵 No track currently playing")
+    # def print_current_track(self):
+    #     """Print current track to console."""
+    #     track = self.get_current_track()
+    #     if track and track['name'] != 'No Track':
+    #         progress = track.get('progress_ms', 0) // 1000
+    #         duration = track.get('duration_ms', 0) // 1000
+    #         progress_str = f" ({progress//60}:{progress%60:02d}/{duration//60}:{duration%60:02d})"
+    #         playing_status = "▶️" if track.get('is_playing') else "⏸️"
+    #         print(f"🎵 {playing_status} Now playing: {track['artists']} - {track['name']}{progress_str}")
+    #     else:
+    #         print("🎵 No track currently playing")
     
     def run_forever(self):
         """Run monitoring loop forever."""

@@ -31,16 +31,17 @@ class BluetoothController:
     and PulseAudio integration for volume control.
     """
     
-    def __init__(self, adapter_path='/org/bluez/hci0'):
+    def __init__(self, client, monitor, adapter_path='/org/bluez/hci0'):
         """
         Initialize Bluetooth controller.
         
         Args:
             adapter_path: Path to Bluetooth adapter (default: /org/bluez/hci0)
         """
+        self.client = client
+        self.monitor = monitor
         self.adapter_path = adapter_path
-        self.client: Optional[BlueZClient] = None
-        self.monitor: Optional[BluetoothMonitor] = None
+
         self.mainloop: Optional[GLib.MainLoop] = None
         self.mainloop_thread: Optional[threading.Thread] = None
         
@@ -78,14 +79,8 @@ class BluetoothController:
                 # Scan existing devices
                 self._scan_existing_devices()
 
-                # Create Bluetooth monitor
-                self.monitor = BluetoothMonitor(self.client)
 
-                # Initialize AVRCP client (device-independent)
-                from .avrcp_client import AVRCPClient
-                self.avrcp_client = AVRCPClient()
-                self.monitor.avrcp_client = self.avrcp_client
-                logger.info("✅ BluetoothController: AVRCPClient initialized and assigned to monitor")
+
 
                 # Start Bluetooth monitor
                 self.monitor.start_monitoring()

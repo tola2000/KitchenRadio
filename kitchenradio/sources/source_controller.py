@@ -11,12 +11,13 @@ from enum import Enum
 from kitchenradio import config
 
 # Import backends
+
 from kitchenradio.sources.mediaplayer import KitchenRadioClient as MPDClient, PlaybackController as MPDController, NowPlayingMonitor as MPDMonitor
 from kitchenradio.sources.spotify import KitchenRadioLibrespotClient, LibrespotController, LibrespotMonitor
 
 # Bluetooth imports are optional (Linux only)
 try:
-    from kitchenradio.sources.bluetooth import BlueZClient, BluetoothController, BluetoothMonitor
+    from kitchenradio.sources.bluetooth import AVRCPClient, BlueZClient, BluetoothController, BluetoothMonitor
     BLUETOOTH_AVAILABLE = True
 except ImportError:
     BLUETOOTH_AVAILABLE = False
@@ -65,7 +66,10 @@ class SourceController:
         self.librespot_monitor = None
         self.librespot_connected = False
         
+        self.bluetooth_bluez_client = None
+        self.bluetooth_avrcp_client = None
         self.bluetooth_controller = None
+        self.bluetooth_monitor = None
         self.bluetooth_connected = False
         
         # Current active source
@@ -201,8 +205,11 @@ class SourceController:
             return False
         
         try:
-            self.bluetooth_controller = BluetoothController()
-            
+            self.bluetooth_avrcp_client = AVRCPClient()
+            self.bluetooth_bluez_client = BlueZClient()
+            self.bluetooth_monitor = BluetoothMonitor(self.bluetooth_bluez_client, self.bluetooth_avrcp_client)
+            self.bluetooth_controller = BluetoothController(self.bluetooth_bluez_client)
+
             # Give it time to initialize
             time.sleep(0.5)
             
@@ -303,17 +310,17 @@ class SourceController:
         
         return True
     
-    def switch_to_mpd(self) -> bool:
-        """Switch to MPD source"""
-        return self.set_source(BackendType.MPD)
+    # def switch_to_mpd(self) -> bool:
+    #     """Switch to MPD source"""
+    #     return self.set_source(BackendType.MPD)
     
-    def switch_to_spotify(self) -> bool:
-        """Switch to Spotify (librespot) source"""
-        return self.set_source(BackendType.LIBRESPOT)
+    # def switch_to_spotify(self) -> bool:
+    #     """Switch to Spotify (librespot) source"""
+    #     return self.set_source(BackendType.LIBRESPOT)
     
-    def switch_to_bluetooth(self) -> bool:
-        """Switch to Bluetooth source"""
-        return self.set_source(BackendType.BLUETOOTH)
+    # def switch_to_bluetooth(self) -> bool:
+    #     """Switch to Bluetooth source"""
+    #     return self.set_source(BackendType.BLUETOOTH)
     
     def _stop_source(self, source: BackendType):
         """Stop playback on specified source"""
@@ -747,10 +754,11 @@ class SourceController:
                         'name': self.bluetooth_controller.current_device_name,
                         'mac': device_mac
                     })
+                bluetooth_status = self.librespot_monitor.get_status()
                 
-                bluetooth_volume = self.bluetooth_controller.get_volume() if hasattr(self.bluetooth_controller, 'get_volume') else None
-                current_track = self.bluetooth_controller.get_current_track() if hasattr(self.bluetooth_controller, 'get_current_track') else None
-                playback_status = self.bluetooth_controller.get_playback_status() if hasattr(self.bluetooth_controller, 'get_playback_status') else None
+                # bluetooth_volume = self.bluetooth_controller.get_volume() if hasattr(self.bluetooth_controller, 'get_volume') else None
+                # current_track = self.bluetooth_controller.get_current_track() if hasattr(self.bluetooth_controller, 'get_current_track') else None
+                # playback_status = self.bluetooth_controller.get_playback_status() if hasattr(self.bluetooth_controller, 'get_playback_status') else None
 
                 status['bluetooth'] = {
                     'connected': True,

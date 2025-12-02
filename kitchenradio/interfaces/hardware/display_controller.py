@@ -92,35 +92,7 @@ class DisplayController:
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
         self._kitchen_radio_was_running = False
         
-        # Current display tracking
-        self.current_display_type = None  # 'track_info', 'status_message', 'menu', 'volume', etc.
-        self.current_display_data = None  # Last data used to render current display
-        
-        # Truncation info storage - JSON structure with original strings as keys
-        self.last_truncation_info = {}
-        self.current_scroll_offsets = {}  # Track current scroll positions for each string
-        
-        # Scrolling state (use config values)
-        self.scrolling_active = False
-        self.scroll_timer = None
-        self.scroll_update_interval = 0.2  # Update every 200ms
-        self.scroll_pause_duration = display_config.SCROLL_PAUSE_DURATION
-        # Per-key timestamp (epoch) until which scrolling is paused for that key
-        self.scroll_pause_until: Dict[str, float] = {}
-      
-        # Overlay state (for volume, menu, etc.) - use config values
-        self.overlay_active = False
-        self.overlay_type = None  # 'volume', 'menu', etc.
-        self.overlay_end_time = 0
-        self.overlay_timeout = display_config.MENU_OVERLAY_TIMEOUT  # Default timeout from config
-        self.last_volume = None
-        self.last_volume_change_time = 0  # Track when volume was last changed
-        self.volume_change_ignore_duration = display_config.VOLUME_CHANGE_IGNORE_DURATION
-
-        self.selected_index = 0
-        self.on_menu_selected: None
-
-        self.scroll_step = display_config.SCROLL_STEP
+        # ...existing code...
 
         # Threading for updates
         self.update_thread = None
@@ -340,50 +312,39 @@ class DisplayController:
             
 
             logger.debug(f"[Got status] Full status: {current_status}") 
-            # Update last volume for tracking
-            current_volume = self._get_current_volume(current_status)
 
-            # Determine display content based on current source
+
+            # Determine display content based on current source and status only
             current_source = current_status.get('current_source')
             current_powered_on = current_status.get('powered_on', False)
-            
+
             # Detect power state change
-            power_state_changed = (self.last_powered_on is not None and 
-                                  current_powered_on != self.last_powered_on)
-            
+            power_state_changed = (self.last_powered_on is not None and current_powered_on != self.last_powered_on)
             if power_state_changed:
                 logger.info(f"Power state transition detected: {self.last_powered_on} -> {current_powered_on}, source: {current_source}")
-            
+
             # Check for overlay dismissal first
             overlay_dismissed = self._dismiss_overlay()
-       
+
             # If overlay is active, skip all normal updates (including scroll) to prevent interference
             if self.overlay_active:
                 # Check if we should ignore volume updates (recently changed by user)
                 time_since_volume_change = time.time() - self.last_volume_change_time
-                ignore_volume_updates = time_since_volume_change < self.volume_change_ignore_duration
-
-                # If volume overlay is active, only update volume overlay, skip track info for both MPD and Spotify
-                if self.overlay_type == 'volume' and (current_volume != self.last_volume):
-                    if not ignore_volume_updates:
+                if self.overlay_type == 'volume':
+                    current_volume = self._get_current_volume(current_status)
+                    if (current_volume != self.last_volume):
                         self._render_volume_overlay(current_volume)
                         self.last_volume = current_volume
-                    return
-                elif self.overlay_type == 'volume':
-                    # Always skip track info updates for MPD and Spotify when volume overlay is active
-                    return
+                        return
                 else:
-                    # Non-volume overlay active, skip all updates
                     return
-            
+
             # No overlay active - check if scroll update is needed
             scroll_update = self._is_scroll_update_needed()
-        
+
             # Handle power off state
             if not current_powered_on:
-                # Powered off - show clock and clear display state
                 self.last_powered_on = current_powered_on
-                # Clear display state so next power on shows fresh content
                 self.last_status = None
                 self.current_display_type = None
                 self.current_display_data = None
@@ -397,17 +358,16 @@ class DisplayController:
                 self.last_powered_on = current_powered_on
                 self._render_no_source_display(current_status)
                 return
-            
-            # Check if status has changed or force refresh or first update after initialization or power state changed
-            if not self.overlay_active and ( (current_volume != self.last_volume ) or current_status != self.last_status or overlay_dismissed or force_refresh or self._first_update or power_state_changed ):
+
+            # Only update display if status has changed or force refresh or first update or power state changed
+            if not self.overlay_active and (current_status != self.last_status or overlay_dismissed or force_refresh or self._first_update or power_state_changed):
                 if self._first_update:
                     logger.info("First display update after initialization - forcing render")
                     self._first_update = False
                 if power_state_changed:
                     logger.info(f"Power state changed: {self.last_powered_on} -> {current_powered_on} - forcing render")
-                
+
                 self.last_status = current_status
-                self.last_volume = current_volume
                 self.last_powered_on = current_powered_on
 
                 if current_source == 'mpd' and current_status.get('mpd', {}).get('connected'):
@@ -415,7 +375,6 @@ class DisplayController:
                     self._render_mpd_display(current_status['mpd'])
                     return
                 elif current_source == 'librespot':
-                    # Render Spotify display regardless of connection status - will show "Niet Actief" if not connected
                     logger.info(f"Rendering Spotify display after status/power change")
                     self._render_librespot_display(current_status.get('librespot', {'connected': False, 'volume': 50, 'current_track': None}))
                     return
@@ -427,16 +386,15 @@ class DisplayController:
                     logger.info(f"Rendering no source display after status/power change")
                     self._render_no_source_display(current_status)
                     return
+
             # Handle scroll updates - refresh current display with updated scroll offsets
             if not self.current_display_type or not self.current_display_data:
-                return                
+                return
             elif scroll_update:
-                # Update scroll offsets in current display data
                 display_data = self.current_display_data.copy()
                 display_data['scroll_offsets'] = self.current_scroll_offsets
-                # Render with appropriate formatter
                 self._render_display_content(self.current_display_type, display_data)
-            return         
+            return
         except Exception as e:
             logger.error(f"Error updating display: {e}")
 

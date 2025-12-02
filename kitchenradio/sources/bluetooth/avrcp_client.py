@@ -16,7 +16,7 @@ import dbus
 import logging
 from typing import Optional, Dict, Any, Callable
 
-from .monitor import AVRCPState, TrackInfo, PlaybackStatus
+from .monitor import AVRCPState, TrackInfo,  PlaybackState
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class AVRCPClient:
 
         # Callbacks
         self.on_track_changed: Optional[Callable[[str, TrackInfo], None]] = None  # device_path, track_info
-        self.on_status_changed: Optional[Callable[[str, PlaybackStatus], None]] = None  # device_path, status
+        self.on_status_changed: Optional[Callable[[str, PlaybackState], None]] = None  # device_path, status
 
         self._connect_dbus()
         self._register_global_media_player_listener()
