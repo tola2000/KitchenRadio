@@ -205,13 +205,16 @@ class MPDMonitor:
             # Parse new state
             new_state = self._parse_playback_status(status_data)
             
-            # Check for playback state change
-            if self.current_status != new_state:
+            # Check for playback state change (check individual fields)
+            status_changed = self.current_status.status != new_state.status
+            volume_changed = self.current_status.volume != new_state.volume
+            
+            if status_changed or volume_changed:
                 # Log changes
-                if self.current_status.status != new_state.status:
-                    logger.info(f"Playback status changed: {self.current_status.status} → {new_state.status}")
-                if self.current_status.volume != new_state.volume:
-                    logger.debug(f"Volume changed: {self.current_status.volume} → {new_state.volume}")
+                if status_changed:
+                    logger.info(f"🎵 [MPD] Playback status changed: {self.current_status.status.value} → {new_state.status.value}")
+                if volume_changed:
+                    logger.info(f"🔊 [MPD] Volume changed: {self.current_status.volume} → {new_state.volume}")
                 
                 self.current_status = new_state
                 self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())

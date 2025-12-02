@@ -156,14 +156,17 @@ class LibrespotMonitor:
             new_state = self._parse_playback_status(status)
             
             # Compare states (status and volume)
-            if self.current_status != new_state:
+            status_changed = self.current_status.status != new_state.status
+            volume_changed = self.current_status.volume != new_state.volume
+            
+            if status_changed or volume_changed:
                 # If status changed (enum)
-                if self.current_status.status != new_state.status:
-                    logger.info(f"Playback status changed: {self.current_status.status} → {new_state.status}")
+                if status_changed:
+                    logger.info(f"🎵 [Spotify] Playback status changed: {self.current_status.status.value} → {new_state.status.value}")
                 
                 # If volume changed
-                if self.current_status.volume != new_state.volume:
-                    logger.debug(f"Volume changed: {self.current_status.volume} → {new_state.volume}")
+                if volume_changed:
+                    logger.info(f"🔊 [Spotify] Volume changed: {self.current_status.volume} → {new_state.volume}")
 
                 self.current_status = new_state
                 self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
