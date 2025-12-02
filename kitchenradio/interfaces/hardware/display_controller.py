@@ -178,17 +178,42 @@ class DisplayController:
         # Don't process callbacks during shutdown
         if self._shutting_down:
             return
-            
-        # Update cache from event data
-        if 'playback_state' in kwargs:
-            self.cached_playback_state = kwargs['playback_state']
-            logger.debug(f"Display cache updated: playback_state = {kwargs['playback_state']}")
-        if 'track_info' in kwargs:
-            self.cached_track_info = kwargs['track_info']
-            track = kwargs['track_info']
-            logger.info(f"📀 Display cache updated: track_info = {track.title if track else 'None'}")
+        
+        # Detect source change - if source changed, refresh all cached values from new source
+        source_changed = False
         if 'source_info' in kwargs:
-            self.cached_source_info = kwargs['source_info']
+            new_source_info = kwargs['source_info']
+            if self.cached_source_info:
+                # Check if source type changed
+                old_source = self.cached_source_info.source if hasattr(self.cached_source_info, 'source') else None
+                new_source = new_source_info.source if hasattr(new_source_info, 'source') else None
+                if old_source != new_source:
+                    source_changed = True
+                    logger.info(f"🔄 Source changed in display: {old_source.value if old_source else 'none'} → {new_source.value if new_source else 'none'}")
+            self.cached_source_info = new_source_info
+        
+        # If source changed, fetch fresh state from SourceController for new source
+        if source_changed and self.source_controller:
+            logger.info("🔄 Refreshing display cache for new source...")
+            try:
+                self.cached_playback_state = self.source_controller.get_playback_state()
+                self.cached_track_info = self.source_controller.get_track_info()
+                self.cached_source_info = self.source_controller.get_source_info()
+                self.cached_powered_on = self.source_controller.powered_on
+                logger.info(f"✅ Display cache refreshed - Track: {self.cached_track_info.title if self.cached_track_info else 'None'}")
+            except Exception as e:
+                logger.error(f"Error refreshing cache for new source: {e}")
+        else:
+            # Normal event-driven updates (no source change)
+            if 'playback_state' in kwargs:
+                self.cached_playback_state = kwargs['playback_state']
+                logger.debug(f"Display cache updated: playback_state = {kwargs['playback_state']}")
+            if 'track_info' in kwargs:
+                self.cached_track_info = kwargs['track_info']
+                track = kwargs['track_info']
+                logger.info(f"📀 Display cache updated: track_info = {track.title if track else 'None'}")
+        
+        # Always update these regardless of source change
         if 'powered_on' in kwargs:
             self.cached_powered_on = kwargs['powered_on']
         if 'current_source' in kwargs:
