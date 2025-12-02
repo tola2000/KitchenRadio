@@ -541,33 +541,28 @@ Examples:
     # Handle status request
     if args.status:
         if daemon.start():
-            status = daemon.source_controller.get_status()
+            # status = daemon.source_controller.get_status()
+            source = daemon.source_controller.get_current_source()
+            powered_on = daemon.source_controller.powered_on
+            playback_state = daemon.source_controller.get_playback_state()
+            track_info = daemon.source_controller.get_track_info()
+            
             print(f"KitchenRadio Status:")
-            print(f"  Current Source: {status.get('current_source', 'none')}")
-            print(f"  Available Sources: {', '.join(status.get('available_sources', []))}")
-            print(f"  Powered On: {status.get('powered_on', False)}")
+            print(f"  Current Source: {source.value if source else 'none'}")
+            # print(f"  Available Sources: {', '.join(status.get('available_sources', []))}")
+            print(f"  Powered On: {powered_on}")
             
-            # MPD Status
-            mpd_status = status.get('mpd', {})
-            print(f"\nMPD:")
-            print(f"  Connected: {mpd_status.get('connected', False)}")
-            if mpd_status.get('connected'):
-                print(f"  State: {mpd_status.get('state', 'unknown')}")
-                print(f"  Volume: {mpd_status.get('volume', 'unknown')}%")
-                current = mpd_status.get('current_track')
-                if current and current.get('title'):
-                    print(f"  Current: {current.get('artist', 'Unknown')} - {current.get('title', 'Unknown')}")
+            print(f"\nPlayback:")
+            print(f"  State: {playback_state.status.value}")
+            print(f"  Volume: {playback_state.volume}%")
             
-            # Librespot Status
-            librespot_status = status.get('librespot', {})
-            print(f"\nSpotify (librespot):")
-            print(f"  Connected: {librespot_status.get('connected', False)}")
-            if librespot_status.get('connected'):
-                print(f"  State: {librespot_status.get('state', 'unknown')}")
-                print(f"  Volume: {librespot_status.get('volume', 'unknown')}%")
-                current = librespot_status.get('current_track')
-                if current and current.get('title'):
-                    print(f"  Current: {current.get('artist', 'Unknown')} - {current.get('title', 'Unknown')}")
+            if track_info and track_info.title:
+                print(f"  Current: {track_info.artist} - {track_info.title}")
+            
+            # Librespot Status - Covered by generic playback info above
+            # librespot_status = status.get('librespot', {})
+            # print(f"\nSpotify (librespot):")
+            # ...
             
             daemon.stop()
             return 0

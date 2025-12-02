@@ -379,37 +379,32 @@ class BluetoothMonitor:
         
         logger.info("✅ Bluetooth monitor stopped")
     
-    def get_track_info(self) -> Optional[Dict[str, Any]]:
+    def get_track_info(self) -> Optional[TrackInfo]:
         """
         Get current track information.
         
         Returns:
-            Formatted track info dict or None
+            Formatted track info object or None
         """
-        if self.current_track:
-            return self.current_track.to_dict()
-        return None
+        return self.current_track
 
-    def get_source_info(self) -> Dict[str, Any]:
+    def get_source_info(self) -> SourceInfo:
         """
         Get current source information.
         
         Returns:
-            Source info dict
+            Source info object
         """
-        return self.current_source_info.to_dict()
+        return self.current_source_info
 
-    def get_playback_state(self) -> Dict[str, Any]:
+    def get_playback_state(self) -> PlaybackState:
         """
         Get current playback state.
         
         Returns:
-            Playback state dict (status, volume)
+            Playback state object
         """
         volume = self.client.get_volume()
-             
-        return {
-            'status': self.current_status.value if self.current_status else 'unknown',
-            'volume': volume
-        }
+        status = self.current_status if self.current_status else PlaybackStatus.UNKNOWN
+        return PlaybackState(status=status, volume=volume)
     

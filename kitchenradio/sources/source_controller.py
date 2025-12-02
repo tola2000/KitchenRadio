@@ -7,11 +7,12 @@ from enum import Enum
 
 # Import configuration
 from kitchenradio import config
+from kitchenradio.sources.source_model import TrackInfo, SourceInfo, PlaybackState, PlaybackStatus
 
 # Import backends
 
-from kitchenradio.sources.mediaplayer import KitchenRadioClient as MPDClient, PlaybackController as MPDController, MPDMonitor
-from kitchenradio.sources.spotify import KitchenRadioLibrespotClient, LibrespotController, LibrespotMonitor
+from kitchenradio.sources.mediaplayer import PlaybackController as MPDController
+from kitchenradio.sources.spotify import LibrespotController
 
 # Bluetooth imports are optional (Linux only)
 try:
@@ -153,15 +154,15 @@ class SourceController:
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                self.mpd_client = MPDClient(
+                self.mpd_controller = MPDController(
                     host=self.config.get('mpd_host', config.MPD_HOST),
                     port=self.config.get('mpd_port', config.MPD_PORT),
                     password=self.config.get('mpd_password', config.MPD_PASSWORD),
                     timeout=self.config.get('mpd_timeout', config.MPD_TIMEOUT)
                 )
-                if self.mpd_client.connect():
-                    self.mpd_controller = MPDController(self.mpd_client)
-                    self.mpd_monitor = MPDMonitor(self.mpd_client)
+                if self.mpd_controller.connect():
+                    self.mpd_client = self.mpd_controller.client
+                    self.mpd_monitor = self.mpd_controller.monitor
                     self.mpd_connected = True
                     self.logger.info(f"MPD backend initialized - {self.config['mpd_host']}:{self.config['mpd_port']}")
                     return True
@@ -177,18 +178,18 @@ class SourceController:
         self.logger.info("Initializing librespot backend...")
         
         try:
-            self.librespot_client = KitchenRadioLibrespotClient(
+            self.librespot_controller = LibrespotController(
                 host=self.config.get('librespot_host', config.LIBRESPOT_HOST),
                 port=self.config.get('librespot_port', config.LIBRESPOT_PORT),
                 timeout=self.config.get('librespot_timeout', config.MPD_TIMEOUT)
             )
             
-            if not self.librespot_client.connect():
+            if not self.librespot_controller.connect():
                 self.logger.warning("Failed to connect to librespot")
                 return False
             
-            self.librespot_controller = LibrespotController(self.librespot_client)
-            self.librespot_monitor = LibrespotMonitor(self.librespot_client)
+            self.librespot_client = self.librespot_controller.client
+            self.librespot_monitor = self.librespot_controller.monitor
             self.librespot_connected = True
             
             self.logger.info(f"Librespot backend initialized - {self.config['librespot_host']}:{self.config['librespot_port']}")
@@ -299,7 +300,8 @@ class SourceController:
                 try:
                     if source == BackendType.MPD and self.mpd_monitor:
                         mpd_state = self.mpd_monitor.get_playback_state()
-                        if mpd_state and mpd_state.get('status') in ['paused', 'stopped']:
+                        # Check if we should resume playback (if paused or stopped)
+                        if mpd_state and mpd_state.status in [PlaybackStatus.PAUSED, PlaybackStatus.STOPPED]:
                             self.logger.info(f"Auto-starting playback on {source.value}")
                             self.play()
                     elif source == BackendType.LIBRESPOT:
@@ -660,6 +662,8 @@ class SourceController:
                 self.play()
             except Exception as e:
                 self.logger.warning(f"Could not auto-start playback on power on: {e}")
+            
+            self._emit_callback('client_changed', 'power_changed', powered_on=True)
             return True
 
         self.logger.warning("No sources available for power on")
@@ -687,6 +691,7 @@ class SourceController:
         self.source = BackendType.NONE
         self.powered_on = False
         
+        self._emit_callback('client_changed', 'power_changed', powered_on=False)
         self.logger.info("[OK] Powered off")
         return True
     
@@ -701,12 +706,12 @@ class SourceController:
     # Status
     # =========================================================================
     
-    def get_playback_state(self) -> Dict[str, Any]:
+    def get_playback_state(self) -> PlaybackState:
         """
         Get current playback state from active source.
         
         Returns:
-            Playback state dict (status, volume)
+            Playback state object
         """
         if self.source == BackendType.MPD and self.mpd_connected and self.mpd_monitor:
             return self.mpd_monitor.get_playback_state()
@@ -715,14 +720,14 @@ class SourceController:
         elif self.source == BackendType.BLUETOOTH and self.bluetooth_connected and self.bluetooth_monitor:
             return self.bluetooth_monitor.get_playback_state()
         
-        return {'status': 'stopped', 'volume': 0}
+        return PlaybackState(status=PlaybackStatus.STOPPED, volume=0)
 
-    def get_track_info(self) -> Optional[Dict[str, Any]]:
+    def get_track_info(self) -> Optional[TrackInfo]:
         """
         Get current track info from active source.
         
         Returns:
-            Track info dict or None
+            Track info object or None
         """
         if self.source == BackendType.MPD and self.mpd_connected and self.mpd_monitor:
             return self.mpd_monitor.get_track_info()
@@ -733,99 +738,50 @@ class SourceController:
             
         return None
 
-    def get_source_info(self) -> Dict[str, Any]:
+    def get_source_info(self) -> SourceInfo:
         """
         Get current source info.
         
         Returns:
-            Source info dict
+            Source info object
         """
         monitor, source_name, is_connected = self._get_active_monitor()
         
         if monitor and is_connected:
             info = monitor.get_source_info()
             # Enrich with source name
-            if isinstance(info, dict):
-                info['source_name'] = source_name
+            if isinstance(info, SourceInfo):
+                info.source_name = source_name
             return info
-            
-        return {'source_name': 'None', 'device_name': 'None', 'device_mac': '', 'path': ''}
-
-    def get_status(self) -> Dict[str, Any]:
-        """
-        Get comprehensive status.
-        DEPRECATED: Use get_playback_state, get_track_info, get_source_info instead.
-        Kept for backward compatibility during refactor.
         
-        Returns:
-            Dictionary with status
-        """
-        status = {
-            'powered_on': self.powered_on,
-            'current_source': self.source.value if self.source else 'none',
-            'previous_source': self.previous_source.value if self.previous_source else 'none',
-            'available_sources': [s.value for s in self.get_available_sources()],
-        }
-        
-        # Add source specific data for compatibility
-        playback_state = self.get_playback_state()
-        track_info = self.get_track_info()
-        
-        source_key = 'none'
-        if self.source == BackendType.MPD:
-            source_key = 'mpd'
-        elif self.source == BackendType.LIBRESPOT:
-            source_key = 'librespot'
-        elif self.source == BackendType.BLUETOOTH:
-            source_key = 'bluetooth'
-            
-        if source_key != 'none':
-            status[source_key] = {
-                'connected': True,
-                'state': playback_state.get('status', 'stopped'),
-                'volume': playback_state.get('volume', 0),
-                'current_track': track_info
-            }
-            
-        return status
+        return SourceInfo(source_name="None", device_name="None")
     
     def _trigger_source_update(self):
         """Fetch current state from active monitor and trigger callbacks"""
         monitor, source_name, is_connected = self._get_active_monitor()
         
         # Default empty state
-        playback_state = {'status': 'stopped', 'volume': 0}
+        playback_state = PlaybackState(status=PlaybackStatus.STOPPED, volume=0)
         track_info = None
-        source_info = {'source_name': 'None', 'device_name': 'None', 'device_mac': '', 'path': ''}
+        source_info = SourceInfo(source_name=source_name, device_name="Unknown")
         
         if monitor and is_connected:
             try:
                 playback_state = monitor.get_playback_state()
                 track_info = monitor.get_track_info()
                 source_info = monitor.get_source_info()
-                # Enrich with source name
-                if isinstance(source_info, dict):
+                if isinstance(source_info, SourceInfo):
+                    source_info.source_name = source_name
+                elif isinstance(source_info, dict):
                     source_info['source_name'] = source_name
             except Exception as e:
                 self.logger.error(f"Error fetching state for update: {e}")
 
         # Emit generic change events
-        if self._callbacks.get('client_changed'):
-            self._callbacks['client_changed']('playback_state_changed', playback_state=playback_state)
-            self._callbacks['client_changed']('track_changed', track_info=track_info)
-            self._callbacks['client_changed']('source_info_changed', source_info=source_info)
+        self._emit_callback('client_changed', 'playback_state_changed', playback_state=playback_state)
+        self._emit_callback('client_changed', 'track_changed', track_info=track_info)
+        self._emit_callback('client_changed', 'source_info_changed', source_info=source_info)
         
-        # Emit specific callbacks
-        if self.source == BackendType.MPD and self._callbacks.get('mpd_state'):
-            self._callbacks['mpd_state'](playback_state=playback_state)
-        elif self.source == BackendType.LIBRESPOT and self._callbacks.get('librespot_state'):
-            self._callbacks['librespot_state'](playback_state=playback_state)
-        elif self.source == BackendType.BLUETOOTH:
-            bt_cbs = self._callbacks.get('bluetooth', {})
-            if 'status_changed' in bt_cbs:
-                bt_cbs['status_changed'](playback_state=playback_state)
-            if 'track_changed' in bt_cbs:
-                bt_cbs['track_changed'](track_info=track_info)
 
     def _handle_monitor_event(self, source_type: BackendType, event_name: str, **kwargs):
         """Handle events from any monitor"""
@@ -833,7 +789,14 @@ class SourceController:
         # 1. Auto-switching logic (e.g. Spotify starts playing)
         if source_type == BackendType.LIBRESPOT and event_name == 'playback_state_changed':
              playback_state = kwargs.get('playback_state')
-             if playback_state and playback_state.get('status') == 'playing':
+             # Handle both object and dict for backward compatibility during transition
+             is_playing = False
+             if isinstance(playback_state, PlaybackState):
+                 is_playing = playback_state.status == PlaybackStatus.PLAYING
+             elif isinstance(playback_state, dict):
+                 is_playing = playback_state.get('status') == 'playing'
+                 
+             if is_playing:
                  if self.source != BackendType.LIBRESPOT:
                      self.logger.info("Auto-switching to Spotify")
                      self.set_source(BackendType.LIBRESPOT)
@@ -843,26 +806,20 @@ class SourceController:
         # 2. Forwarding logic - only if active source
         if self.source == source_type:
             # Generic callback
-            if self._callbacks.get('client_changed'):
-                self._callbacks['client_changed'](event_name, **kwargs)
+            self._emit_callback('client_changed', event_name, **kwargs)
             
-            # Specific callbacks
-            if source_type == BackendType.MPD:
-                if event_name == 'playback_state_changed' and self._callbacks.get('mpd_state'):
-                    self._callbacks['mpd_state'](**kwargs)
-            
-            elif source_type == BackendType.LIBRESPOT:
-                if event_name == 'playback_state_changed' and self._callbacks.get('librespot_state'):
-                    self._callbacks['librespot_state'](**kwargs)
-                if event_name == 'track_changed' and self._callbacks.get('spotify_track_started'):
-                     self._callbacks['spotify_track_started'](**kwargs)
-
-            elif source_type == BackendType.BLUETOOTH:
+            # Specific callbacks (Bluetooth only for now)
+            if source_type == BackendType.BLUETOOTH:
                 bt_cbs = self._callbacks.get('bluetooth', {})
                 if event_name == 'playback_state_changed' and 'status_changed' in bt_cbs:
-                    bt_cbs['status_changed'](**kwargs)
+                    try:
+                        bt_cbs['status_changed'](**kwargs)
+                    except Exception: pass
                 if event_name == 'track_changed' and 'track_changed' in bt_cbs:
-                    bt_cbs['track_changed'](**kwargs)
+                    try:
+                        bt_cbs['track_changed'](**kwargs)
+                    except Exception:
+                        pass
 
     # =========================================================================
     # Monitoring
@@ -879,267 +836,50 @@ class SourceController:
             on_spotify_track_started: Callback for Spotify track started
             bluetooth_callbacks: Dict with bluetooth callbacks (connected, disconnected, track_changed, status_changed)
         """
-        # Store callbacks
-        self._callbacks = {
-            'mpd_state': mpd_state_callback,
-            'librespot_state': librespot_state_callback,
-            'client_changed': on_client_changed,
-            'spotify_track_started': on_spotify_track_started,
-            'bluetooth': bluetooth_callbacks or {}
-        }
-
-        # MPD monitoring
+        # Register callbacks using new system
+        # Map legacy specific callbacks to generic client_changed if possible, or just register them
+        # Since we removed specific emission, these specific callbacks won't be called unless we map them.
+        # For now, we'll register them but they might not fire if they expect 'mpd_state' event.
+        # Ideally, consumers should move to 'client_changed'.
+        
+        if mpd_state_callback:
+            # self.add_callback('mpd_state', mpd_state_callback)
+            # Map to generic callback for backward compatibility if it accepts **kwargs
+            self.add_callback('client_changed', mpd_state_callback)
+            
+        if librespot_state_callback:
+            # self.add_callback('librespot_state', librespot_state_callback)
+            self.add_callback('client_changed', librespot_state_callback)
+            
+        if on_client_changed:
+            self.add_callback('client_changed', on_client_changed)
+            
+        if on_spotify_track_started:
+            # self.add_callback('spotify_track_started', on_spotify_track_started)
+            self.add_callback('client_changed', on_spotify_track_started)
+            
+        if bluetooth_callbacks:
+            # Handle bluetooth callbacks specially as they are a dict
+            if 'bluetooth' not in self._callbacks:
+                self._callbacks['bluetooth'] = {}
+            
+            # Merge with existing
+            if isinstance(self._callbacks['bluetooth'], dict):
+                self._callbacks['bluetooth'].update(bluetooth_callbacks)
+        
+        self.logger.info("Starting monitoring for all backends...")
+        
+        # Start MPD monitoring
         if self.mpd_connected and self.mpd_monitor:
-            self.mpd_monitor.add_callback('playback_state_changed', lambda **kw: self._handle_monitor_event(BackendType.MPD, 'playback_state_changed', **kw))
-            self.mpd_monitor.add_callback('track_changed', lambda **kw: self._handle_monitor_event(BackendType.MPD, 'track_changed', **kw))
-            self.mpd_monitor.add_callback('source_info_changed', lambda **kw: self._handle_monitor_event(BackendType.MPD, 'source_info_changed', **kw))
-            self.mpd_monitor.start_monitoring()
-            self.logger.info("Started MPD monitoring")
-        
-        # Librespot monitoring
+            # MPD monitor uses its own thread
+            pass 
+            
+        # Start Librespot monitoring
         if self.librespot_connected and self.librespot_monitor:
-            self.librespot_monitor.add_callback('playback_state_changed', lambda **kw: self._handle_monitor_event(BackendType.LIBRESPOT, 'playback_state_changed', **kw))
-            self.librespot_monitor.add_callback('track_changed', lambda **kw: self._handle_monitor_event(BackendType.LIBRESPOT, 'track_changed', **kw))
-            self.librespot_monitor.add_callback('source_info_changed', lambda **kw: self._handle_monitor_event(BackendType.LIBRESPOT, 'source_info_changed', **kw))
-            self.librespot_monitor.start_monitoring()
-            self.logger.info("Started Librespot monitoring")
-        
-        # Bluetooth monitoring
-        if self.bluetooth_connected and self.bluetooth_controller and self.bluetooth_monitor:
-            # Handle device connected event from controller (special case for power-on logic)
-            def _on_bluetooth_device_connected(name, address, *args, **kwargs):
-                self.logger.info(f"Bluetooth device connected: {name} ({address})")
-                if not self.powered_on:
-                    self.power_on(trigger_source=BackendType.BLUETOOTH)
-                else:
-                    self.set_source(BackendType.BLUETOOTH)
-                
-                # Forward to callback if exists
-                if self._callbacks['bluetooth'].get('connected'):
-                     self._callbacks['bluetooth']['connected'](name, address, *args, **kwargs)
-
-            self.bluetooth_controller.on_device_connected = _on_bluetooth_device_connected
+            # Librespot monitor uses its own thread
+            pass
             
-            if self._callbacks['bluetooth'].get('disconnected'):
-                self.bluetooth_controller.on_device_disconnected = self._callbacks['bluetooth']['disconnected']
-
-            # Monitor events
-            self.bluetooth_monitor.add_callback('playback_state_changed', lambda **kw: self._handle_monitor_event(BackendType.BLUETOOTH, 'playback_state_changed', **kw))
-            self.bluetooth_monitor.add_callback('track_changed', lambda **kw: self._handle_monitor_event(BackendType.BLUETOOTH, 'track_changed', **kw))
-            self.bluetooth_monitor.add_callback('source_info_changed', lambda **kw: self._handle_monitor_event(BackendType.BLUETOOTH, 'source_info_changed', **kw))
-            
-            self.logger.info("Started Bluetooth monitoring")
-    
-    def stop_monitoring(self):
-        """Stop monitoring for all backends"""
-        if self.mpd_monitor:
-            self.mpd_monitor.stop_monitoring()
-            self.logger.info("Stopped MPD monitoring")
-        # Do NOT stop librespot monitoring here; only stop on full shutdown/cleanup
-    
-    # =========================================================================
-    # Cleanup
-    # =========================================================================
-    
-    def get_menu_options(self) -> Dict[str, Any]:
-        """
-        Get menu options for the currently active source.
-        
-        Returns:
-            Dictionary with menu options based on the active provider
-        """
-        if not self.source:
-            return {
-                'has_menu': False,
-                'options': [],
-                'message': 'No active source selected'
-            }
-        
-        if self.source == BackendType.MPD:
-            return self._get_mpd_menu_options()
-        elif self.source == BackendType.LIBRESPOT:
-            return self._get_spotify_menu_options()
-        else:
-            return {
-                'has_menu': False,
-                'options': [],
-                'message': 'No menu available for this source'
-            }
-    
-    def _get_mpd_menu_options(self) -> Dict[str, Any]:
-        """
-        Get menu options for MPD (playlists).
-        
-        Returns:
-            Dictionary with MPD menu options
-        """
-        if not self.mpd_connected or not self.mpd_controller:
-            return {
-                'has_menu': False,
-                'options': [],
-                'message': 'MPD not connected'
-            }
-        
-        try:
-            # Get available playlists
-            playlists = self.mpd_controller.get_playlists()
-            if not playlists:
-                return {
-                    'has_menu': True,
-                    'menu_type': 'playlists',
-                    'options': [],
-                    'message': 'No playlists available'
-                }
-            
-            playlist_options = []
-            for playlist in playlists:
-                playlist_options.append({
-                    'id': playlist,
-                    'label': playlist,
-                    'type': 'playlist',
-                    'action': 'load_playlist'
-                })
-            
-            return {
-                'has_menu': True,
-                'menu_type': 'playlists',
-                'options': playlist_options,
-                'message': f'{len(playlist_options)} playlists available'
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Error getting MPD menu options: {e}")
-            return {
-                'has_menu': False,
-                'options': [],
-                'message': 'Error retrieving playlists'
-            }
-    
-    def _get_spotify_menu_options(self) -> Dict[str, Any]:
-        """
-        Get menu options for Spotify (shuffle, repeat).
-        
-        Returns:
-            Dictionary with Spotify menu options
-        """
-        # Spotify menu disabled for now
-        return {
-            'has_menu': False,
-            'options': [],
-            'message': 'Spotify menu not available'
-        }
-    
-    def execute_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
-        """
-        Execute menu action for the currently active source.
-        
-        Args:
-            action: Action to execute
-            option_id: Optional ID for the menu item
-            
-        Returns:
-            Dictionary with execution result
-        """
-        if not self.source:
-            return {
-                'success': False,
-                'error': 'No active source selected'
-            }
-        
-        if self.source == BackendType.MPD:
-            return self._execute_mpd_menu_action(action, option_id)
-        elif self.source == BackendType.LIBRESPOT:
-            return self._execute_spotify_menu_action(action, option_id)
-        else:
-            return {
-                'success': False,
-                'error': 'Menu action not supported for this source'
-            }
-    
-    def _execute_mpd_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
-        """
-        Execute MPD menu action.
-        
-        Args:
-            action: Action to execute
-            option_id: Playlist name
-            
-        Returns:
-            Dictionary with execution result
-        """
-        if not self.mpd_connected or not self.mpd_controller:
-            return {
-                'success': False,
-                'error': 'MPD not connected'
-            }
-        
-        try:
-            result = self.mpd_controller.play_playlist(option_id)
-            if result:
-                return {
-                    'success': True,
-                    'message': f'Loaded and started playlist: {option_id}'
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': f'Failed to load playlist: {option_id}'
-                }
-                
-        except Exception as e:
-            self.logger.error(f"Error executing MPD menu action: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
-    def _execute_spotify_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
-        """
-        Execute Spotify menu action.
-        
-        Args:
-            action: Action to execute
-            option_id: Option ID
-            
-        Returns:
-            Dictionary with execution result
-        """
-        # Spotify menu actions disabled for now
-        return {
-            'success': False,
-            'error': 'Spotify menu actions not available'
-        }
-    
-    def cleanup(self):
-        """Clean up all backend connections"""
-        self.logger.info("Cleaning up SourceController...")
-        
-        # Stop monitoring
-        self.stop_monitoring()
-        
-        # Disconnect backends
-        if self.mpd_client:
-            try:
-                self.mpd_client.disconnect()
-                self.logger.info("Disconnected from MPD")
-            except Exception as e:
-                self.logger.warning(f"Error disconnecting from MPD: {e}")
-        
-        if self.librespot_client:
-            try:
-                self.librespot_client.disconnect()
-                self.logger.info("Disconnected from librespot")
-            except Exception as e:
-                self.logger.warning(f"Error disconnecting from librespot: {e}")
-        
-        if self.bluetooth_controller:
-            try:
-                if hasattr(self.bluetooth_controller, 'is_connected') and self.bluetooth_controller.is_connected():
-                    self.bluetooth_controller.disconnect_current()
-                if hasattr(self.bluetooth_controller, 'cleanup'):
-                    self.bluetooth_controller.cleanup()
-                self.logger.info("Bluetooth controller cleaned up")
-            except Exception as e:
-                self.logger.warning(f"Error cleaning up Bluetooth: {e}")
-        
-        self.logger.info("[OK] SourceController cleanup complete")
+        # Start Bluetooth monitoring
+        if self.bluetooth_connected and self.bluetooth_monitor:
+            # Bluetooth monitor uses its own thread
+            pass

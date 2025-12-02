@@ -304,33 +304,31 @@ class MPDMonitor:
             else:
                 logger.debug("MPD monitor thread exited successfully")
     
-    def get_track_info(self) -> Optional[Dict[str, Any]]:
+    def get_track_info(self) -> Optional[TrackInfo]:
         """
         Get currently playing track info.
         
         Returns:
-            Current track info dict or None
+            Current track info object or None
         """
-        if self.current_track:
-            return self.current_track.to_dict()
-        return None
+        return self.current_track
         
-    def get_playback_state(self) -> Dict[str, Any]:
+    def get_playback_state(self) -> PlaybackState:
         """
         Get current playback state.
         
         Returns:
-            Playback state dict (status, volume)
+            Playback state object
         """
         if isinstance(self.current_status, PlaybackState):
-            return self.current_status.to_dict()
-        return {'status': 'unknown', 'volume': 0}
+            return self.current_status
+        return PlaybackState(status=PlaybackStatus.UNKNOWN, volume=0)
 
-    def get_source_info(self) -> Dict[str, Any]:
+    def get_source_info(self) -> SourceInfo:
         """
         Get source information.
         """
-        return self.current_source_info.to_dict()
+        return self.current_source_info
     
     def print_current_track(self):
         """Print current track to console."""

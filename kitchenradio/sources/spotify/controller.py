@@ -5,6 +5,7 @@ LibreSpot Controller - Control go-librespot playback
 import logging
 from typing import Optional, Dict, Any, List
 from .client import KitchenRadioLibrespotClient
+from .monitor import LibrespotMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +15,21 @@ class LibrespotController:
     Control go-librespot playback operations.
     """
     
-    def __init__(self, client: KitchenRadioLibrespotClient):
+    def __init__(self, host: str = "localhost", port: int = 24879, timeout: int = 10):
         """
-        Initialize controller with KitchenRadio librespot client.
+        Initialize controller with Librespot connection details.
         
         Args:
-            client: KitchenRadio librespot client instance
+            host: Librespot host
+            port: Librespot port
+            timeout: Connection timeout
         """
-        self.client = client
+        self.client = KitchenRadioLibrespotClient(host, port, timeout)
+        self.monitor = LibrespotMonitor(self.client)
+
+    def connect(self) -> bool:
+        """Connect to Librespot"""
+        return self.client.connect()
     
     def play(self) -> bool:
         """

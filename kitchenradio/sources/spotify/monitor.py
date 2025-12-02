@@ -245,38 +245,36 @@ class LibrespotMonitor:
             else:
                 logger.debug("Librespot monitor thread exited successfully")
     
-    def get_track_info(self) -> Optional[Dict[str, Any]]:
+    def get_track_info(self) -> Optional[TrackInfo]:
         """
         Get current track information.
         
         Returns:
-            Formatted track info dict or None
+            Formatted track info object or None
         """
-        if self.current_track:
-            return self.current_track.to_dict()
-        return None
+        return self.current_track
 
-    def get_source_info(self) -> Dict[str, Any]:
+    def get_source_info(self) -> SourceInfo:
         """
         Get current source information.
         
         Returns:
-            Source info dict
+            Source info object
         """
-        return self.current_source_info.to_dict()
+        return self.current_source_info
 
-    def get_playback_state(self) -> Dict[str, Any]:
+    def get_playback_state(self) -> PlaybackState:
         """
         Get current playback state.
         
         Returns:
-            Playback state dict (status, volume)
+            Playback state object
         """
         if isinstance(self.current_status, PlaybackState):
-            return self.current_status.to_dict()
+            return self.current_status
             
         # Fallback if somehow it's not initialized or wrong type
-        return {'status': 'unknown', 'volume': 0}
+        return PlaybackState(status=PlaybackStatus.UNKNOWN, volume=0)
     
     def run_forever(self):
         """Run monitoring loop forever."""

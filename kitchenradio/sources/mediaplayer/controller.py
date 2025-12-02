@@ -5,6 +5,7 @@ Playback Controller - Control MPD playback
 import logging
 from typing import Optional, List, Dict, Any
 from .client import KitchenRadioClient
+from .monitor import MPDMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +15,22 @@ class PlaybackController:
     Control MPD playback operations.
     """
     
-    def __init__(self, client: KitchenRadioClient):
+    def __init__(self, host: str = "localhost", port: int = 6600, password: Optional[str] = None, timeout: int = 10):
         """
-        Initialize controller with KitchenRadio client.
+        Initialize controller with MPD connection details.
         
         Args:
-            client: KitchenRadio client instance
+            host: MPD host
+            port: MPD port
+            password: MPD password
+            timeout: Connection timeout
         """
-        self.client = client
+        self.client = KitchenRadioClient(host, port, password, timeout)
+        self.monitor = MPDMonitor(self.client)
+
+    def connect(self) -> bool:
+        """Connect to MPD server"""
+        return self.client.connect()
     
     def play(self, uri: Optional[str] = None) -> bool:
         """

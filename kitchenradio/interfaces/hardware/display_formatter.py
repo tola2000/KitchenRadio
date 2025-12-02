@@ -6,8 +6,10 @@ Simple, focused implementation without unnecessary complexity.
 """
 
 import logging
-from typing import Dict, Optional, Any, Callable
+from typing import Dict, Optional, Any, Callable, Union
 from PIL import Image, ImageDraw, ImageFont
+
+from kitchenradio.sources.source_model import TrackInfo, SourceInfo, PlaybackState, PlaybackStatus
 
 logger = logging.getLogger(__name__)
 
@@ -766,9 +768,10 @@ class DisplayFormatter:
         Args:
             track_data: Dictionary containing:
                 {
-                    "title": str,
-                    "artist": str,
-                    "album": str,
+                    "track_info": TrackInfo object (optional),
+                    "title": str (fallback),
+                    "artist": str (fallback),
+                    "album": str (fallback),
                     "length": int (optional),
                     "time_position": int (optional),
                     "playing": bool (optional, default: False),
@@ -781,22 +784,20 @@ class DisplayFormatter:
             
         Returns:
             Tuple of (drawing_function, truncation_info_dict)
-            truncation_info_dict structure:
-            {
-                "original_string": {
-                    "displayed": "formatted_string",
-                    "truncated": bool,
-                    "original_width": int,
-                    "max_width": int,
-                    "scroll_offset": int,
-                    "font_size": str
-                }
-            }
         """
-        # Extract data from JSON structure - now expecting flat structure
-        title = track_data.get('title', 'No Track')
-        artist = track_data.get('artist', 'Unknown')
-        album = track_data.get('album', 'Unknown')
+        # Extract data from JSON structure
+        track_info_obj = track_data.get('track_info')
+        
+        if isinstance(track_info_obj, TrackInfo):
+            title = track_info_obj.title
+            artist = track_info_obj.artist
+            album = track_info_obj.album
+            # length = track_info_obj.duration / 1000 if track_info_obj.duration else 0
+        else:
+            title = track_data.get('title', 'No Track')
+            artist = track_data.get('artist', 'Unknown')
+            album = track_data.get('album', 'Unknown')
+            
         playing = track_data.get('playing', False)
         volume = track_data.get('volume', 50)
         source = track_data.get('source', 'Unknown')  # Get source information

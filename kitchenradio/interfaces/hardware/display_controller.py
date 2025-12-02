@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
 
 
 from typing import TYPE_CHECKING
-from kitchenradio.sources.source_controller import BackendType
+from kitchenradio.sources.source_model import BackendType, TrackInfo, SourceInfo, PlaybackState, PlaybackStatus
 if TYPE_CHECKING:
     from kitchenradio.kitchen_radio import KitchenRadio
     from kitchenradio.sources.source_controller import SourceController
@@ -89,6 +89,12 @@ class DisplayController:
         self.refresh_rate = refresh_rate if refresh_rate is not None else display_config.REFRESH_RATE
         self._first_update = True  # Flag to force first display update after initialization
         
+        # Cache for event-driven updates
+        self.cached_playback_state = PlaybackState()
+        self.cached_track_info = None
+        self.cached_source_info = SourceInfo()
+        self.cached_powered_on = False
+        
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
         self._kitchen_radio_was_running = False
         
@@ -129,6 +135,16 @@ class DisplayController:
             # Trigger initial display update to show current status
             self._wake_event.set()
             
+            # Initialize cache with current state
+            if self.source_controller:
+                try:
+                    self.cached_playback_state = self.source_controller.get_playback_state()
+                    self.cached_track_info = self.source_controller.get_track_info()
+                    self.cached_source_info = self.source_controller.get_source_info()
+                    self.cached_powered_on = self.source_controller.powered_on
+                except Exception as e:
+                    logger.warning(f"Could not initialize display cache: {e}")
+            
             # Register for callbacks from SourceController (if it has callback support)
             if hasattr(self.source_controller, 'add_callback'):
                 self.source_controller.add_callback('any', self._on_client_changed)
@@ -141,6 +157,17 @@ class DisplayController:
         # Don't process callbacks during shutdown
         if self._shutting_down:
             return
+            
+        # Update cache from event data
+        if 'playback_state' in kwargs:
+            self.cached_playback_state = kwargs['playback_state']
+        if 'track_info' in kwargs:
+            self.cached_track_info = kwargs['track_info']
+        if 'source_info' in kwargs:
+            self.cached_source_info = kwargs['source_info']
+        if 'powered_on' in kwargs:
+            self.cached_powered_on = kwargs['powered_on']
+            
         try:
             self._wake_event.set()
         except Exception:
@@ -154,12 +181,11 @@ class DisplayController:
         self._shutting_down = True
         self.running = False
         
-        # Remove callback from kitchen_radio
-        if self.kitchen_radio:
+        # Remove callback from source_controller
+        if self.source_controller and hasattr(self.source_controller, 'remove_callback'):
             try:
-                if 'any' in self.kitchen_radio.callbacks:
-                    if self._on_client_changed in self.kitchen_radio.callbacks['any']:
-                        self.kitchen_radio.callbacks['any'].remove(self._on_client_changed)
+                self.source_controller.remove_callback('any', self._on_client_changed)
+                logger.info("Removed display callback from SourceController")
             except Exception as e:
                 logger.warning(f"Error removing callback: {e}")
         
@@ -232,13 +258,12 @@ class DisplayController:
                     break
 
                 # Get power state before deciding update interval
-                powered_on = True
-                if self.source_controller:
-                    try:
-                        status = self.source_controller.get_status()
-                        powered_on = status.get('powered_on', True)
-                    except Exception as e:
-                        logger.warning(f"Could not get power state for display update: {e}")
+                powered_on = self.cached_powered_on
+                # if self.source_controller:
+                #     try:
+                #         powered_on = self.source_controller.powered_on
+                #     except Exception as e:
+                #         logger.warning(f"Could not get power state for display update: {e}")
 
                 # Update display if KitchenRadio is available
                 if self.kitchen_radio:
@@ -305,12 +330,16 @@ class DisplayController:
             
             # Get status from source_controller
             if self.source_controller:
-                # Use new API methods
-                playback_state = self.source_controller.get_playback_state()
-                track_info = self.source_controller.get_track_info()
-                source_info = self.source_controller.get_source_info()
-                current_source = self.source_controller.get_current_source().value
-                current_powered_on = self.source_controller.powered_on
+                # Use cached values from events
+                playback_state = self.cached_playback_state
+                track_info = self.cached_track_info
+                source_info = self.cached_source_info
+                current_powered_on = self.cached_powered_on
+                
+                # Derive current source from source_info
+                current_source = 'none'
+                if source_info and source_info.source_name:
+                    current_source = source_info.source_name.lower()
                 
                 # Construct a status object compatible with existing logic for now
                 # Or better, adapt the logic below to use these directly
@@ -345,7 +374,11 @@ class DisplayController:
                 # Check if we should ignore volume updates (recently changed by user)
                 time_since_volume_change = time.time() - self.last_volume_change_time
                 if self.overlay_type == 'volume':
-                    current_volume = playback_state.get('volume', 0)
+                    if isinstance(playback_state, PlaybackState):
+                        current_volume = playback_state.volume
+                    else:
+                        current_volume = playback_state.get('volume', 0)
+                        
                     if (current_volume != self.last_volume):
                         self._render_volume_overlay(current_volume)
                         self.last_volume = current_volume
@@ -553,22 +586,22 @@ class DisplayController:
     def _render_mpd_display(self, status: Dict[str, Any]):
         """Update display for MPD source"""
         # Extract data from new status structure
-        playback_state = status.get('playback_state', {})
-        track_info = status.get('track_info', {})
+        playback_state = status.get('playback_state')
+        track_info = status.get('track_info')
         
         logger.debug(f"MPD render - track_info: {track_info}, has_content: {bool(track_info)}")
         
         if track_info:
-            playing = playback_state.get('status') == 'playing'
-            volume = playback_state.get('volume', 50)
+            if isinstance(playback_state, PlaybackState):
+                playing = playback_state.status == PlaybackStatus.PLAYING
+                volume = playback_state.volume
+            else:
+                playing = playback_state.get('status') == 'playing'
+                volume = playback_state.get('volume', 50)
             
             # Use unified track info formatter without progress bar for MPD
             track_data = {
-                'title': track_info.get('title', 'No Track'),
-                'artist': track_info.get('artist', 'Unknown'),
-                'album': track_info.get('album', 'Unknown'),
-                'length': track_info.get('duration', 0) / 1000, # Convert ms to s
-                'time_position': 0, # Not currently tracked in new model
+                'track_info': track_info,
                 'playing': playing,
                 'volume': volume,
                 'source': 'Radio',
@@ -599,20 +632,28 @@ class DisplayController:
     
     def _render_librespot_display(self, status: Dict[str, Any]):
         """Update display for Spotify/librespot source"""
-        playback_state = status.get('playback_state', {})
-        track_info = status.get('track_info', {})
+        playback_state = status.get('playback_state')
+        track_info = status.get('track_info')
         
-        volume = playback_state.get('volume', 50)
-        # Assuming connected if we are here, but could check source_info
+        if isinstance(playback_state, PlaybackState):
+            volume = playback_state.volume
+            playing = playback_state.status == PlaybackStatus.PLAYING
+        else:
+            volume = playback_state.get('volume', 50)
+            playing = playback_state.get('status') == 'playing'
         
         # Determine if a track is playing
-        if track_info and (track_info.get('title') or track_info.get('name')):
+        has_track = False
+        if isinstance(track_info, TrackInfo):
+            has_track = bool(track_info.title)
+        elif track_info:
+            has_track = bool(track_info.get('title') or track_info.get('name'))
+            
+        if has_track:
             # Use unified track info formatter with progress bar for Spotify
             track_data = {
-                'title': track_info.get('title') or track_info.get('name', 'Unknown'),
-                'artist': track_info.get('artist', 'Unknown'),
-                'album': track_info.get('album', 'Unknown'),
-                'playing': playback_state.get('status') == 'playing',
+                'track_info': track_info,
+                'playing': playing,
                 'volume': volume,
                 'source': 'Spotify',
                 'scroll_offsets': self.current_scroll_offsets
@@ -699,17 +740,26 @@ class DisplayController:
     def _render_bluetooth_display(self, status: Dict[str, Any]):
         """Update display for Bluetooth source"""
         # Extract data from new status structure
-        playback_state = status.get('playback_state', {})
-        track_info = status.get('track_info', {})
-        source_info = status.get('source_info', {})
+        playback_state = status.get('playback_state')
+        track_info = status.get('track_info')
+        source_info = status.get('source_info')
         
         # Reconstruct variables for existing logic
-        volume = playback_state.get('volume', 50)
-        playback_status = playback_state.get('status', 'stopped')
+        if isinstance(playback_state, PlaybackState):
+            volume = playback_state.volume
+            playback_status = playback_state.status.value if playback_state.status else 'stopped'
+        else:
+            volume = playback_state.get('volume', 50)
+            playback_status = playback_state.get('status', 'stopped')
         
         # Check if we have a connected device
-        device_name = source_info.get('device_name', 'Unknown')
-        device_mac = source_info.get('device_mac', '')
+        if isinstance(source_info, SourceInfo):
+            device_name = source_info.device_name
+            device_mac = source_info.device_mac
+        else:
+            device_name = source_info.get('device_name', 'Unknown')
+            device_mac = source_info.get('device_mac', '')
+            
         is_connected = device_mac != ''
         
         # Check pairing mode
@@ -751,13 +801,17 @@ class DisplayController:
                 self._render_display_content('track_info', display_data)
         elif is_connected:
             # Show track info if available from AVRCP monitor
-            if track_info and track_info.get('title') != 'Unknown':
+            has_track = False
+            if isinstance(track_info, TrackInfo):
+                has_track = track_info.title != 'Unknown'
+            elif track_info:
+                has_track = track_info.get('title') != 'Unknown'
+
+            if has_track:
                 # Display actual track information from AVRCP
-                logger.debug(f"📱 Displaying Bluetooth track: {track_info.get('title')} - {track_info.get('artist')}")
+                # logger.debug(f"📱 Displaying Bluetooth track: {track_info.get('title')} - {track_info.get('artist')}")
                 display_data = {
-                    'title': track_info.get('title', 'Unknown'),
-                    'artist': track_info.get('artist', 'Unknown'),
-                    'album': track_info.get('album', ''),
+                    'track_info': track_info,
                     'playing': playback_status == 'playing',
                     'volume': volume,
                     'source': 'Bluetooth',
@@ -951,8 +1005,14 @@ class DisplayController:
         logger.info(f"📢 show_volume_overlay called, timeout={timeout}")
         
         # Get FRESH playback state (includes expected values from monitor)
-        playback_state = self.source_controller.get_playback_state()
-        display_volume = playback_state.get('volume')
+        # playback_state = self.source_controller.get_playback_state()
+        playback_state = self.cached_playback_state
+        
+        if isinstance(playback_state, PlaybackState):
+            display_volume = playback_state.volume
+        else:
+            display_volume = playback_state.get('volume', 0)
+            
         logger.info(f"   Volume from fresh state (with expected values): {display_volume}")
         
         # Track volume change time to ignore status updates temporarily
