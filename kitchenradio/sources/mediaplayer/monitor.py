@@ -9,88 +9,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Callable, Dict, Any
 from .client import KitchenRadioClient
+from kitchenradio.sources.source_model import PlaybackStatus, TrackInfo, SourceInfo, PlaybackState
 
 logger = logging.getLogger(__name__)
-
-
-class PlaybackStatus(Enum):
-    """Playback status enum matching AVRCP/BlueZ/Librespot status values"""
-    STOPPED = "stopped"
-    PLAYING = "playing"
-    PAUSED = "paused"
-    FORWARD_SEEK = "forward-seek"
-    REVERSE_SEEK = "reverse-seek"
-    ERROR = "error"
-    UNKNOWN = "unknown"
-
-
-@dataclass
-class TrackInfo:
-    """
-    Track metadata information.
-    """
-    title: str = "Unknown"
-    artist: str = "Unknown"
-    album: str = ""
-    duration: int = 0  # Duration in milliseconds
-    file: str = ""
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization"""
-        return {
-            'title': self.title,
-            'artist': self.artist,
-            'album': self.album,
-            'duration': self.duration,
-            'duration_formatted': self.get_duration_formatted(),
-            'file': self.file
-        }
-    
-    def get_duration_formatted(self) -> str:
-        """
-        Get formatted duration string (MM:SS).
-        """
-        if self.duration <= 0:
-            return "0:00"
-        
-        total_seconds = self.duration // 1000
-        minutes = total_seconds // 60
-        seconds = total_seconds % 60
-        
-        return f"{minutes}:{seconds:02d}"
-
-
-@dataclass
-class SourceInfo:
-    """
-    Source device information.
-    """
-    device_name: str = "MPD"
-    device_mac: str = ""
-    path: str = ""
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'device_name': self.device_name,
-            'device_mac': self.device_mac,
-            'path': self.path
-        }
-
-
-@dataclass
-class PlaybackState:
-    """
-    Current playback state.
-    """
-    status: PlaybackStatus = PlaybackStatus.UNKNOWN
-    volume: Optional[int] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization"""
-        return {
-            'status': self.status.value,
-            'volume': self.volume
-        }
 
 
 class MPDMonitor:
@@ -110,7 +31,7 @@ class MPDMonitor:
         
         self.current_track: Optional[TrackInfo] = None
         self.current_status: PlaybackState = PlaybackState()
-        self.current_source_info: SourceInfo = SourceInfo()
+        self.current_source_info: SourceInfo = SourceInfo(device_name="MPD")
         
         self.is_monitoring = False
         self._monitor_thread = None

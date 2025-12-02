@@ -608,10 +608,9 @@ class ButtonController:
         """Menu up navigation"""
         logger.info("Menu up navigation")
         try:
-            status = self.source_controller.get_status()
-            powered_on = status.get('powered_on', True)
+            powered_on = self.source_controller.powered_on
             if powered_on:
-                current_source = status.get('current_source')
+                current_source = self.source_controller.get_current_source()
                 menu_options = self.source_controller.get_menu_options() if current_source else None
             else:
                 menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
@@ -644,10 +643,9 @@ class ButtonController:
         """Menu down navigation"""
         logger.info("Menu down navigation")
         try:
-            status = self.source_controller.get_status()
-            powered_on = status.get('powered_on', True)
+            powered_on = self.source_controller.powered_on
             if powered_on:
-                current_source = status.get('current_source')
+                current_source = self.source_controller.get_current_source()
                 menu_options = self.source_controller.get_menu_options() if current_source else None
             else:
                 menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
@@ -724,8 +722,7 @@ class ButtonController:
     def _on_menu_item_selected(self, index: int) -> None:
         """Handle selection of a menu item by index"""
         try:
-            status = self.source_controller.get_status()
-            powered_on = status.get('powered_on', True)
+            powered_on = self.source_controller.powered_on
             if powered_on:
                 menu_options = self.source_controller.get_menu_options()
                 execute_action = self.source_controller.execute_menu_action
@@ -837,9 +834,8 @@ class ButtonController:
         
         try:
             # Get current status to see what's available
-            status = self.source_controller.get_status()
-            available_sources = status.get('available_sources', [])
-            current_source = status.get('current_source')
+            available_sources = self.source_controller.get_available_sources()
+            current_source = self.source_controller.get_current_source()
             
             logger.info(f"Getting menu items - available sources: {available_sources}, current: {current_source}")
             
