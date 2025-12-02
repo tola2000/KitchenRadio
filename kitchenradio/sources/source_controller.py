@@ -766,16 +766,87 @@ class SourceController:
         """
         Get menu options for current source.
         
-        This is a stub that returns an empty menu structure.
-        The actual menu functionality is handled by KitchenRadio class.
+        Returns source-specific menu options (e.g., MPD playlists).
+        If no source-specific menu is available, returns has_menu=False.
         
         Returns:
-            Menu options dict with has_menu=False
+            Menu options dict with has_menu and options list
         """
+        # For MPD, get playlists as menu options
+        if self.source == SourceType.MPD and self.mpd_connected and self.mpd_controller:
+            try:
+                playlists = self.mpd_controller.get_playlists()
+                if playlists:
+                    options = [
+                        {
+                            'id': f'playlist_{i}',
+                            'label': playlist,
+                            'type': 'playlist',
+                            'action': 'load_playlist',
+                            'playlist_name': playlist
+                        }
+                        for i, playlist in enumerate(playlists)
+                    ]
+                    return {
+                        'has_menu': True,
+                        'menu_type': 'playlists',
+                        'options': options,
+                        'message': f'{len(playlists)} playlists available'
+                    }
+            except Exception as e:
+                self.logger.error(f"Error getting MPD playlists: {e}")
+        
+        # No source-specific menu available
         return {
             'has_menu': False,
             'options': []
         }
+    
+    def execute_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
+        """
+        Execute a menu action for the current source.
+        
+        Args:
+            action: Action to perform (e.g., 'load_playlist')
+            option_id: Optional ID of the selected option
+            
+        Returns:
+            Result dict with status and message
+        """
+        try:
+            if action == 'load_playlist':
+                # Extract playlist name from the current menu options
+                menu_options = self.get_menu_options()
+                if menu_options.get('has_menu', False):
+                    options = menu_options.get('options', [])
+                    selected = next((opt for opt in options if opt['id'] == option_id), None)
+                    if selected:
+                        playlist_name = selected.get('playlist_name')
+                        if playlist_name and self.source == SourceType.MPD and self.mpd_controller:
+                            # Load and play the playlist
+                            success = self.mpd_controller.play_playlist(playlist_name)
+                            if success:
+                                return {
+                                    'status': 'success',
+                                    'message': f'Playing: {playlist_name}'
+                                }
+                            else:
+                                return {
+                                    'status': 'error',
+                                    'message': f'Failed to load playlist'
+                                }
+            
+            return {
+                'status': 'error',
+                'message': 'Unknown action or invalid state'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error executing menu action '{action}': {e}")
+            return {
+                'status': 'error',
+                'message': f'Error: {str(e)}'
+            }
     
     def _trigger_source_update(self):
         """Fetch current state from active monitor and trigger callbacks"""

@@ -235,7 +235,21 @@ class KitchenRadio:
         return True
     
     def get_menu_options(self) -> Dict[str, Any]:
+        """
+        Get menu options based on current state.
         
+        When powered on: delegates to SourceController for source-specific menus
+        When powered off: returns system management menu
+        """
+        # If powered on, delegate to SourceController for source-specific menus
+        if self.source_controller and self.source_controller.powered_on:
+            source_menu = self.source_controller.get_menu_options()
+            # If source has a menu, return it
+            if source_menu.get('has_menu', False):
+                return source_menu
+            # Otherwise fall through to management menu
+        
+        # Return system management menu (used when powered off or no source menu)
         try:
             options = [
                  {
@@ -271,11 +285,11 @@ class KitchenRadio:
             }
             
         except Exception as e:
-            self.logger.error(f"Error getting MPD menu options: {e}")
+            self.logger.error(f"Error getting menu options: {e}")
             return {
                 'has_menu': False,
                 'options': [],
-                'message': 'Error retrieving playlists'
+                'message': 'Error retrieving menu'
             }
         
     def execute_menu_action(self, action: str, option_id: str = None) -> Dict[str, Any]:
