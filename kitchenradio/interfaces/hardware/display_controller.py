@@ -441,6 +441,9 @@ class DisplayController:
             status_changed = False
             if self.last_status is None:
                 status_changed = True
+            elif current_status.get('current_source') != self.last_status.get('current_source'):
+                status_changed = True
+                logger.info(f"Source changed: {self.last_status.get('current_source')} -> {current_status.get('current_source')}")
             elif current_status.get('playback_state') != self.last_status.get('playback_state'):
                 status_changed = True
                 logger.debug(f"Playback state changed: {self.last_status.get('playback_state')} -> {current_status.get('playback_state')}")

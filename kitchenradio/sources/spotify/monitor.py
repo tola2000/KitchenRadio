@@ -150,10 +150,12 @@ class LibrespotMonitor:
         try:
             status = self.client.get_status()
             if not status or not isinstance(status, dict):
+                logger.debug("[Spotify] No status data received")
                 return
 
             # Check for playback state change
             new_state = self._parse_playback_status(status)
+            logger.debug(f"[Spotify] Checking changes - Current: {self.current_status.status.value}, New: {new_state.status.value}")
             
             # Compare states (status and volume)
             status_changed = self.current_status.status != new_state.status
@@ -223,6 +225,9 @@ class LibrespotMonitor:
         status = self.client.get_status()
         self.current_status = self._parse_playback_status(status)
         self.current_track = self._parse_track_info(status)
+        
+        logger.info(f"[Spotify] Initial state - Status: {self.current_status.status.value}, Track: {self.current_track.title if self.current_track else 'None'}")
+        logger.debug(f"[Spotify] Raw status data: {status}")
         
         # Start monitoring thread
         self._stop_event.clear()

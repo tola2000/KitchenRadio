@@ -896,6 +896,7 @@ class SourceController:
 
     def _handle_monitor_event(self, source_type: SourceType, event_name: str, **kwargs):
         """Handle events from any monitor"""
+        self.logger.debug(f"🎯 Handling monitor event: source={source_type.value}, event={event_name}, active_source={self.source.value if self.source else 'none'}")
         
         # 1. Auto-switching logic (e.g. Spotify starts playing)
         if source_type == SourceType.LIBRESPOT and event_name == 'playback_state_changed':
@@ -917,6 +918,7 @@ class SourceController:
         # 2. Forwarding logic - only if active source
         if self.source == source_type:
             # Generic callback
+            self.logger.debug(f"✅ Forwarding event to display: {event_name}")
             self._emit_callback('client_changed', event_name, **kwargs)
             
             # Specific callbacks (Bluetooth only for now)
@@ -1044,6 +1046,7 @@ class SourceController:
             # Monitor passes event='event_name' as kwarg, so extract it
             def librespot_callback(**kwargs):
                 event_name = kwargs.pop('event', 'unknown')
+                self.logger.debug(f"📢 Librespot monitor event: {event_name}, kwargs: {list(kwargs.keys())}")
                 self._handle_monitor_event(SourceType.LIBRESPOT, event_name, **kwargs)
             self.librespot_monitor.add_callback('any', librespot_callback)
             self.librespot_monitor.start_monitoring()
