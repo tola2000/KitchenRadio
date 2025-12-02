@@ -1035,11 +1035,13 @@ class DisplayController:
             self.overlay_active = False
             self.overlay_type = None
             # Force complete refresh to return to normal display
-            # Clear all cached state to ensure clean render
+            # Clear cached status to trigger re-render, but preserve scroll state
+            # This allows scrolling to continue smoothly where it left off
             self.last_status = None
-            self.last_truncation_info = {}
-            self.current_scroll_offsets = {}
-            self.scroll_pause_until = {}
+            # DON'T clear scroll state - let it continue:
+            # self.last_truncation_info = {}  # Keep this
+            # self.current_scroll_offsets = {}  # Keep this  
+            # self.scroll_pause_until = {}  # Keep this
             return True
         return False
 
