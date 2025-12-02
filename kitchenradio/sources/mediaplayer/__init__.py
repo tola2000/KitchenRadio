@@ -10,11 +10,11 @@ __author__ = "Your Name"
 __email__ = "your.email@example.com"
 
 from .client import KitchenRadioClient
-from .monitor import NowPlayingMonitor
+from .monitor import MPDMonitor
 from .controller import PlaybackController
 
 __all__ = [
     "KitchenRadioClient",
-    "NowPlayingMonitor", 
+    "MPDMonitor", 
     "PlaybackController"
 ]

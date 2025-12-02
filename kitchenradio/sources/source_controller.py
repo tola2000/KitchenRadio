@@ -12,7 +12,7 @@ from kitchenradio import config
 
 # Import backends
 
-from kitchenradio.sources.mediaplayer import KitchenRadioClient as MPDClient, PlaybackController as MPDController, NowPlayingMonitor as MPDMonitor
+from kitchenradio.sources.mediaplayer import KitchenRadioClient as MPDClient, PlaybackController as MPDController, MPDMonitor
 from kitchenradio.sources.spotify import KitchenRadioLibrespotClient, LibrespotController, LibrespotMonitor
 
 # Bluetooth imports are optional (Linux only)
@@ -295,8 +295,8 @@ class SourceController:
                 # Auto-play when switching sources
                 try:
                     if source == BackendType.MPD and self.mpd_monitor:
-                        mpd_status = self.mpd_monitor.get_status()
-                        if mpd_status and mpd_status.get('state') in ['pause', 'stop']:
+                        mpd_state = self.mpd_monitor.get_playback_state()
+                        if mpd_state and mpd_state.get('status') in ['paused', 'stopped']:
                             self.logger.info(f"Auto-starting playback on {source.value}")
                             self.play()
                     elif source == BackendType.LIBRESPOT:
@@ -713,18 +713,18 @@ class SourceController:
         if self.mpd_connected and self.mpd_monitor:
             try:
                 if self.source == BackendType.MPD:
-                    mpd_status = self.mpd_monitor.get_status()
-                    current_song = self.mpd_monitor.get_current_track()
+                    playback_state = self.mpd_monitor.get_playback_state()
+                    track_info = self.mpd_monitor.get_track_info()
                     
                     status['mpd'] = {
                         'connected': True,
-                        'state': mpd_status.get('state', 'unknown'),
-                        'volume': mpd_status.get('volume', 'unknown'),
+                        'state': playback_state.get('status', 'unknown'),
+                        'volume': playback_state.get('volume', 0),
                         'current_track': {
-                            'title': current_song.get('title', 'Unknown') if current_song else None,
-                            'artist': current_song.get('artist', 'Unknown') if current_song else None,
-                            'album': current_song.get('album', 'Unknown') if current_song else None,
-                        } if current_song else None
+                            'title': track_info.get('title', 'Unknown') if track_info else None,
+                            'artist': track_info.get('artist', 'Unknown') if track_info else None,
+                            'album': track_info.get('album', 'Unknown') if track_info else None,
+                        } if track_info else None
                     }
                 else:
                     status['mpd'] = {'connected': True, 'state': 'idle'}
@@ -736,11 +736,11 @@ class SourceController:
         # Librespot status
         if self.librespot_connected and self.librespot_monitor:
             try:
-                current_track = self.librespot_monitor.get_current_track()
-                librespot_status = self.librespot_monitor.get_status()
+                current_track = self.librespot_monitor.get_track_info()
+                playback_state = self.librespot_monitor.get_playback_state()
                 
-                # If no librespot_status or no current_track, show friendly message
-                if not librespot_status or not current_track:
+                # If no playback_state or no current_track, show friendly message
+                if not playback_state or not current_track:
                     status['librespot'] = {
                         'connected': True,
                         'state': 'stopped',
@@ -754,12 +754,8 @@ class SourceController:
                 else:
                     status['librespot'] = {
                         'connected': True,
-                        'state': (
-                            'stopped' if librespot_status.get('stopped') else
-                            'paused' if librespot_status.get('paused') else
-                            'playing'
-                        ),
-                        'volume': librespot_status.get('volume', 0),
+                        'state': playback_state.get('status', 'stopped'),
+                        'volume': playback_state.get('volume', 0),
                         'current_track': {
                             'title': current_track.get('title', ''),
                             'artist': current_track.get('artist', ''),
@@ -834,7 +830,7 @@ class SourceController:
         # MPD monitoring
         if self.mpd_connected and self.mpd_monitor:
             if mpd_state_callback:
-                self.mpd_monitor.add_callback('state_changed', mpd_state_callback)
+                self.mpd_monitor.add_callback('playback_state_changed', mpd_state_callback)
             if on_client_changed:
                 self.mpd_monitor.add_callback('any', on_client_changed)
             self.mpd_monitor.start_monitoring()
@@ -843,14 +839,20 @@ class SourceController:
         # Librespot monitoring
         if self.librespot_connected and self.librespot_monitor:
             if librespot_state_callback:
-                self.librespot_monitor.add_callback('state_changed', librespot_state_callback)
+                self.librespot_monitor.add_callback('playback_state_changed', librespot_state_callback)
             if on_client_changed:
                 self.librespot_monitor.add_callback('any', on_client_changed)
-            # Always add internal callback to switch source on playback or resume
-            self.librespot_monitor.add_callback('track_started', self._on_librespot_track_started)
-            self.librespot_monitor.add_callback('track_resumed', self._on_librespot_track_started)
+            
+            # Internal callback to switch source on playback
+            def _on_librespot_playback_change(playback_state=None, **kwargs):
+                if playback_state and playback_state.get('status') == 'playing':
+                    self._on_librespot_track_started()
+
+            self.librespot_monitor.add_callback('playback_state_changed', _on_librespot_playback_change)
+            
             if on_spotify_track_started:
-                self.librespot_monitor.add_callback('track_started', on_spotify_track_started)
+                self.librespot_monitor.add_callback('track_changed', on_spotify_track_started)
+                
             self.librespot_monitor.start_monitoring()
             self.logger.info("Started Librespot monitoring")
         

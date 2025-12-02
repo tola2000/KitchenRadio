@@ -5,13 +5,95 @@ Now Playing Monitor - Track monitoring functionality for MPD
 import time
 import logging
 import threading
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Optional, Callable, Dict, Any
 from .client import KitchenRadioClient
 
 logger = logging.getLogger(__name__)
 
 
-class NowPlayingMonitor:
+class PlaybackStatus(Enum):
+    """Playback status enum matching AVRCP/BlueZ/Librespot status values"""
+    STOPPED = "stopped"
+    PLAYING = "playing"
+    PAUSED = "paused"
+    FORWARD_SEEK = "forward-seek"
+    REVERSE_SEEK = "reverse-seek"
+    ERROR = "error"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class TrackInfo:
+    """
+    Track metadata information.
+    """
+    title: str = "Unknown"
+    artist: str = "Unknown"
+    album: str = ""
+    duration: int = 0  # Duration in milliseconds
+    file: str = ""
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            'title': self.title,
+            'artist': self.artist,
+            'album': self.album,
+            'duration': self.duration,
+            'duration_formatted': self.get_duration_formatted(),
+            'file': self.file
+        }
+    
+    def get_duration_formatted(self) -> str:
+        """
+        Get formatted duration string (MM:SS).
+        """
+        if self.duration <= 0:
+            return "0:00"
+        
+        total_seconds = self.duration // 1000
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        
+        return f"{minutes}:{seconds:02d}"
+
+
+@dataclass
+class SourceInfo:
+    """
+    Source device information.
+    """
+    device_name: str = "MPD"
+    device_mac: str = ""
+    path: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'device_name': self.device_name,
+            'device_mac': self.device_mac,
+            'path': self.path
+        }
+
+
+@dataclass
+class PlaybackState:
+    """
+    Current playback state.
+    """
+    status: PlaybackStatus = PlaybackStatus.UNKNOWN
+    volume: Optional[int] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            'status': self.status.value,
+            'volume': self.volume
+        }
+
+
+class MPDMonitor:
     """
     Monitor now playing tracks and MPD status changes.
     """
@@ -25,10 +107,11 @@ class NowPlayingMonitor:
         """
         self.client = client
         self.callbacks = {}
-        self.current_track = None
-        self.current_volume = None
-        self.current_isPlaying = None
-        self.current_status = {}
+        
+        self.current_track: Optional[TrackInfo] = None
+        self.current_status: PlaybackState = PlaybackState()
+        self.current_source_info: SourceInfo = SourceInfo()
+        
         self.is_monitoring = False
         self._monitor_thread = None
         self._stop_event = threading.Event()
@@ -67,10 +150,10 @@ class NowPlayingMonitor:
         self.expected_volume = expected_volume
         self.expected_volume_timestamp = time.time()
         
-        # Immediately trigger callback with expected volume
-        self._trigger_callbacks('volume_command_sent', expected_volume=expected_volume)
-        # Also trigger volume_changed with expected value for immediate display update
-        self._trigger_callbacks('volume_changed', volume=expected_volume)
+        # Update current status immediately
+        if self.current_status:
+            self.current_status.volume = expected_volume
+            self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
     
     def _on_playback_command(self, command: str, expected_state: str, **kwargs):
         """
@@ -81,11 +164,16 @@ class NowPlayingMonitor:
         self.expected_state = expected_state
         self.expected_state_timestamp = time.time()
         
-        # Immediately trigger callback with expected state
-        self._trigger_callbacks('playback_command_sent', command=command, expected_state=expected_state)
-        # Also trigger state_changed with expected value for immediate display update
-        old_state = self.current_status.get('state')
-        self._trigger_callbacks('state_changed', old_state=old_state, new_state=expected_state)
+        # Update current status immediately
+        if self.current_status:
+            if expected_state == 'play':
+                self.current_status.status = PlaybackStatus.PLAYING
+            elif expected_state == 'pause':
+                self.current_status.status = PlaybackStatus.PAUSED
+            elif expected_state == 'stop':
+                self.current_status.status = PlaybackStatus.STOPPED
+                
+            self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
     
     def _is_expected_volume_valid(self) -> bool:
         """Check if expected volume is still valid (not expired)."""
@@ -130,112 +218,104 @@ class NowPlayingMonitor:
                 except Exception as e:
                     logger.error(f"Error in callback for {event}: {e}")
     
-    def _format_track_info(self, song: Optional[Dict]) -> Dict[str, Any]:
-        """
-        Format MPD song information for display.
-        
-        Args:
-            song: MPD song dict
-            
-        Returns:
-            Formatted track info dict
-        """
+    def _parse_track_info(self, song: Optional[Dict]) -> TrackInfo:
+        """Parse MPD song info into TrackInfo"""
         if not song:
-            return {'name': 'No Track', 'artist': '', 'album': '', 'file': ''}
+            return TrackInfo()
         
-        title = song.get('title', 'Unknown')
-        artist = song.get('artist', 'Unknown')
+        # Parse duration (time is usually in seconds)
+        duration_sec = 0
+        try:
+            duration_sec = float(song.get('time', 0))
+        except (ValueError, TypeError):
+            pass
             
-        return {
-            'title': song.get('title', 'Unknown'),
-            'artist': song.get('artist', 'Unknown'),
-            'album': song.get('album', song.get('name', 'Unknown')),
-            'file': song.get('file', ''),
-            'time': song.get('time', '0'),
-            'pos': song.get('pos', '0')
-        }
+        return TrackInfo(
+            title=song.get('title', 'Unknown'),
+            artist=song.get('artist', 'Unknown'),
+            album=song.get('album', song.get('name', '')),
+            duration=int(duration_sec * 1000),
+            file=song.get('file', '')
+        )
+
+    def _parse_playback_status(self, status: Dict[str, Any]) -> PlaybackState:
+        """Parse MPD status into PlaybackState"""
+        if not status:
+            return PlaybackState(status=PlaybackStatus.STOPPED)
+            
+        state_str = status.get('state', 'stop')
+        playback_status = PlaybackStatus.STOPPED
+        
+        if state_str == 'play':
+            playback_status = PlaybackStatus.PLAYING
+        elif state_str == 'pause':
+            playback_status = PlaybackStatus.PAUSED
+            
+        # Handle expected state override
+        if self._is_expected_state_valid():
+            expected = self.expected_state
+            if expected == 'play':
+                playback_status = PlaybackStatus.PLAYING
+            elif expected == 'pause':
+                playback_status = PlaybackStatus.PAUSED
+            elif expected == 'stop':
+                playback_status = PlaybackStatus.STOPPED
+        
+        # Handle volume
+        volume = 0
+        try:
+            volume = int(status.get('volume', 0))
+        except (ValueError, TypeError):
+            pass
+            
+        # Handle expected volume override
+        if self._is_expected_volume_valid():
+            volume = self.expected_volume
+            
+        return PlaybackState(status=playback_status, volume=volume)
     
     def _check_for_changes(self):
         """Check for status and song changes."""
         try:
             # Get current status and song
-            status = self.client.get_status()
-            song = self.client.get_current_song()
+            status_data = self.client.get_status()
+            song_data = self.client.get_current_song()
             
-            # Check for state changes
-            old_state = self.current_status.get('state')
-            new_state = status.get('state')
+            # Parse new state
+            new_state = self._parse_playback_status(status_data)
             
-            if old_state != new_state:
-                logger.info(f"State changed: {old_state} → {new_state}")
-                self._trigger_callbacks('state_changed', old_state=old_state, new_state=new_state)
+            # Check for playback state change
+            if self.current_status != new_state:
+                # Log changes
+                if self.current_status.status != new_state.status:
+                    logger.info(f"Playback status changed: {self.current_status.status} → {new_state.status}")
+                if self.current_status.volume != new_state.volume:
+                    logger.debug(f"Volume changed: {self.current_status.volume} → {new_state.volume}")
                 
-                # Trigger specific events based on state
-                if new_state == 'play' and old_state != 'play':
-                    track_info = self._format_track_info(song)
-                    if old_state == 'pause':
-                        logger.info(f"Track resumed: {str(track_info)}")
-                        self._trigger_callbacks('track_resumed', track=track_info)
-                    else:
-                        logger.info(f"Track started: {str(track_info)}")
-                        self._trigger_callbacks('track_started', track=track_info)
-                        
-                elif new_state == 'pause':
-                    logger.info("Track paused")
-                    self._trigger_callbacks('track_paused', track=self.current_track)
-                    
-                elif new_state == 'stop':
-                    logger.info("Playback stopped")
-                    self._trigger_callbacks('track_ended', track=self.current_track)
+                self.current_status = new_state
+                self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
+                
+            # Check for track change
+            new_track = self._parse_track_info(song_data)
             
-            # Check for song changes (different song ID or position reset)
-            old_songid = self.current_status.get('songid')
-            new_songid = status.get('songid')
+            if self.current_track != new_track:
+                logger.info(f"Track changed: {self.current_track.title if self.current_track else 'None'} → {new_track.title}")
+                self.current_track = new_track
+                self._trigger_callbacks('track_changed', track_info=self.get_track_info())
             
-            if old_songid != new_songid and new_state == 'play':
-                track_info = self._format_track_info(song)
-                self.current_track = track_info
-                logger.info(f"New track: {str(track_info)}")
-                self._trigger_callbacks('track_started', track=track_info)
+            # Logic to clear expected values:
+            mpd_state = status_data.get('state')
+            mpd_volume = int(status_data.get('volume', 0)) if status_data.get('volume') else 0
             
-            # Check for volume changes
-            old_volume = self.current_status.get('volume')
-            new_volume = status.get('volume')
+            if self._is_expected_state_valid():
+                if mpd_state == self.expected_state:
+                     self.expected_state = None # Matched
             
-            if old_volume != new_volume:
-                # Check if this matches expected volume from command
-                if self._is_expected_volume_valid():
-                    if int(new_volume) == self.expected_volume:
-                        logger.info(f"✅ Volume confirmed: {old_volume} → {new_volume} (matched expected {self.expected_volume})")
-                        # Clear expected value - MPD has caught up
-                        self.expected_volume = None
-                        self.expected_volume_timestamp = None
-                    else:
-                        logger.warning(f"⚠️ Volume mismatch: got {new_volume}, expected {self.expected_volume}")
-                        # Still trigger callback with actual value since it differs
-                        self._trigger_callbacks('volume_changed', volume=int(new_volume) if new_volume else 0)
-                else:
-                    # No expected value or expired - this is a new change
-                    logger.info(f"Volume changed: {old_volume} → {new_volume} (external change)")
-                    self._trigger_callbacks('volume_changed', volume=int(new_volume) if new_volume else 0)
+            if self._is_expected_volume_valid():
+                if mpd_volume == self.expected_volume:
+                    self.expected_volume = None # Matched
             
-            # Check if state matches expected state from command
-            if new_state != old_state and self._is_expected_state_valid():
-                if new_state == self.expected_state:
-                    logger.info(f"✅ Playback state confirmed: {new_state} (matched expected)")
-                    # Clear expected value - MPD has caught up
-                    self.expected_state = None
-                    self.expected_state_timestamp = None
-                else:
-                    logger.warning(f"⚠️ State mismatch: got {new_state}, expected {self.expected_state}")
-            
-            # Clear expired expected values
             self._clear_expired_expected_values()
-            
-            # Update current status
-            self.current_status = status
-            if song:
-                self.current_track = self._format_track_info(song)
                 
         except Exception as e:
             logger.error(f"Error checking for changes: {e}", exc_info=True)
@@ -277,8 +357,9 @@ class NowPlayingMonitor:
         logger.info("Starting MPD monitoring")
         
         # Initialize current status
-        self.current_status = self.client.get_status()
-        self.current_track = self._format_track_info(self.client.get_current_song())
+        status = self.client.get_status()
+        self.current_status = self._parse_playback_status(status)
+        self.current_track = self._parse_track_info(self.client.get_current_song())
         
         # Start monitoring thread
         self._stop_event.clear()
@@ -302,50 +383,33 @@ class NowPlayingMonitor:
             else:
                 logger.debug("MPD monitor thread exited successfully")
     
-    def get_current_track(self) -> Optional[Dict[str, Any]]:
+    def get_track_info(self) -> Optional[Dict[str, Any]]:
         """
         Get currently playing track info.
         
         Returns:
             Current track info dict or None
         """
-        try:
-            song = self.client.get_current_song()
-            return self._format_track_info(song)
-        except Exception as e:
-            logger.error(f"Error getting current track: {e}")
-            return None
+        if self.current_track:
+            return self.current_track.to_dict()
+        return None
         
-    def get_status(self) -> Optional[Dict[str, Any]]:
+    def get_playback_state(self) -> Dict[str, Any]:
         """
-        Get current status with expected values override.
+        Get current playback state.
         
-        Returns status with expected values (if valid and not expired) instead of actual MPD values.
-        This ensures immediate UI feedback while waiting for MPD to update.
-        
-        Expected values expire after 2 seconds and revert to actual MPD values.
+        Returns:
+            Playback state dict (status, volume)
         """
-        try:
-            # Clear any expired expected values
-            self._clear_expired_expected_values()
-            
-            # Start with current MPD status
-            status = self.current_status.copy() if self.current_status else {}
-            
-            # Override with expected volume if valid
-            if self._is_expected_volume_valid():
-                status['volume'] = str(self.expected_volume)
-                logger.debug(f"⚡ Returning expected volume: {self.expected_volume} (not yet confirmed by MPD)")
-            
-            # Override with expected state if valid
-            if self._is_expected_state_valid():
-                status['state'] = self.expected_state
-                logger.debug(f"⚡ Returning expected state: {self.expected_state} (not yet confirmed by MPD)")
-            
-            return status
-        except Exception as e:
-            logger.error(f"Error getting status: {e}")
-            return None
+        if isinstance(self.current_status, PlaybackState):
+            return self.current_status.to_dict()
+        return {'status': 'unknown', 'volume': 0}
+
+    def get_source_info(self) -> Dict[str, Any]:
+        """
+        Get source information.
+        """
+        return self.current_source_info.to_dict()
     
     def print_current_track(self):
         """Print current track to console."""

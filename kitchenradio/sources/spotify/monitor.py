@@ -5,10 +5,97 @@ LibreSpot Monitor - Track monitoring functionality for go-librespot
 import time
 import logging
 import threading
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Optional, Callable, Dict, Any
 from .client import KitchenRadioLibrespotClient
 
 logger = logging.getLogger(__name__)
+
+
+class PlaybackStatus(Enum):
+    """Playback status enum matching AVRCP/BlueZ status values"""
+    STOPPED = "stopped"
+    PLAYING = "playing"
+    PAUSED = "paused"
+    FORWARD_SEEK = "forward-seek"
+    REVERSE_SEEK = "reverse-seek"
+    ERROR = "error"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class TrackInfo:
+    """
+    Track metadata information.
+    
+    Represents metadata for a single track.
+    """
+    title: str = "Unknown"
+    artist: str = "Unknown"
+    album: str = ""
+    duration: int = 0  # Duration in milliseconds
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            'title': self.title,
+            'artist': self.artist,
+            'album': self.album,
+            'duration': self.duration,
+            'duration_formatted': self.get_duration_formatted()
+        }
+    
+    def get_duration_formatted(self) -> str:
+        """
+        Get formatted duration string (MM:SS).
+        
+        Returns:
+            String in format "M:SS" or "MM:SS"
+        """
+        if self.duration <= 0:
+            return "0:00"
+        
+        total_seconds = self.duration // 1000
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        
+        return f"{minutes}:{seconds:02d}"
+
+
+@dataclass
+class SourceInfo:
+    """
+    Source device information.
+    """
+    device_name: str = "Unknown"
+    device_mac: str = ""
+    path: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'device_name': self.device_name,
+            'device_mac': self.device_mac,
+            'path': self.path
+        }
+
+
+@dataclass
+class PlaybackState:
+    """
+    Current playback state.
+    
+    Tracks playback status and volume.
+    """
+    status: PlaybackStatus = PlaybackStatus.UNKNOWN
+    volume: Optional[int] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        return {
+            'status': self.status.value,
+            'volume': self.volume
+        }
 
 
 class LibrespotMonitor:
@@ -25,8 +112,12 @@ class LibrespotMonitor:
         """
         self.client = client
         self.callbacks = {}
-        self.current_track = None
-        self.current_status = {}
+        
+        self.current_track: Optional[TrackInfo] = None
+        self.current_status: PlaybackState = PlaybackState()
+        self.current_source_info: SourceInfo = SourceInfo(device_name="Spotify Connect")
+        self.current_volume: Optional[int] = None
+        
         self.is_monitoring = False
         self._monitor_thread = None
         self._stop_event = threading.Event()
@@ -37,7 +128,7 @@ class LibrespotMonitor:
         Add callback for specific event.
         
         Args:
-            event: Event name (track_started, track_paused, track_resumed, track_ended, volume_changed, state_changed)
+            event: Event name (track_started, track_paused, track_resumed, track_ended, volume_changed, state_changed, source_info_changed)
             callback: Callback function
         """
         if event not in self.callbacks:
@@ -53,7 +144,7 @@ class LibrespotMonitor:
 
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
-        logger.info(f"[DEBUG] Emitting event '{event}' with kwargs={kwargs}")
+        # logger.info(f"[DEBUG] Emitting event '{event}' with kwargs={kwargs}")
         # Trigger 'any' callbacks if registered
         if 'any' in self.callbacks:
             for callback in self.callbacks['any']:
@@ -70,84 +161,107 @@ class LibrespotMonitor:
                 except Exception as e:
                     logger.error(f"Error in callback for {event}: {e}")
     
-    def _format_track_info(self, status: Optional[Dict]) -> Dict[str, Any]:
-        """
-        Format go-librespot status information for track display.
-        
-        Args:
-            status: go-librespot status dict
+    def _parse_track_info(self, status_data: Dict[str, Any]) -> TrackInfo:
+        """Parse track info from status data"""
+        if not status_data:
+            return TrackInfo()
             
-        Returns:
-            Formatted track info dict
-        """
-        if not status:
-            return {'name': 'No Track', 'artists': '', 'album': '', 'uri': ''}
+        track_data = status_data.get('track', {})
+        if not track_data:
+            return TrackInfo()
+            
+        # Try to handle multiple formats
+        title = track_data.get('title') or track_data.get('name') or track_data.get('track_name', 'Unknown')
         
-        # Extract track info from status
-        track = status.get('track', {})
-        if not track:
-            return {'name': 'No Track', 'artists': '', 'album': '', 'uri': ''}
-        
-        return {
-            'name': track.get('name', 'Unknown Track'),
-            'uri': track.get('uri', ''),
-            'title': track.get('name', 'Unknown') if track else None,
-            'artist': ", ".join(track.get('artist_names', [])) if track and track.get('artist_names') else None,
-            'album': track.get('album_name', 'Unknown') if track else None, 
-            'duration_ms': track.get('duration_ms', 0),
-            'progress_ms': status.get('progress_ms', 0),
-            'is_playing': status.get('is_playing', False)
-        }
-    
-    def _on_mpd_state_changed(self, data):
-        """Handle MPD state change events."""
-        logger.info(f"MPD state changed: {data}")
+        artist = track_data.get('artist')
+        if not artist:
+            artist_names = track_data.get('artist_names')
+            if artist_names and isinstance(artist_names, list):
+                artist = ", ".join(artist_names)
+            else:
+                artist = track_data.get('artist_name', 'Unknown')
+                
+        album = track_data.get('album') or track_data.get('album_name', '')
+        duration = track_data.get('duration') or track_data.get('duration_ms', 0)
+            
+        return TrackInfo(
+            title=title,
+            artist=artist,
+            album=album,
+            duration=duration
+        )
 
-    
+    def _parse_playback_status(self, status_data: Dict[str, Any]) -> PlaybackState:
+        """Parse playback status from status data"""
+        if not status_data:
+            return PlaybackState(status=PlaybackStatus.STOPPED)
+            
+        # Determine status
+        status = PlaybackStatus.UNKNOWN
+        if status_data.get('stopped'):
+            status = PlaybackStatus.STOPPED
+        elif status_data.get('paused'):
+            status = PlaybackStatus.PAUSED
+        elif status_data.get('playing') or status_data.get('is_playing'):
+            status = PlaybackStatus.PLAYING
+        else:
+            # Fallback logic
+            state_str = str(status_data.get('state', '')).lower()
+            if state_str == 'playing':
+                status = PlaybackStatus.PLAYING
+            elif state_str == 'paused':
+                status = PlaybackStatus.PAUSED
+            elif state_str == 'stopped':
+                status = PlaybackStatus.STOPPED
+            # If we have a track but not playing, assume paused if not explicitly stopped
+            elif status_data.get('track'):
+                status = PlaybackStatus.PAUSED
+            else:
+                status = PlaybackStatus.STOPPED
+        
+        # Try to get volume
+        volume = status_data.get('volume')
+        if volume is None:
+             try:
+                 volume = self.client.get_volume()
+             except:
+                 pass
+        
+        return PlaybackState(status=status, volume=volume)
+
     def _check_for_changes(self):
         """Check for status and track changes. Only emit events when state or track changes."""
         try:
             status = self.client.get_status()
             if not status or not isinstance(status, dict):
-                logger.debug("Spotify monitor: status is None or not a dict, skipping change check.")
                 return
 
-            # Defensive: ensure self.current_status is a dict
-            if not isinstance(self.current_status, dict):
-                self.current_status = {}
+            # Check for playback state change
+            new_state = self._parse_playback_status(status)
+            
+            # Compare states (status and volume)
+            if self.current_status != new_state:
+                # If status changed (enum)
+                if self.current_status.status != new_state.status:
+                    logger.info(f"Playback status changed: {self.current_status.status} → {new_state.status}")
+                
+                # If volume changed
+                if self.current_status.volume != new_state.volume:
+                    logger.debug(f"Volume changed: {self.current_status.volume} → {new_state.volume}")
 
-            # Check for playback state change (playing/paused/stopped)
-            old_state = self.current_status.get('state')
-            new_state = status.get('state')
-            if old_state != new_state:
-                logger.info(f"Playback state changed: {old_state} → {new_state}")
-                self._trigger_callbacks('state_changed', old_state=old_state, new_state=new_state)
+                self.current_status = new_state
+                self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
 
-            # Check for track change (track URI)
-            old_track = self.current_status.get('track', {}).get('uri') if self.current_status.get('track') else None
-            new_track = status.get('track', {}).get('uri') if status.get('track') else None
-            if old_track != new_track:
-                logger.info(f"Track changed: {old_track} → {new_track}")
-                track_info = self._format_track_info(status)
-                self._trigger_callbacks('track_changed', track=track_info)
-                self.current_track = track_info
+            # Check for track change
+            new_track = self._parse_track_info(status)
+            
+            if self.current_track != new_track:
+                logger.info(f"Track changed: {self.current_track.title} → {new_track.title}")
+                self.current_track = new_track
+                self._trigger_callbacks('track_changed', track_info=self.get_track_info())
 
-            # Update current status
-            self.current_status = status
         except Exception as e:
             logger.error(f"Error checking for changes: {e}", exc_info=True)
-    
-    def _is_same_track(self, status1: Dict, status2: Dict) -> bool:
-        """Check if two status objects represent the same track."""
-        track1 = status1.get('track', {}).get('uri', '')
-        track2 = status2.get('track', {}).get('uri', '')
-        return track1 == track2 and track1 != ''
-    
-    def _is_different_track(self, status1: Dict, status2: Dict) -> bool:
-        """Check if two status objects represent different tracks."""
-        track1 = status1.get('track', {}).get('uri', '')
-        track2 = status2.get('track', {}).get('uri', '')
-        return track1 != track2 and track1 != ''
     
     def _monitor_loop(self):
         """Main monitoring loop."""
@@ -186,11 +300,10 @@ class LibrespotMonitor:
         if not self.client.is_connected():
             self.client.connect()
         
-
-
         # Initialize current status
-        self.current_status = self.client.get_status() or {}
-        self.current_track = self._format_track_info(self.current_status)
+        status = self.client.get_status()
+        self.current_status = self._parse_playback_status(status)
+        self.current_track = self._parse_track_info(status)
         
         # Start monitoring thread
         self._stop_event.clear()
@@ -216,39 +329,38 @@ class LibrespotMonitor:
             else:
                 logger.debug("Librespot monitor thread exited successfully")
     
-    def get_current_track(self) -> Optional[Dict[str, Any]]:
+    def get_track_info(self) -> Optional[Dict[str, Any]]:
         """
-        Get currently playing track info.
+        Get current track information.
         
         Returns:
-            Current track info dict or None
+            Formatted track info dict or None
         """
-        try:
-            status = self.client.get_status()
-            return self._format_track_info(status)
-        except Exception as e:
-            logger.error(f"Error getting current track: {e}")
-            return None
+        if self.current_track:
+            return self.current_track.to_dict()
+        return None
+
+    def get_source_info(self) -> Dict[str, Any]:
+        """
+        Get current source information.
         
-    def get_status(self) -> Optional[Dict[str, Any]]:
-        "Gets current status"
-        try:
-            return self.current_status
-        except Exception as e:
-            logger.error(f"Error getting current status: {e}")
-            return None
-           
-    # def print_current_track(self):
-    #     """Print current track to console."""
-    #     track = self.get_current_track()
-    #     if track and track['name'] != 'No Track':
-    #         progress = track.get('progress_ms', 0) // 1000
-    #         duration = track.get('duration_ms', 0) // 1000
-    #         progress_str = f" ({progress//60}:{progress%60:02d}/{duration//60}:{duration%60:02d})"
-    #         playing_status = "▶️" if track.get('is_playing') else "⏸️"
-    #         print(f"🎵 {playing_status} Now playing: {track['artists']} - {track['name']}{progress_str}")
-    #     else:
-    #         print("🎵 No track currently playing")
+        Returns:
+            Source info dict
+        """
+        return self.current_source_info.to_dict()
+
+    def get_playback_state(self) -> Dict[str, Any]:
+        """
+        Get current playback state.
+        
+        Returns:
+            Playback state dict (status, volume)
+        """
+        if isinstance(self.current_status, PlaybackState):
+            return self.current_status.to_dict()
+            
+        # Fallback if somehow it's not initialized or wrong type
+        return {'status': 'unknown', 'volume': 0}
     
     def run_forever(self):
         """Run monitoring loop forever."""
