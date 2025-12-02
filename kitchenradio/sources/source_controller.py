@@ -739,10 +739,21 @@ class SourceController:
         Returns:
             Source info object
         """
-        controller, source_name, is_connected = self._get_active_controller()
+        # Get monitor (not controller) for state queries
+        monitor = None
+        is_connected = False
+        if self.source == SourceType.MPD:
+            monitor = self.mpd_monitor
+            is_connected = self.mpd_connected
+        elif self.source == SourceType.LIBRESPOT:
+            monitor = self.librespot_monitor
+            is_connected = self.librespot_connected
+        elif self.source == SourceType.BLUETOOTH:
+            monitor = self.bluetooth_monitor
+            is_connected = self.bluetooth_connected
         
-        if controller and is_connected:
-            info = controller.get_source_info()
+        if monitor and is_connected:
+            info = monitor.get_source_info()
             # Enrich with source type enum and power state
             if isinstance(info, SourceInfo):
                 info.source = self.source
@@ -751,20 +762,46 @@ class SourceController:
         
         return SourceInfo(source=SourceType.NONE, device_name="Unknown", power=self.powered_on)
     
+    def get_menu_options(self) -> Dict[str, Any]:
+        """
+        Get menu options for current source.
+        
+        This is a stub that returns an empty menu structure.
+        The actual menu functionality is handled by KitchenRadio class.
+        
+        Returns:
+            Menu options dict with has_menu=False
+        """
+        return {
+            'has_menu': False,
+            'options': []
+        }
+    
     def _trigger_source_update(self):
-        """Fetch current state from active controller and trigger callbacks"""
-        controller, source_name, is_connected = self._get_active_controller()
+        """Fetch current state from active monitor and trigger callbacks"""
+        # Get monitor (not controller) for state queries
+        monitor = None
+        is_connected = False
+        if self.source == SourceType.MPD:
+            monitor = self.mpd_monitor
+            is_connected = self.mpd_connected
+        elif self.source == SourceType.LIBRESPOT:
+            monitor = self.librespot_monitor
+            is_connected = self.librespot_connected
+        elif self.source == SourceType.BLUETOOTH:
+            monitor = self.bluetooth_monitor
+            is_connected = self.bluetooth_connected
 
         # Default empty state
         playback_state = PlaybackState(status=PlaybackStatus.STOPPED, volume=0)
         track_info = None
         source_info = SourceInfo(source=self.source, device_name="Unknown", power=self.powered_on)
 
-        if controller and is_connected:
+        if monitor and is_connected:
             try:
-                playback_state = controller.get_playback_state()
-                track_info = controller.get_track_info()
-                source_info = controller.get_source_info()
+                playback_state = monitor.get_playback_state()
+                track_info = monitor.get_track_info()
+                source_info = monitor.get_source_info()
                 if isinstance(source_info, SourceInfo):
                     source_info.source = self.source
                     source_info.power = self.powered_on
