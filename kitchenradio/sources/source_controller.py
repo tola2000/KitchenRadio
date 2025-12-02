@@ -654,12 +654,14 @@ class SourceController:
                 self.play()
             except Exception as e:
                 self.logger.warning(f"Could not auto-start playback on power on: {e}")
-            
-            self._emit_callback('client_changed', 'power_changed', powered_on=True)
-            return True
-
-        self.logger.warning("No sources available for power on")
-        return False
+        else:
+            # No sources available, but still allow power on (useful for testing/development)
+            self.logger.warning("No sources available for power on - powering on with no source")
+            self.source = SourceType.NONE
+        
+        # Always emit power changed callback
+        self._emit_callback('client_changed', 'power_changed', powered_on=True)
+        return True
     
     def power_off(self) -> bool:
         """Power off - save source and stop playback"""
@@ -741,22 +743,23 @@ class SourceController:
         
         if controller and is_connected:
             info = controller.get_source_info()
-            # Enrich with source type enum
+            # Enrich with source type enum and power state
             if isinstance(info, SourceInfo):
                 info.source = self.source
+                info.power = self.powered_on
             return info
         
-        return SourceInfo(source=SourceType.NONE, device_name="Unknown")
+        return SourceInfo(source=SourceType.NONE, device_name="Unknown", power=self.powered_on)
     
     def _trigger_source_update(self):
         """Fetch current state from active controller and trigger callbacks"""
         controller, source_name, is_connected = self._get_active_controller()
-        
+
         # Default empty state
         playback_state = PlaybackState(status=PlaybackStatus.STOPPED, volume=0)
         track_info = None
-        source_info = SourceInfo(source=self.source, device_name="Unknown")
-        
+        source_info = SourceInfo(source=self.source, device_name="Unknown", power=self.powered_on)
+
         if controller and is_connected:
             try:
                 playback_state = controller.get_playback_state()
@@ -764,8 +767,10 @@ class SourceController:
                 source_info = controller.get_source_info()
                 if isinstance(source_info, SourceInfo):
                     source_info.source = self.source
+                    source_info.power = self.powered_on
                 elif isinstance(source_info, dict):
                     source_info['source'] = self.source.value
+                    source_info['power'] = self.powered_on
             except Exception as e:
                 self.logger.error(f"Error fetching state for update: {e}")
 
@@ -773,14 +778,13 @@ class SourceController:
         self._emit_callback('client_changed', 'playback_state_changed', playback_state=playback_state)
         self._emit_callback('client_changed', 'track_changed', track_info=track_info)
         self._emit_callback('client_changed', 'source_info_changed', source_info=source_info)
-        
+
         # Emit current source and available sources
         current_source = self.get_current_source()
         self._emit_callback('client_changed', 'current_source_changed', current_source=current_source.value if current_source else 'none')
-        
+
         available_sources = [s.value for s in self.get_available_sources()]
         self._emit_callback('client_changed', 'available_sources_changed', available_sources=available_sources)
-        
 
     def _handle_monitor_event(self, source_type: SourceType, event_name: str, **kwargs):
         """Handle events from any monitor"""

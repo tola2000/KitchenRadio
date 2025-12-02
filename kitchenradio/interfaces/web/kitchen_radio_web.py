@@ -126,9 +126,9 @@ class KitchenRadioWeb:
             'current_source': current_source,
             'powered_on': powered_on,
             'available_sources': available_sources,
-            'playback_state': playback_state,
-            'track_info': track_info,
-            'source_info': source_info,
+            'playback_state': playback_state.to_dict() if playback_state else {},
+            'track_info': track_info.to_dict() if track_info else {},
+            'source_info': source_info.to_dict() if source_info else {},
             # Legacy fields for compatibility
             'mpd': {
                 'connected': mpd_connected,

@@ -103,12 +103,14 @@ class DisplayController:
         self.last_truncation_info = {}
         self.current_scroll_offsets = {}
         self.scroll_pause_until = {}
+        self.scroll_pause_duration = display_config.SCROLL_PAUSE_DURATION
         
         # Overlay state
         self.overlay_active = False
         self.overlay_type = None
         self.overlay_end_time = 0
         self.last_volume = None
+        self.last_volume_change_time = 0
         self.selected_index = 0
         
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
@@ -547,9 +549,15 @@ class DisplayController:
 
     def _render_clock_display(self):
         """Update display to show clock in Belgium/Brussels timezone"""
-        from zoneinfo import ZoneInfo
-        # Get current time in Belgium/Brussels timezone (CET/CEST)
-        now = datetime.now(ZoneInfo('Europe/Brussels'))
+        try:
+            from zoneinfo import ZoneInfo
+            # Get current time in Belgium/Brussels timezone (CET/CEST)
+            now = datetime.now(ZoneInfo('Europe/Brussels'))
+        except Exception as e:
+            # Fallback to local time if timezone data is not available (e.g., Windows without tzdata)
+            logger.debug(f"Timezone data not available ({e}), using local time")
+            now = datetime.now()
+            
         clock_data = {
             'time': now.strftime("%H:%M"),
             'date': now.strftime("%Y-%m-%d"),

@@ -80,13 +80,15 @@ class SourceInfo:
     device_name: str = "Unknown"
     device_mac: str = ""
     path: str = ""
+    power: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             'source': self.source.value,
             'device_name': self.device_name,
             'device_mac': self.device_mac,
-            'path': self.path
+            'path': self.path,
+            'power': self.power
         }
 
 
