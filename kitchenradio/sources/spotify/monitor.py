@@ -114,30 +114,41 @@ class LibrespotMonitor:
     def _parse_playback_status(self, status_data: Dict[str, Any]) -> PlaybackState:
         """Parse playback status from status data"""
         if not status_data:
+            logger.debug("[Spotify] _parse_playback_status: status_data is None/empty")
             return PlaybackState(status=PlaybackStatus.STOPPED)
+        
+        logger.debug(f"[Spotify] _parse_playback_status: stopped={status_data.get('stopped')}, paused={status_data.get('paused')}, playing={status_data.get('playing')}, is_playing={status_data.get('is_playing')}, state={status_data.get('state')}")
             
         # Determine status
         status = PlaybackStatus.UNKNOWN
         if status_data.get('stopped'):
             status = PlaybackStatus.STOPPED
+            logger.debug("[Spotify] Status determined: STOPPED (from 'stopped' field)")
         elif status_data.get('paused'):
             status = PlaybackStatus.PAUSED
+            logger.debug("[Spotify] Status determined: PAUSED (from 'paused' field)")
         elif status_data.get('playing') or status_data.get('is_playing'):
             status = PlaybackStatus.PLAYING
+            logger.debug("[Spotify] Status determined: PLAYING (from 'playing'/'is_playing' field)")
         else:
             # Fallback logic
             state_str = str(status_data.get('state', '')).lower()
             if state_str == 'playing':
                 status = PlaybackStatus.PLAYING
+                logger.debug("[Spotify] Status determined: PLAYING (from 'state' field)")
             elif state_str == 'paused':
                 status = PlaybackStatus.PAUSED
+                logger.debug("[Spotify] Status determined: PAUSED (from 'state' field)")
             elif state_str == 'stopped':
                 status = PlaybackStatus.STOPPED
+                logger.debug("[Spotify] Status determined: STOPPED (from 'state' field)")
             # If we have a track but not playing, assume paused if not explicitly stopped
             elif status_data.get('track'):
                 status = PlaybackStatus.PAUSED
+                logger.debug("[Spotify] Status determined: PAUSED (fallback - has track)")
             else:
                 status = PlaybackStatus.STOPPED
+                logger.debug("[Spotify] Status determined: STOPPED (fallback - no track)")
         
         # Try to get volume
         volume = status_data.get('volume')
