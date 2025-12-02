@@ -40,7 +40,8 @@ class TrackInfo:
             'title': self.title,
             'artist': self.artist,
             'album': self.album,
-            'duration': self.duration
+            'duration': self.duration,
+            'duration_formatted': self.get_duration_formatted()
         }
     
     def get_duration_formatted(self) -> str:
@@ -61,22 +62,37 @@ class TrackInfo:
 
 
 @dataclass
+class SourceInfo:
+    """
+    Source device information.
+    """
+    device_name: str = "Unknown"
+    device_mac: str = ""
+    path: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'device_name': self.device_name,
+            'device_mac': self.device_mac,
+            'path': self.path
+        }
+
+
+@dataclass
 class PlaybackState:
     """
     Current playback state.
     
-    Tracks playback status, volume and device name.
+    Tracks playback status and volume.
     """
     status: PlaybackStatus = PlaybackStatus.UNKNOWN
     volume: Optional[int] = None
-    device_name: str = "Unknown"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             'status': self.status.value,
-            'volume': self.volume,
-            'device_name': self.device_name
+            'volume': self.volume
         }
 
 
@@ -133,8 +149,7 @@ class BluetoothMonitor:
 
         # Track connected devices
         self.connected_devices = set()  # MAC addresses
-        self.current_device_path = None
-        self.current_device_name = None
+        self.current_source_info = SourceInfo()
         
     def add_callback(self, event: str, callback: Callable):
         """
@@ -143,7 +158,7 @@ class BluetoothMonitor:
         Args:
             event: Event name (device_connected, device_disconnected, 
                    track_started, track_paused, track_resumed, 
-                   status_changed, state_changed, any)
+                   status_changed, state_changed, source_info_changed, any)
             callback: Callback function
         """
         if event not in self.callbacks:
@@ -170,32 +185,6 @@ class BluetoothMonitor:
                 except Exception as e:
                     logger.error(f"Error in callback for {event}: {e}")
     
-    def _format_track_info(self, track: Optional[TrackInfo]) -> Dict[str, Any]:
-        """
-        Format track information for display.
-        
-        Args:
-            track: TrackInfo object
-            
-        Returns:
-            Formatted track info dict
-        """
-        if not track:
-            return {
-                'title': 'Unknown',
-                'artist': 'Unknown',
-                'album': '',
-                'duration': 0
-            }
-        
-        return {
-            'title': track.title,
-            'artist': track.artist,
-            'album': track.album,
-            'duration': track.duration,
-            'duration_formatted': track.get_duration_formatted()
-        }
-    
     def _on_device_connected(self, device_path: str, device_name: str, device_mac: str):
         """
         Handle device connection event.
@@ -211,8 +200,11 @@ class BluetoothMonitor:
         try:
             # Track the connected device
             self.connected_devices.add(device_mac)
-            self.current_device_path = device_path
-            self.current_device_name = device_name
+            self.current_source_info = SourceInfo(
+                device_name=device_name,
+                device_mac=device_mac,
+                path=device_path
+            )
             
             logger.info(f"🟢 Device connected: {device_name} ({device_mac})")
             
@@ -222,6 +214,7 @@ class BluetoothMonitor:
             
             # Trigger callback
             self._trigger_callbacks('device_connected', name=device_name, mac=device_mac)
+            self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
             
         except Exception as e:
             logger.error(f"Error handling device connection: {e}")
@@ -240,9 +233,9 @@ class BluetoothMonitor:
             if device_mac in self.connected_devices:
                 self.connected_devices.remove(device_mac)
             
-            if self.current_device_path == device_path:
-                self.current_device_path = None
-                self.current_device_name = None
+            if self.current_source_info.path == device_path:
+                self.current_source_info = SourceInfo()
+                self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
                 
             logger.info(f"🔴 Device disconnected: {device_name} ({device_mac})")
             
@@ -379,7 +372,7 @@ class BluetoothMonitor:
         # Update the display when track changes
         if self.display_controller:
             try:
-                self.display_controller.render_bluetooth_track(self._format_track_info(track_info_obj))
+                self.display_controller.render_bluetooth_track(track_info_obj.to_dict())
             except Exception as e:
                 logger.error(f"Error updating Bluetooth display on track change: {e}")
     
@@ -477,33 +470,29 @@ class BluetoothMonitor:
             Formatted track info dict or None
         """
         if self.current_track:
-            return self._format_track_info(self.current_track)
+            return self.current_track.to_dict()
         return None
+
+    def get_source_info(self) -> Dict[str, Any]:
+        """
+        Get current source information.
+        
+        Returns:
+            Source info dict
+        """
+        return self.current_source_info.to_dict()
 
     def get_playback_state(self) -> Dict[str, Any]:
         """
         Get current playback state.
         
         Returns:
-            Playback state dict (status, volume, device_name)
+            Playback state dict (status, volume)
         """
         volume = self.client.get_volume()
              
         return {
             'status': self.current_status.value if self.current_status else 'unknown',
-            'volume': volume,
-            'device_name': self.current_device_name or "Unknown"
+            'volume': volume
         }
     
-    def print_current_track(self):
-        """Print current track to console"""
-        track = self.get_track_info()
-        if track:
-            print(f"🎵 Now Playing:")
-            print(f"   Title:  {track['title']}")
-            print(f"   Artist: {track['artist']}")
-            print(f"   Album:  {track['album']}")
-            if track['duration'] > 0:
-                print(f"   Duration: {track['duration_formatted']}")
-        else:
-            print("🔇 No track playing")

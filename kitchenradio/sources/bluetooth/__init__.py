@@ -10,7 +10,8 @@ from .monitor import (
     BluetoothMonitor,
     PlaybackState,
     PlaybackStatus,
-    TrackInfo
+    TrackInfo,
+    SourceInfo
 )
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     'BlueZClient',
     'PlaybackState',
     'PlaybackStatus',
-    'TrackInfo'
+    'TrackInfo',
+    'SourceInfo'
 ]

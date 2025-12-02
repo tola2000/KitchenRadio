@@ -31,15 +31,15 @@ class BluetoothController:
     and PulseAudio integration for volume control.
     """
     
-    def __init__(self, client, monitor, adapter_path='/org/bluez/hci0'):
+    def __init__(self, adapter_path='/org/bluez/hci0'):
         """
         Initialize Bluetooth controller.
         
         Args:
             adapter_path: Path to Bluetooth adapter (default: /org/bluez/hci0)
         """
-        self.client = client
-        self.monitor = monitor
+        self.client = BlueZClient(adapter_path)
+        self.monitor = BluetoothMonitor(self.client)
         self.adapter_path = adapter_path
 
         self.mainloop: Optional[GLib.MainLoop] = None
@@ -402,11 +402,8 @@ class BluetoothController:
         Returns:
             True if command was sent successfully, False otherwise
         """
-        if self.monitor and self.monitor.avrcp_client:
-                logger.info("▶️ Sending play command to Bluetooth device")
-                return self.monitor.avrcp_client.play()
-
-        return False
+        logger.info("▶️ Sending play command to Bluetooth device")
+        return self.client.play()
     
     def pause(self) -> bool:
         """
@@ -415,13 +412,8 @@ class BluetoothController:
         Returns:
             True if command was sent successfully, False otherwise
         """
-        if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
-                logger.info("⏸️ Sending pause command to Bluetooth device")
-                return self.monitor.avrcp_client.pause()
-            else:
-                logger.warning("Cannot pause: AVRCP not available")
-        return False
+        logger.info("⏸️ Sending pause command to Bluetooth device")
+        return self.client.pause()
     
     def playpause(self) -> bool:
         """
@@ -430,20 +422,15 @@ class BluetoothController:
         Returns:
             True if command was sent successfully, False otherwise
         """
-        if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
-                # Get current status
-                status = self.monitor.get_playback_state()['status']
-                
-                if status == 'playing':
-                    logger.info("⏸️ Toggling to pause")
-                    return self.monitor.avrcp_client.pause()
-                else:
-                    logger.info("▶️ Toggling to play")
-                    return self.monitor.avrcp_client.play()
-            else:
-                logger.warning("Cannot toggle play/pause: AVRCP not available")
-        return False
+        # Get current status
+        status = self.monitor.get_playback_state()['status']
+        
+        if status == 'playing':
+            logger.info("⏸️ Toggling to pause")
+            return self.client.pause()
+        else:
+            logger.info("▶️ Toggling to play")
+            return self.client.play()
     
     def stop(self) -> bool:
         """
@@ -452,13 +439,8 @@ class BluetoothController:
         Returns:
             True if command was sent successfully, False otherwise
         """
-        if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
-                logger.info("⏹️ Sending stop command to Bluetooth device")
-                return self.monitor.avrcp_client.stop()
-            else:
-                logger.warning("Cannot stop: AVRCP not available")
-        return False
+        logger.info("⏹️ Sending stop command to Bluetooth device")
+        return self.client.stop()
     
     def next(self) -> bool:
         """
@@ -467,13 +449,8 @@ class BluetoothController:
         Returns:
             True if command was sent successfully, False otherwise
         """
-        if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
-                logger.info("⏭️ Sending next command to Bluetooth device")
-                return self.monitor.avrcp_client.next()
-            else:
-                logger.warning("Cannot skip to next: AVRCP not available")
-        return False
+        logger.info("⏭️ Sending next command to Bluetooth device")
+        return self.client.next()
     
     def previous(self) -> bool:
         """
@@ -482,13 +459,24 @@ class BluetoothController:
         Returns:
             True if command was sent successfully, False otherwise
         """
-        if self.monitor and self.monitor.avrcp_client:
-            if self.monitor.avrcp_client.is_available():
-                logger.info("⏮️ Sending previous command to Bluetooth device")
-                return self.monitor.avrcp_client.previous()
-            else:
-                logger.warning("Cannot skip to previous: AVRCP not available")
-        return False
+        logger.info("⏮️ Sending previous command to Bluetooth device")
+        return self.client.previous()
+
+    def get_volume(self) -> Optional[int]:
+        """Get current volume"""
+        return self.client.get_volume()
+
+    def set_volume(self, volume: int) -> bool:
+        """Set volume"""
+        return self.client.set_volume(volume)
+
+    def volume_up(self, step: int = 10) -> bool:
+        """Increase volume"""
+        return self.client.volume_up(step)
+
+    def volume_down(self, step: int = 10) -> bool:
+        """Decrease volume"""
+        return self.client.volume_down(step)
     
     def cleanup(self):
         """Cleanup resources"""

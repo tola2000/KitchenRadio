@@ -17,11 +17,10 @@ from kitchenradio.sources.spotify import KitchenRadioLibrespotClient, LibrespotC
 
 # Bluetooth imports are optional (Linux only)
 try:
-    from kitchenradio.sources.bluetooth import BlueZClient, BluetoothController, BluetoothMonitor
+    from kitchenradio.sources.bluetooth import BluetoothController, BluetoothMonitor
     BLUETOOTH_AVAILABLE = True
 except ImportError:
     BLUETOOTH_AVAILABLE = False
-    BlueZClient = None
     BluetoothController = None
     BluetoothMonitor = None
 
@@ -205,10 +204,9 @@ class SourceController:
             return False
         
         try:
-            self.bluetooth_bluez_client = BlueZClient()
-            self.bluetooth_monitor = BluetoothMonitor(self.bluetooth_bluez_client)
-            self.bluetooth_controller = BluetoothController(self.bluetooth_bluez_client, self.bluetooth_monitor)
-
+            self.bluetooth_controller = BluetoothController()
+            self.bluetooth_monitor = self.bluetooth_controller.monitor
+            
             # Give it time to initialize
             time.sleep(0.5)
             
@@ -510,11 +508,10 @@ class SourceController:
         if self.source == BackendType.NONE:
             return None
         
-        # Special handling for Bluetooth volume via monitor
-        if self.source == BackendType.BLUETOOTH and self.bluetooth_monitor:
+        # Special handling for Bluetooth volume via controller
+        if self.source == BackendType.BLUETOOTH and self.bluetooth_controller:
             try:
-                state = self.bluetooth_monitor.get_playback_state()
-                return state.get('volume')
+                return self.bluetooth_controller.get_volume()
             except Exception as e:
                 self.logger.error(f"Error getting Bluetooth volume: {e}")
                 return None
@@ -545,10 +542,10 @@ class SourceController:
             self.logger.error(f"Invalid volume: {volume}. Must be 0-100")
             return False
         
-        # Special handling for Bluetooth volume via monitor/avrcp
-        if self.source == BackendType.BLUETOOTH and self.bluetooth_monitor and self.bluetooth_monitor.avrcp_client:
+        # Special handling for Bluetooth volume via controller
+        if self.source == BackendType.BLUETOOTH and self.bluetooth_controller:
             try:
-                return self.bluetooth_monitor.avrcp_client.set_volume(volume)
+                return self.bluetooth_controller.set_volume(volume)
             except Exception as e:
                 self.logger.error(f"Error setting Bluetooth volume: {e}")
                 return False
@@ -572,13 +569,12 @@ class SourceController:
         if self.source == BackendType.NONE:
             return None
         
-        # Special handling for Bluetooth volume via monitor/avrcp
-        if self.source == BackendType.BLUETOOTH and self.bluetooth_monitor and self.bluetooth_monitor.avrcp_client:
+        # Special handling for Bluetooth volume via controller
+        if self.source == BackendType.BLUETOOTH and self.bluetooth_controller:
             try:
-                if self.bluetooth_monitor.avrcp_client.volume_up(step):
+                if self.bluetooth_controller.volume_up(step):
                     # Return new volume if possible
-                    state = self.bluetooth_monitor.get_playback_state()
-                    return state.get('volume')
+                    return self.bluetooth_controller.get_volume()
                 return None
             except Exception as e:
                 self.logger.error(f"Error increasing Bluetooth volume: {e}")
@@ -603,13 +599,12 @@ class SourceController:
         if self.source == BackendType.NONE:
             return None
         
-        # Special handling for Bluetooth volume via monitor/avrcp
-        if self.source == BackendType.BLUETOOTH and self.bluetooth_monitor and self.bluetooth_monitor.avrcp_client:
+        # Special handling for Bluetooth volume via controller
+        if self.source == BackendType.BLUETOOTH and self.bluetooth_controller:
             try:
-                if self.bluetooth_monitor.avrcp_client.volume_down(step):
+                if self.bluetooth_controller.volume_down(step):
                     # Return new volume if possible
-                    state = self.bluetooth_monitor.get_playback_state()
-                    return state.get('volume')
+                    return self.bluetooth_controller.get_volume()
                 return None
             except Exception as e:
                 self.logger.error(f"Error decreasing Bluetooth volume: {e}")
