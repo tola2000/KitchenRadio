@@ -437,14 +437,25 @@ class DisplayController:
             # Only update display if status has changed or force refresh or first update or power state changed
             # Note: current_status structure changed, so direct comparison might need adjustment if last_status structure differs
             # But since we reconstruct current_status every time, it should be consistent
-            if not self.overlay_active and (current_status != self.last_status or overlay_dismissed or force_refresh or self._first_update or power_state_changed):
+            # Compare playback state specifically for better change detection
+            status_changed = False
+            if self.last_status is None:
+                status_changed = True
+            elif current_status.get('playback_state') != self.last_status.get('playback_state'):
+                status_changed = True
+                logger.debug(f"Playback state changed: {self.last_status.get('playback_state')} -> {current_status.get('playback_state')}")
+            elif current_status.get('track_info') != self.last_status.get('track_info'):
+                status_changed = True
+                logger.debug(f"Track info changed")
+                
+            if not self.overlay_active and (status_changed or overlay_dismissed or force_refresh or self._first_update or power_state_changed):
                 if self._first_update:
                     logger.info("First display update after initialization - forcing render")
                     self._first_update = False
                 if power_state_changed:
                     logger.info(f"Power state changed: {self.last_powered_on} -> {current_powered_on} - forcing render")
 
-                self.last_status = current_status
+                self.last_status = current_status.copy()  # Copy to avoid reference comparison issues
                 self.last_powered_on = current_powered_on
 
                 if current_source == 'mpd':

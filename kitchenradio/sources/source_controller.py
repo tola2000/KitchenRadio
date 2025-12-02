@@ -1030,20 +1030,32 @@ class SourceController:
         # Start MPD monitoring
         if self.mpd_connected and self.mpd_monitor:
             # Register SourceController to receive monitor events
-            self.mpd_monitor.add_callback('any', lambda **kwargs: self._handle_monitor_event(SourceType.MPD, 'any', **kwargs))
+            # Monitor passes event='event_name' as kwarg, so extract it
+            def mpd_callback(**kwargs):
+                event_name = kwargs.pop('event', 'unknown')
+                self._handle_monitor_event(SourceType.MPD, event_name, **kwargs)
+            self.mpd_monitor.add_callback('any', mpd_callback)
             self.mpd_monitor.start_monitoring()
             self.logger.info("✅ MPD monitoring started")
             
         # Start Librespot monitoring
         if self.librespot_connected and self.librespot_monitor:
             # Register SourceController to receive monitor events
-            self.librespot_monitor.add_callback('any', lambda **kwargs: self._handle_monitor_event(SourceType.LIBRESPOT, 'any', **kwargs))
+            # Monitor passes event='event_name' as kwarg, so extract it
+            def librespot_callback(**kwargs):
+                event_name = kwargs.pop('event', 'unknown')
+                self._handle_monitor_event(SourceType.LIBRESPOT, event_name, **kwargs)
+            self.librespot_monitor.add_callback('any', librespot_callback)
             self.librespot_monitor.start_monitoring()
             self.logger.info("✅ Librespot monitoring started")
             
         # Start Bluetooth monitoring
         if self.bluetooth_connected and self.bluetooth_monitor:
             # Register SourceController to receive monitor events
-            self.bluetooth_monitor.add_callback('any', lambda **kwargs: self._handle_monitor_event(SourceType.BLUETOOTH, 'any', **kwargs))
+            # Monitor passes event='event_name' as kwarg, so extract it
+            def bluetooth_callback(**kwargs):
+                event_name = kwargs.pop('event', 'unknown')
+                self._handle_monitor_event(SourceType.BLUETOOTH, event_name, **kwargs)
+            self.bluetooth_monitor.add_callback('any', bluetooth_callback)
             self.bluetooth_monitor.start_monitoring()
             self.logger.info("✅ Bluetooth monitoring started")
