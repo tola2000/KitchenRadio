@@ -52,8 +52,7 @@ class BluetoothController:
         self.running = False
         self.current_device_path: Optional[str] = None
         self.current_device_name: Optional[str] = None
-        self.current_volume: Optional[int] = None
-        self.current_state: Optional[str] = None
+
         
         # Callbacks
         self.on_device_connected: Optional[Callable[[str, str], None]] = None  # (name, mac)
@@ -88,7 +87,6 @@ class BluetoothController:
 
                 # Set up property change callback (controller still needs this for pairing)
                 self.client.on_properties_changed = self._on_properties_changed
-                self.client.on_volume_changed = self._on_volume_changed
 
                 logger.info("✅ BluetoothController: Client initialized")
 
@@ -155,15 +153,6 @@ class BluetoothController:
         except Exception as e:
             logger.error(f"Error scanning existing devices: {e}")
     
-    def _on_volume_changed(self, interface: str, changed: Dict, invalidated: list, path: str):
-        if "Volume" in changed:
-            self.current_volume = changed["Volume"]
-        elif "State" in changed:
-            self.current_state = changed["State"]   
-            logger.info(f"xxxProperty changed  {changed} on {path}")
-        else:    
-            logger.info(f"Property changed  {changed} on {path}")
-
     def _on_properties_changed(self, interface: str, changed: Dict, invalidated: list, path: str):
         """Handle property changes from BlueZ client"""
         try:
@@ -405,42 +394,7 @@ class BluetoothController:
         
         return devices
     
-    def get_volume(self) -> Optional[int]:
-        return self.current_volume   
 
-    def set_volume(self, volume: int) -> bool:
-        return False
-    
-    def volume_up(self, step: int = 5) -> bool:
-        return False
-    
-    def volume_down(self, step: int = 5) -> bool:
-        return False
-    
-
-    def get_current_track(self) -> Optional[Dict[str, Any]]:
-        """
-        Get current track information from AVRCP.
-        
-        Returns:
-            Dictionary with track info (title, artist, album, duration) or None
-        """
-        if self.monitor:
-            return self.monitor.get_current_track()
-        return None
-    
-    def get_playback_status(self) -> Optional[str]:
-        """
-        Get current playback status.
-        
-        Returns:
-            Status string ('playing', 'paused', 'stopped', etc.) or None
-        """
-        
-        if self.monitor:
-            return self.monitor.get_status()['state']
-        return None
-    
     def play(self) -> bool:
         """
         Send play command via AVRCP.
@@ -479,7 +433,7 @@ class BluetoothController:
         if self.monitor and self.monitor.avrcp_client:
             if self.monitor.avrcp_client.is_available():
                 # Get current status
-                status = self.get_playback_status()
+                status = self.monitor.get_playback_state()['status']
                 
                 if status == 'playing':
                     logger.info("⏸️ Toggling to pause")

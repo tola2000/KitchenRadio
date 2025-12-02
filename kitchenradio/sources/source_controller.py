@@ -511,6 +511,15 @@ class SourceController:
         if self.source == BackendType.NONE:
             return None
         
+        # Special handling for Bluetooth volume via monitor
+        if self.source == BackendType.BLUETOOTH and self.bluetooth_monitor:
+            try:
+                state = self.bluetooth_monitor.get_playback_state()
+                return state.get('volume')
+            except Exception as e:
+                self.logger.error(f"Error getting Bluetooth volume: {e}")
+                return None
+
         try:
             return controller.get_volume()
         except Exception as e:
@@ -537,6 +546,14 @@ class SourceController:
             self.logger.error(f"Invalid volume: {volume}. Must be 0-100")
             return False
         
+        # Special handling for Bluetooth volume via monitor/avrcp
+        if self.source == BackendType.BLUETOOTH and self.bluetooth_monitor and self.bluetooth_monitor.avrcp_client:
+            try:
+                return self.bluetooth_monitor.avrcp_client.set_volume(volume)
+            except Exception as e:
+                self.logger.error(f"Error setting Bluetooth volume: {e}")
+                return False
+
         try:
             result = controller.set_volume(volume)
             if result:
@@ -556,6 +573,18 @@ class SourceController:
         if self.source == BackendType.NONE:
             return None
         
+        # Special handling for Bluetooth volume via monitor/avrcp
+        if self.source == BackendType.BLUETOOTH and self.bluetooth_monitor and self.bluetooth_monitor.avrcp_client:
+            try:
+                if self.bluetooth_monitor.avrcp_client.volume_up(step):
+                    # Return new volume if possible
+                    state = self.bluetooth_monitor.get_playback_state()
+                    return state.get('volume')
+                return None
+            except Exception as e:
+                self.logger.error(f"Error increasing Bluetooth volume: {e}")
+                return None
+
         try:
             new_volume = controller.volume_up(step)
             if new_volume is not None:
@@ -575,6 +604,18 @@ class SourceController:
         if self.source == BackendType.NONE:
             return None
         
+        # Special handling for Bluetooth volume via monitor/avrcp
+        if self.source == BackendType.BLUETOOTH and self.bluetooth_monitor and self.bluetooth_monitor.avrcp_client:
+            try:
+                if self.bluetooth_monitor.avrcp_client.volume_down(step):
+                    # Return new volume if possible
+                    state = self.bluetooth_monitor.get_playback_state()
+                    return state.get('volume')
+                return None
+            except Exception as e:
+                self.logger.error(f"Error decreasing Bluetooth volume: {e}")
+                return None
+
         try:
             new_volume = controller.volume_down(step)
             if new_volume is not None:
@@ -754,11 +795,14 @@ class SourceController:
                         'name': self.bluetooth_controller.current_device_name,
                         'mac': device_mac
                     })
-                bluetooth_status = self.librespot_monitor.get_status()
                 
-                # bluetooth_volume = self.bluetooth_controller.get_volume() if hasattr(self.bluetooth_controller, 'get_volume') else None
-                # current_track = self.bluetooth_controller.get_current_track() if hasattr(self.bluetooth_controller, 'get_current_track') else None
-                # playback_status = self.bluetooth_controller.get_playback_status() if hasattr(self.bluetooth_controller, 'get_playback_status') else None
+                # Get state from monitor
+                playback_state = self.bluetooth_monitor.get_playback_state()
+                track_info = self.bluetooth_monitor.get_track_info()
+                
+                bluetooth_volume = playback_state.get('volume')
+                playback_status = playback_state.get('status')
+                current_track = track_info
 
                 status['bluetooth'] = {
                     'connected': True,
@@ -847,10 +891,10 @@ class SourceController:
                 if self.bluetooth_controller.monitor:
                     if 'track_changed' in bluetooth_callbacks:
                         self.logger.debug("[Bluetooth] Track changed callback registered.")
-                        self.bluetooth_controller.monitor.register_callback('track_changed', bluetooth_callbacks['track_changed'])
+                        self.bluetooth_controller.monitor.add_callback('track_changed', bluetooth_callbacks['track_changed'])
                     if 'status_changed' in bluetooth_callbacks:
                         self.logger.debug("[Bluetooth] Status changed callback registered.")
-                        self.bluetooth_controller.monitor.register_callback('status_changed', bluetooth_callbacks['status_changed'])
+                        self.bluetooth_controller.monitor.add_callback('playback_state_changed', bluetooth_callbacks['status_changed'])
             self.logger.info("Started Bluetooth monitoring")
     
     def stop_monitoring(self):

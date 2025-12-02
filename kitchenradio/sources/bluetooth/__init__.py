@@ -5,10 +5,9 @@ Provides Bluetooth audio connectivity with auto-pairing support and AVRCP media 
 """
 
 from .controller import BluetoothController
-from .avrcp_client import AVRCPClient
+from .avrcp_client import AVRCPClient, AVRCPState
 from .bluez_client import BlueZClient
 from .monitor import (
-    AVRCPState,
     BluetoothMonitor,
     PlaybackState,
     PlaybackStatus,

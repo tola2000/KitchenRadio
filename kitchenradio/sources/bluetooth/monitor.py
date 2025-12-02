@@ -33,8 +33,6 @@ class TrackInfo:
     artist: str = "Unknown"
     album: str = ""
     duration: int = 0  # Duration in milliseconds
-    track_number: int = 0
-    total_tracks: int = 0
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
@@ -42,9 +40,7 @@ class TrackInfo:
             'title': self.title,
             'artist': self.artist,
             'album': self.album,
-            'duration': self.duration,
-            'track_number': self.track_number,
-            'total_tracks': self.total_tracks
+            'duration': self.duration
         }
     
     def get_duration_formatted(self) -> str:
@@ -69,198 +65,17 @@ class PlaybackState:
     """
     Current playback state.
     
-    Tracks playback status and current track information.
+    Tracks playback status and volume.
     """
     status: PlaybackStatus = PlaybackStatus.UNKNOWN
-    track: Optional[TrackInfo] = None
     volume: Optional[int] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             'status': self.status.value,
-            'track': self.track.to_dict() if self.track else None,
             'volume': self.volume
         }
-
-
-
-@dataclass
-class AVRCPState:
-    """
-    Complete AVRCP device state.
-    
-    Represents the complete state of an AVRCP-enabled Bluetooth device,
-    including connection status, device information, and playback state.
-    """
-    device_name: str = ""
-    device_mac: str = ""
-    device_path: str = ""
-    connected: bool = False
-    avrcp_available: bool = False
-    playback: PlaybackState = field(default_factory=PlaybackState)
-    last_updated: Optional[datetime] = None
-    state_changes: int = 0
-    
-    def connect(self, device_name: str, device_mac: str, device_path: str):
-        """
-        Mark device as connected.
-        
-        Args:
-            device_name: Human-readable device name
-            device_mac: Device MAC address
-            device_path: D-Bus object path
-        """
-        self.device_name = device_name
-        self.device_mac = device_mac
-        self.device_path = device_path
-        self.connected = True
-        self.last_updated = datetime.now()
-        self.state_changes += 1
-    
-    def disconnect(self):
-        """Mark device as disconnected and reset playback state"""
-        self.connected = False
-        self.avrcp_available = False
-        self.playback = PlaybackState()
-        self.last_updated = datetime.now()
-        self.state_changes += 1
-    
-    def set_avrcp_available(self, available: bool):
-        """
-        Set AVRCP availability status.
-        
-        Args:
-            available: True if AVRCP media player is available
-        """
-        self.avrcp_available = available
-        self.last_updated = datetime.now()
-        self.state_changes += 1
-    
-    def update_track(self, track: TrackInfo):
-        """
-        Update current track information.
-        
-        Args:
-            track: TrackInfo object with new track data
-        """
-        self.playback.track = track
-        self.last_updated = datetime.now()
-        self.state_changes += 1
-    
-    def update_status(self, status: PlaybackStatus):
-        """
-        Update playback status.
-        
-        Args:
-            status: New playback status
-        """
-        old_status = self.playback.status
-        self.playback.status = status
-        
-        self.last_updated = datetime.now()
-        self.state_changes += 1
-
-
-    def update_volume(self, volume: int):
-        """
-        Update playback position.
-        
-        Args:
-            position: Position in milliseconds
-        """
-        self.playback.volume = volume
-        self.last_updated = datetime.now()
-        self.state_changes += 1
-
-    def reset(self):
-        """Reset all state to initial values"""
-        self.device_name = ""
-        self.device_mac = ""
-        self.device_path = ""
-        self.connected = False
-        self.avrcp_available = False
-        self.playback = PlaybackState()
-        self.last_updated = None
-        self.state_changes = 0
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert complete state to dictionary for serialization"""
-        return {
-            'device_name': self.device_name,
-            'device_mac': self.device_mac,
-            'device_path': self.device_path,
-            'connected': self.connected,
-            'avrcp_available': self.avrcp_available,
-            'playback': self.playback.to_dict(),
-            'last_updated': self.last_updated.isoformat() if self.last_updated else None,
-            'state_changes': self.state_changes
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AVRCPState':
-        """
-        Create AVRCPState from dictionary.
-        
-        Args:
-            data: Dictionary with state data
-            
-        Returns:
-            New AVRCPState instance
-        """
-        state = cls(
-            device_name=data.get('device_name', ''),
-            device_mac=data.get('device_mac', ''),
-            device_path=data.get('device_path', ''),
-            connected=data.get('connected', False),
-            avrcp_available=data.get('avrcp_available', False),
-            state_changes=data.get('state_changes', 0)
-        )
-        
-        # Restore playback state
-        playback_data = data.get('playback', {})
-        if playback_data:
-            track_data = playback_data.get('track')
-            if track_data:
-                state.playback.track = TrackInfo(**track_data)
-            
-            status_str = playback_data.get('status', 'unknown')
-            try:
-                state.playback.status = PlaybackStatus(status_str)
-            except ValueError:
-                state.playback.status = PlaybackStatus.UNKNOWN
-            
-        # Restore timestamps
-        last_updated_str = data.get('last_updated')
-        if last_updated_str:
-            state.last_updated = datetime.fromisoformat(last_updated_str)
-        
-        return state
-    
-    def get_status_summary(self) -> str:
-        """
-        Get human-readable status summary.
-        
-        Returns:
-            String describing current state
-        """
-        if not self.connected:
-            return "Not connected"
-        
-        parts = [f"Device '{self.device_name}' connected"]
-        
-        if self.avrcp_available:
-            parts.append("AVRCP available")
-            
-            if self.playback.track:
-                status_str = self.playback.status.value
-                parts.append(f"{status_str} \"{self.playback.track.title}\" by {self.playback.track.artist}")
-            else:
-                parts.append("no track info")
-        else:
-            parts.append("AVRCP not available")
-        
-        return ", ".join(parts)
 
 
 # ============================================================================
@@ -306,7 +121,6 @@ class BluetoothMonitor:
         self.callbacks = {}
         self.current_track = None
         self.current_status = None
-
 
         self.avrcp_client = avrcp_client
         self.avrcp_client.on_track_changed = self._on_track_changed
@@ -502,7 +316,6 @@ class BluetoothMonitor:
             # Set up AVRCP callbacks
             self.avrcp_client.on_track_changed = self._on_track_changed
             self.avrcp_client.on_status_changed = self._on_status_changed
-            self.avrcp_client.on_state_changed = self._on_state_changed
             
             # Try to establish AVRCP connection with retries
             logger.info("⏳ Attempting to establish AVRCP MediaPlayer connection...")
@@ -512,7 +325,6 @@ class BluetoothMonitor:
             for attempt in range(max_retries):
                 if self.avrcp_client.is_available():
                     logger.info(f"✅ AVRCP connection established on attempt {attempt + 1}")
-                    self.current_state = self.avrcp_client.get_state()
                     self.current_track = self.avrcp_client.get_track_info()
                     self.current_status = self.avrcp_client.get_status() or PlaybackStatus.UNKNOWN
                     
@@ -550,17 +362,12 @@ class BluetoothMonitor:
         self.current_track = track_info_obj
         logger.info(f"🎵 Track changed: {track_info_obj.title} - {track_info_obj.artist}")
 
-        track_info = self._format_track_info(track_info_obj)
-        self._trigger_callbacks('track_changed', track=track_info)
-
-        # Also trigger as track_started if we have a new track
-        if track_info_obj.title != 'Unknown':
-            self._trigger_callbacks('track_started', track=track_info)
+        self._trigger_callbacks('track_changed', track_info=track_info_obj)
 
         # Update the display when track changes
         if self.display_controller:
             try:
-                self.display_controller.render_bluetooth_track(track_info)
+                self.display_controller.render_bluetooth_track(self._format_track_info(track_info_obj))
             except Exception as e:
                 logger.error(f"Error updating Bluetooth display on track change: {e}")
     
@@ -578,27 +385,10 @@ class BluetoothMonitor:
         old_status = self.current_status
         self.current_status = status_enum
 
-        logger.info(f"▶️  Status changed: {old_status.value} → {status_enum.value}")
+        logger.info(f"▶️  Status changed: {old_status.value if old_status else 'None'} → {status_enum.value}")
 
-        # Trigger specific events based on status transition
-        if status_enum == PlaybackStatus.PLAYING and old_status != PlaybackStatus.PLAYING:
-            if old_status == PlaybackStatus.PAUSED:
-                logger.info("⏯️  Track resumed")
-                self._trigger_callbacks('track_resumed', track=self._format_track_info(self.current_track))
-            else:
-                logger.info("▶️  Track started")
-                self._trigger_callbacks('track_started', track=self._format_track_info(self.current_track))
-        elif status_enum == PlaybackStatus.PAUSED and old_status == PlaybackStatus.PLAYING:
-            logger.info("⏸️  Track paused")
-            self._trigger_callbacks('track_paused', track=self._format_track_info(self.current_track))
-        elif status_enum == PlaybackStatus.STOPPED:
-            logger.info("⏹️  Playback stopped")
-            self._trigger_callbacks('track_ended', track=self._format_track_info(self.current_track))
-
-        # Always trigger status_changed
-        self._trigger_callbacks('status_changed', 
-                               old_status=old_status.value, 
-                               new_status=status_enum.value)
+        # Always trigger playback_state_changed
+        self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
 
         # Update the display when status changes
         if self.display_controller:
@@ -606,12 +396,6 @@ class BluetoothMonitor:
                 self.display_controller.render_bluetooth_status(status_enum.value)
             except Exception as e:
                 logger.error(f"Error updating Bluetooth display on status change: {e}")
-    
-    def _on_state_changed(self, state: AVRCPState):
-        """Handle complete state change from AVRCP"""
-        self.current_state = state
-        logger.debug(f"State changed: {state.get_status_summary()}")
-        self._trigger_callbacks('state_changed', state=state)
     
     def start_monitoring(self):
         """Start monitoring Bluetooth devices and AVRCP"""
@@ -674,7 +458,7 @@ class BluetoothMonitor:
         
         logger.info("✅ Bluetooth monitor stopped")
     
-    def get_current_track(self) -> Optional[Dict[str, Any]]:
+    def get_track_info(self) -> Optional[Dict[str, Any]]:
         """
         Get current track information.
         
@@ -684,34 +468,26 @@ class BluetoothMonitor:
         if self.current_track:
             return self._format_track_info(self.current_track)
         return None
-    
-    def get_status(self) -> Optional[Dict[str, Any]]:
+
+    def get_playback_state(self) -> Dict[str, Any]:
         """
-        Get current playback status.
+        Get current playback state.
         
         Returns:
-            Status dict with state, device info, etc.
+            Playback state dict (status, volume)
         """
-        # if not self.current_device_name:
-        #     return {
-        #         'connected': False,
-        #         'state': 'stopped',
-        #         'device': None
-        #     }
-        
+        volume = None
+        if self.avrcp_client:
+             volume = self.avrcp_client.get_volume()
+             
         return {
-            'connected': True,
-            'state': self.current_status.value,
-            'device': {
-                'name': self.current_device_name,
-                'path': self.current_device_path
-            },
-            'avrcp_available': self.avrcp_client is not None and self.avrcp_client.is_available()
+            'status': self.current_status.value if self.current_status else 'unknown',
+            'volume': volume
         }
     
     def print_current_track(self):
         """Print current track to console"""
-        track = self.get_current_track()
+        track = self.get_track_info()
         if track:
             print(f"🎵 Now Playing:")
             print(f"   Title:  {track['title']}")
