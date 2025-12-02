@@ -71,6 +71,11 @@ class KitchenRadioLibrespotClient:
             
             response.raise_for_status()
             
+            # If we got a successful response, mark as connected
+            if not self._connected:
+                self._connected = True
+                logger.debug(f"Connection restored to go-librespot")
+            
             # Check if response has content
             if not response.text or response.text.strip() == '':
                 # Empty response can be valid (e.g., 204 No Content or when no device connected)
@@ -231,25 +236,21 @@ class KitchenRadioLibrespotClient:
         try:
             data = json.loads(message)
             message_type = data.get('type', 'unknown')
-            logger.debug(f"[Spotify WebSocket] Received message type: {message_type}")
+            logger.debug(f"[Spotify WebSocket] {message_type}")
             
             if message_type == 'metadata':
-                logger.debug(f"[Spotify WebSocket] Metadata event: {data}")
                 self._trigger_callbacks('metadata', data=data)
                 return
                 
             elif message_type == 'state':
-                logger.debug(f"[Spotify WebSocket] State event: {data}")
                 self._trigger_callbacks('state', data=data)
                 return
                 
             elif message_type == 'volume':
-                logger.debug(f"[Spotify WebSocket] Volume event: {data}")
                 self._trigger_callbacks('volume', data=data)
                 return
 
             else:
-                logger.debug(f"[Spotify WebSocket] Other event: {message_type}")
                 self._trigger_callbacks('other', data=data)
                 return
 
