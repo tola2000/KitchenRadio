@@ -202,21 +202,33 @@ class MPDMonitor:
             status_data = self.client.get_status()
             song_data = self.client.get_current_song()
             
-            # Parse new state
-            new_state = self._parse_playback_status(status_data)
+            # Parse new state from actual MPD data (without expected value overrides for comparison)
+            state_str = status_data.get('state', 'stop') if status_data else 'stop'
+            mpd_status = PlaybackStatus.STOPPED
+            if state_str == 'play':
+                mpd_status = PlaybackStatus.PLAYING
+            elif state_str == 'pause':
+                mpd_status = PlaybackStatus.PAUSED
             
-            # Check for playback state change (check individual fields)
-            status_changed = self.current_status.status != new_state.status
-            volume_changed = self.current_status.volume != new_state.volume
+            mpd_volume = 0
+            try:
+                mpd_volume = int(status_data.get('volume', 0)) if status_data else 0
+            except (ValueError, TypeError):
+                pass
+            
+            # Check for playback state change (compare against actual MPD state)
+            status_changed = self.current_status.status != mpd_status
+            volume_changed = self.current_status.volume != mpd_volume
             
             if status_changed or volume_changed:
                 # Log changes
                 if status_changed:
-                    logger.info(f"🎵 [MPD] Playback status changed: {self.current_status.status.value} → {new_state.status.value}")
+                    logger.info(f"🎵 [MPD] Playback status changed: {self.current_status.status.value} → {mpd_status.value}")
                 if volume_changed:
-                    logger.info(f"🔊 [MPD] Volume changed: {self.current_status.volume} → {new_state.volume}")
+                    logger.info(f"🔊 [MPD] Volume changed: {self.current_status.volume} → {mpd_volume}")
                 
-                self.current_status = new_state
+                # Update current status with actual MPD values
+                self.current_status = PlaybackState(status=mpd_status, volume=mpd_volume)
                 self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
                 
             # Check for track change
