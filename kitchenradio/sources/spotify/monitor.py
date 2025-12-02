@@ -12,7 +12,6 @@ from .client import KitchenRadioLibrespotClient
 from kitchenradio.sources.source_model import PlaybackStatus, TrackInfo, SourceInfo, PlaybackState
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class LibrespotMonitor:
