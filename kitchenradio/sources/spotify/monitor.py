@@ -204,14 +204,9 @@ class LibrespotMonitor:
         
         while not self._stop_event.is_set():
             logger.debug(f"[Spotify] Monitor loop iteration - connected: {self.client.is_connected()}")
-            if self.client.is_connected():
-                self._check_for_changes()
-            else:
-                # Don't try to reconnect if we're shutting down
-                if not self._stop_event.is_set():
-                    logger.warning("go-librespot connection lost")
-                    # Try to reconnect
-                    self.client.connect()
+            
+            # Always check for changes - the client will handle reconnection internally
+            self._check_for_changes()
                 
             try:
                 # Wait either for wake_event (set by callback) or timeout
@@ -234,6 +229,10 @@ class LibrespotMonitor:
             return
         
         logger.info("Starting go-librespot monitoring")
+        
+        # Reset reconnection state
+        self._reconnect_attempts = 0
+        self._last_reconnect_time = 0
         
         # Ensure connection
         if not self.client.is_connected():

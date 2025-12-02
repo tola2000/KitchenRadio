@@ -161,25 +161,38 @@ class KitchenRadioLibrespotClient:
             return False
         
     async def connect_ws(self):
-        try:
-            logger.info(f"Connecting to go-librespot WebSocket at {self.wsurl}")
+        """Connect to WebSocket and automatically reconnect if connection drops"""
+        reconnect_delay = 2.0
+        max_reconnect_delay = 30.0
+        
+        while True:  # Auto-reconnect loop
+            try:
+                logger.info(f"Connecting to go-librespot WebSocket at {self.wsurl}")
 
-            async with websockets.connect(self.wsurl) as websocket:
-                self.websocket = websocket
-                logger.info("Connected successfully  {self.wsurl}!")
-                
-                # Listen for messages
-                async for message in websocket:
-                    await self.handle_message(message)
-                
-        except websockets.exceptions.ConnectionClosed:
-            logger.warning("WebSocket connection closed")
-        except websockets.exceptions.InvalidURI:
-            logger.error(f"Invalid WebSocket URI: {self.uri}")
-        except ConnectionRefusedError:
-            logger.error(f"Connection refused to {self.uri}. Is go-librespot running?")
-        except Exception as e:
-            logger.error(f"WebSocket error: {e}")
+                async with websockets.connect(self.wsurl) as websocket:
+                    self.websocket = websocket
+                    logger.info("Connected successfully  {self.wsurl}!")
+                    reconnect_delay = 2.0  # Reset delay on successful connection
+                    
+                    # Listen for messages
+                    async for message in websocket:
+                        await self.handle_message(message)
+                    
+            except websockets.exceptions.ConnectionClosed:
+                logger.info("WebSocket connection closed - reconnecting...")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 1.5, max_reconnect_delay)  # Exponential backoff
+            except websockets.exceptions.InvalidURI:
+                logger.error(f"Invalid WebSocket URI: {self.wsurl}")
+                break  # Don't retry on invalid URI
+            except ConnectionRefusedError:
+                logger.warning(f"Connection refused to {self.wsurl}. Server may be restarting, retrying in {reconnect_delay}s...")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 1.5, max_reconnect_delay)
+            except Exception as e:
+                logger.warning(f"WebSocket error: {e}, reconnecting in {reconnect_delay}s...")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 1.5, max_reconnect_delay)
 
     def add_callback(self, event: str, callback: Callable):
         """
