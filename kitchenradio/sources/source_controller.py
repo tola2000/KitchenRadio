@@ -1029,15 +1029,21 @@ class SourceController:
         
         # Start MPD monitoring
         if self.mpd_connected and self.mpd_monitor:
+            # Register SourceController to receive monitor events
+            self.mpd_monitor.add_callback('any', lambda **kwargs: self._handle_monitor_event(SourceType.MPD, 'any', **kwargs))
             self.mpd_monitor.start_monitoring()
             self.logger.info("✅ MPD monitoring started")
             
         # Start Librespot monitoring
         if self.librespot_connected and self.librespot_monitor:
+            # Register SourceController to receive monitor events
+            self.librespot_monitor.add_callback('any', lambda **kwargs: self._handle_monitor_event(SourceType.LIBRESPOT, 'any', **kwargs))
             self.librespot_monitor.start_monitoring()
             self.logger.info("✅ Librespot monitoring started")
             
         # Start Bluetooth monitoring
         if self.bluetooth_connected and self.bluetooth_monitor:
+            # Register SourceController to receive monitor events
+            self.bluetooth_monitor.add_callback('any', lambda **kwargs: self._handle_monitor_event(SourceType.BLUETOOTH, 'any', **kwargs))
             self.bluetooth_monitor.start_monitoring()
             self.logger.info("✅ Bluetooth monitoring started")
