@@ -12,6 +12,7 @@ from .client import KitchenRadioClient
 from kitchenradio.sources.source_model import PlaybackStatus, TrackInfo, SourceInfo, PlaybackState
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class MPDMonitor:
@@ -234,19 +235,26 @@ class MPDMonitor:
             # Check for track change
             new_track = self._parse_track_info(song_data)
             
-            # Always update track if it changed, even if one is None
+            # Check if track actually changed by comparing key fields
+            # Handle None vs TrackInfo comparison properly
             track_changed = False
+            
             if self.current_track is None and new_track is not None:
                 track_changed = True
+                logger.debug(f"[MPD] Track change: None → {new_track.title}")
             elif self.current_track is not None and new_track is None:
                 track_changed = True
+                logger.debug(f"[MPD] Track change: {self.current_track.title} → None")
             elif self.current_track != new_track:
+                # Both are TrackInfo objects - check if they're different
                 track_changed = True
+                logger.debug(f"[MPD] Track objects differ: {self.current_track.title} vs {new_track.title}")
             
             if track_changed:
                 logger.info(f"🎵 [MPD] Track changed: {self.current_track.title if self.current_track else 'None'} → {new_track.title if new_track else 'None'}")
                 self.current_track = new_track
                 self._trigger_callbacks('track_changed', track_info=self.get_track_info())
+                logger.debug(f"[MPD] Emitted track_changed callback with track: {new_track.title if new_track else 'None'}")
             else:
                 logger.debug(f"[MPD] Track unchanged: {new_track.title if new_track else 'None'}")
             
@@ -306,7 +314,11 @@ class MPDMonitor:
         # Initialize current status
         status = self.client.get_status()
         self.current_status = self._parse_playback_status(status)
-        self.current_track = self._parse_track_info(self.client.get_current_song())
+        song_data = self.client.get_current_song()
+        self.current_track = self._parse_track_info(song_data)
+        
+        logger.info(f"[MPD] Initial state - Status: {self.current_status.status.value}, Track: {self.current_track.title if self.current_track else 'None'}")
+        logger.debug(f"[MPD] Raw song data: {song_data}")
         
         # Start monitoring thread
         self._stop_event.clear()
