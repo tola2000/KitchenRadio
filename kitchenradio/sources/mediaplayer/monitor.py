@@ -357,6 +357,9 @@ class MPDMonitor:
         Returns:
             Playback state object
         """
+        # Clear any expired expected values before returning state
+        self._clear_expired_expected_values()
+        
         if isinstance(self.current_status, PlaybackState):
             return self.current_status
         return PlaybackState(status=PlaybackStatus.UNKNOWN, volume=0)
