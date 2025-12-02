@@ -279,16 +279,36 @@ class KitchenRadioClient:
        
             self._connected = False
     
-    def wait_for_changes(self) -> Dict[str, Any]:
-        """Get player status (thread-safe, uses separate client)."""
+    def idle(self, subsystems: Optional[List[str]] = None) -> List[str]:
+        """
+        Wait for changes in MPD subsystems (blocking).
+        
+        Args:
+            subsystems: List of subsystems to watch. If None, watches all.
+            
+        Returns:
+            List of subsystems that changed.
+        """
         # Note: This method uses client_status which should not be locked with command_lock
         # as it's designed for blocking idle operations
         try:
+            if subsystems:
+                return self.client_status.idle(*subsystems)
             return self.client_status.idle()
         except Exception as e:
-            logger.error(f"Error getting status: {e}")
+            # Don't log error if it's just a connection lost during shutdown
+            if not self._connected:
+                return []
+            logger.error(f"Error in idle: {e}")
             self.check_connection_error(e)
-            return {}
+            return []
+
+    def noidle(self):
+        """Cancel the current idle wait."""
+        try:
+            self.client_status.noidle()
+        except Exception as e:
+            logger.debug(f"Error in noidle: {e}")
         
     def get_current_song(self) -> Optional[Dict[str, Any]]:
         """Get current song info (thread-safe)."""

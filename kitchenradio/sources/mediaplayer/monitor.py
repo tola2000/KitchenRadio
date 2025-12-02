@@ -219,15 +219,12 @@ class MPDMonitor:
                 logger.debug(f"[MPD] Track objects differ: {self.current_track.title} vs {new_track.title}")
             
             if track_changed:
-                # Format old and new track with full details
-                old_display = f"{self.current_track.artist} - {self.current_track.title} [{self.current_track.album}]" if self.current_track and self.current_track.title != 'Unknown' else 'None'
-                new_display = f"{new_track.artist} - {new_track.title} [{new_track.album}]" if new_track and new_track.title != 'Unknown' else 'None'
-                logger.info(f"🎵 [MPD] Track changed: {old_display} → {new_display}")
+                logger.info(f"🎵 [MPD] Track changed: {self.current_track.title if self.current_track else 'None'} → {new_track.title if new_track else 'None'}")
                 self.current_track = new_track
                 self._trigger_callbacks('track_changed', track_info=self.get_track_info())
-                logger.debug(f"[MPD] Emitted track_changed callback with track: {new_display}")
-            else:
-                logger.debug(f"[MPD] Track unchanged: {new_track.title if new_track else 'None'}")
+                logger.debug(f"[MPD] Emitted track_changed callback with track: {new_track.title if new_track else 'None'}")
+            # else:
+            #     logger.debug(f"[MPD] Track unchanged: {new_track.title if new_track else 'None'}")
             
             # Clear expected volume if it matches actual MPD volume
             if self._is_expected_volume_valid():
@@ -247,25 +244,27 @@ class MPDMonitor:
         
         while not self._stop_event.is_set():
             try:
-                # Check stop event before doing any work
-                if self._stop_event.is_set():
-                    break
-                    
                 if self.client.is_connected():
-                    #changes = self.client.wait_for_changes()
-                    # Check stop event again before checking for changes
-                    if not self._stop_event.is_set():
+                    # Wait for changes (blocking)
+                    # We watch 'player' (status/currentsong), 'mixer' (volume), 'options' (repeat/random)
+                    changes = self.client.idle(['player', 'mixer', 'options'])
+                    
+                    if self._stop_event.is_set():
+                        break
+                        
+                    if changes:
+                        logger.debug(f"MPD idle returned changes: {changes}")
                         self._check_for_changes()
                 else:
                     # Don't try to reconnect if we're shutting down
                     if not self._stop_event.is_set():
                         logger.warning("MPD connection lost, try to reconnect")
-                        self.client.connect()
+                        if not self.client.connect():
+                            time.sleep(5.0) # Wait longer before retry if failed
+                        
             except Exception as e:
-                logger.error(f"Error While Getting Changes {e} ")
-
-            # Wait for next check (exit immediately if stop event is set)
-            self._stop_event.wait(1.0)  # Check every second
+                logger.error(f"Error in monitor loop: {e}")
+                time.sleep(1.0) # Avoid tight loop on error
         
         logger.info("MPD monitoring loop stopped")
     
@@ -299,6 +298,9 @@ class MPDMonitor:
         
         self.is_monitoring = False
         self._stop_event.set()
+        
+        # Break the idle loop
+        self.client.noidle()
         
         if self._monitor_thread and self._monitor_thread.is_alive():
             logger.debug("Waiting for MPD monitor thread to exit...")
