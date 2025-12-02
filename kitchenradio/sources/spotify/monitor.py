@@ -130,6 +130,10 @@ class LibrespotMonitor:
         elif status_data.get('playing') or status_data.get('is_playing'):
             status = PlaybackStatus.PLAYING
             logger.debug("[Spotify] Status determined: PLAYING (from 'playing'/'is_playing' field)")
+        elif not status_data.get('stopped') and not status_data.get('paused') and status_data.get('track'):
+            # If stopped=False, paused=False, and we have a track, then we're playing
+            status = PlaybackStatus.PLAYING
+            logger.debug("[Spotify] Status determined: PLAYING (stopped=False, paused=False, has track)")
         else:
             # Fallback logic
             state_str = str(status_data.get('state', '')).lower()
@@ -142,7 +146,7 @@ class LibrespotMonitor:
             elif state_str == 'stopped':
                 status = PlaybackStatus.STOPPED
                 logger.debug("[Spotify] Status determined: STOPPED (from 'state' field)")
-            # If we have a track but not playing, assume paused if not explicitly stopped
+            # If we have a track but status unclear, assume paused
             elif status_data.get('track'):
                 status = PlaybackStatus.PAUSED
                 logger.debug("[Spotify] Status determined: PAUSED (fallback - has track)")
