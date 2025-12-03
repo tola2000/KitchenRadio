@@ -924,7 +924,7 @@ class DisplayFormatter:
             message_data: Dictionary containing:
                 {
                     "message": str,
-                    "font_size": str (optional, default "large")
+                    "font_size": str (optional, default "xlarge")
                 }
             
         Returns:
@@ -932,10 +932,10 @@ class DisplayFormatter:
         """
         # Extract data
         message = message_data.get('message', '')
-        font_size = message_data.get('font_size', 'large')
+        font_size = message_data.get('font_size', 'xlarge')  # Changed from 'large' to 'xxlarge'
         
         # Get the appropriate font
-        font = self.fonts.get(font_size, self.fonts['large'])
+        font = self.fonts.get(font_size, self.fonts['xlarge'])  # Changed from 'large' to 'xxlarge'
         
         # Calculate text dimensions for centering
         bbox = font.getbbox(message)
@@ -953,20 +953,20 @@ class DisplayFormatter:
             # Clear background (ensure completely black)
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Calculate heart size - MUCH BIGGER for visibility
-            heart_size = 15.0  # Increased from 8.0 to 15.0 for bigger hearts
+            # Calculate heart size - BIGGER for visibility
+            heart_size = 20.0  # Increased from 15.0 to 20.0 for even bigger hearts
             
             # Calculate vertical center for hearts to align with text middle
             heart_cy = text_y + text_height // 2
             
             # Draw heart on left side (with more spacing for bigger hearts)
-            left_heart_cx = text_x - 25  # More spacing for bigger hearts
+            left_heart_cx = text_x - 30  # More spacing for bigger hearts (was 25)
             if left_heart_cx > 15:  # Only draw if there's enough space
                 self._draw_heart(draw, img, left_heart_cx, heart_cy, heart_size, filled=True, brightness=255)
             
             # Draw heart on right side (with more spacing for bigger hearts)
-            right_heart_cx = text_x + text_width + 25  # More spacing for bigger hearts
-            if right_heart_cx < self.width - 15:  # Only draw if there's enough space
+            right_heart_cx = text_x + text_width + 30  # More spacing for bigger hearts (was 25)
+            if right_heart_cx < self.width - 20:  # Only draw if there's enough space (was 15)
                 self._draw_heart(draw, img, right_heart_cx, heart_cy, heart_size, filled=True, brightness=255)
             
             # Draw centered text
