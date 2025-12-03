@@ -22,8 +22,9 @@ Controls GPIO output pins to drive external devi            logger.debug(f"GPIO 
                         logger.debug(f"Error checking/setting GPIO mode: {e}")
                         GPIO.setmode(GPIO.BCM)
                     
-                    # Setup pin as output
-                    GPIO.setup(self.amplifier_pin, GPIO.OUT, initial=GPIO.LOW if self.active_high else GPIO.HIGH)
+                    # Setup pin as output with pull-down to prevent floating
+                    # Note: Pull-down is important for relays to ensure clean LOW state
+                    GPIO.setup(self.amplifier_pin, GPIO.OUT, initial=GPIO.LOW if self.active_high else GPIO.HIGH, pull_up_down=GPIO.PUD_DOWN)
                     
                     # Initialize to OFF state
                     # For active_high=True: OFF = LOW, for active_high=False: OFF = HIGH

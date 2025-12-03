@@ -39,10 +39,10 @@ try:
         GPIO.setmode(GPIO.BCM)
         print("✅ GPIO mode set to BCM")
     
-    # Setup pin with initial state
+    # Setup pin with initial state and pull-down resistor
     print(f"\nConfiguring pin {pin}...")
-    GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
-    print(f"✅ Pin {pin} configured as OUTPUT with initial state LOW")
+    GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW, pull_up_down=GPIO.PUD_DOWN)
+    print(f"✅ Pin {pin} configured as OUTPUT with initial state LOW and pull-down enabled")
     
     # Verify initial state
     initial_state = GPIO.input(pin)
