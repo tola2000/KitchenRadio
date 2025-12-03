@@ -315,6 +315,9 @@ class KitchenRadioClient:
         with self._command_lock:
             try:
                 self.client.add(uri)
+                #for streaming show the uri instead of the playlist name
+                playlist = uri
+                self._trigger_callbacks('playlist_command', command='load', playlist_name=playlist)
                 return True
             except Exception as e:
                 logger.error(f"Error adding to playlist: {e}")
