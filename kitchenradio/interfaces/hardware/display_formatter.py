@@ -827,19 +827,20 @@ class DisplayFormatter:
         # Two circles on top, triangle pointing down
         circle_radius = s // 2
         
-        # Top circles centers (side by side)
-        left_circle_cx = cx - circle_radius // 2
-        right_circle_cx = cx + circle_radius // 2
+        # Top circles centers (WIDER - more spacing between circles)
+        circle_spacing = int(circle_radius * 1.2)  # Increased spacing for wider heart
+        left_circle_cx = cx - circle_spacing
+        right_circle_cx = cx + circle_spacing
         circles_cy = cy
         
         # Triangle points (90 degree angle at bottom, 45-45 at top corners)
         # Triangle height should be about 1.5x the circle radius for good proportions
         triangle_height = int(circle_radius * 1.8)
         
-        # Top corners of triangle connect to bottom of circles
+        # Top corners of triangle connect to bottom of circles (WIDER spread)
         triangle_top_y = circles_cy + circle_radius
-        triangle_left_x = left_circle_cx - circle_radius // 2
-        triangle_right_x = right_circle_cx + circle_radius // 2
+        triangle_left_x = left_circle_cx - circle_radius
+        triangle_right_x = right_circle_cx + circle_radius
         
         # Bottom point (90 degree angle)
         triangle_bottom_x = cx
