@@ -42,7 +42,7 @@ class SourceController:
             config_dict: Configuration dictionary. If None, loads from config module.
         """
         self.logger = logging.getLogger(__name__)
-        # Enable debug logging to trace event flow
+        # Enable debug logging to verify display controller receives events
         self.logger.setLevel(logging.DEBUG)
  
         # Configuration

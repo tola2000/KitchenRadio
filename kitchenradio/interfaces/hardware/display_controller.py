@@ -179,8 +179,15 @@ class DisplayController:
         if self._shutting_down:
             return
         
-        # Detect source change - if source changed, refresh all cached values from new source
+        # Debug: Log what we received
+        event_type = kwargs.get('event_type', 'unknown')
+        sub_event = kwargs.get('sub_event', 'none')
+        logger.debug(f"📺 DisplayController received callback: event_type={event_type}, sub_event={sub_event}, kwargs_keys={list(kwargs.keys())}")
+        
+        # Detect source change OR device change (within same source) - if changed, refresh display
         source_changed = False
+        device_changed = False
+        
         if 'source_info' in kwargs:
             new_source_info = kwargs['source_info']
             if self.cached_source_info:
@@ -190,11 +197,25 @@ class DisplayController:
                 if old_source != new_source:
                     source_changed = True
                     logger.info(f"🔄 Source changed in display: {old_source.value if old_source else 'none'} → {new_source.value if new_source else 'none'}")
+                
+                # Check if device changed (within same source - important for Bluetooth)
+                old_device_mac = self.cached_source_info.device_mac if hasattr(self.cached_source_info, 'device_mac') else None
+                new_device_mac = new_source_info.device_mac if hasattr(new_source_info, 'device_mac') else None
+                if old_device_mac != new_device_mac:
+                    device_changed = True
+                    old_device_name = self.cached_source_info.device_name if hasattr(self.cached_source_info, 'device_name') else 'Unknown'
+                    new_device_name = new_source_info.device_name if hasattr(new_source_info, 'device_name') else 'Unknown'
+                    logger.info(f"🔵 Device changed in display: {old_device_name} (MAC:{old_device_mac or 'none'}) → {new_device_name} (MAC:{new_device_mac or 'none'})")
+            
             self.cached_source_info = new_source_info
         
-        # If source changed, fetch fresh state from SourceController for new source
-        if source_changed and self.source_controller:
-            logger.info("🔄 Refreshing display cache for new source...")
+        # If source OR device changed, fetch fresh state from SourceController
+        if (source_changed or device_changed) and self.source_controller:
+            if source_changed:
+                logger.info("🔄 Refreshing display cache for new source...")
+            elif device_changed:
+                logger.info("🔵 Refreshing display cache for device change...")
+            
             try:
                 # Force fresh state query from monitors (not cached values with expected states)
                 self.cached_playback_state = self.source_controller.get_playback_state(force_refresh=True)
@@ -203,7 +224,7 @@ class DisplayController:
                 self.cached_powered_on = self.source_controller.powered_on
                 logger.info(f"✅ Display cache refreshed - Status: {self.cached_playback_state.status.value if self.cached_playback_state else 'unknown'}, Track: {self.cached_track_info.title if self.cached_track_info else 'None'}")
             except Exception as e:
-                logger.error(f"Error refreshing cache for new source: {e}")
+                logger.error(f"Error refreshing cache for change: {e}")
         else:
             # Normal event-driven updates (no source change)
             if 'playback_state' in kwargs:
@@ -476,6 +497,9 @@ class DisplayController:
             elif current_status.get('track_info') != self.last_status.get('track_info'):
                 status_changed = True
                 logger.debug(f"Track info changed")
+            elif current_status.get('source_info') != self.last_status.get('source_info'):
+                status_changed = True
+                logger.info(f"🔵 Source info changed (device connect/disconnect or source details)")
                 
             if not self.overlay_active and (status_changed or overlay_dismissed or force_refresh or self._first_update or power_state_changed):
                 if self._first_update:
