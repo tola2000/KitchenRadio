@@ -43,7 +43,7 @@ class SourceController:
         """
         self.logger = logging.getLogger(__name__)
         # Enable debug logging to verify display controller receives events
-        self.logger.setLevel(logging.DEBUG)
+        #self.logger.setLevel(logging.DEBUG)
  
         # Configuration
         self.config = config_dict or self._load_default_config()

@@ -61,6 +61,7 @@ class BluetoothMonitor:
         # Set up callbacks on the client
         self.client.on_track_changed = self._on_track_changed
         self.client.on_status_changed = self._on_status_changed
+        self.client.on_volume_changed = self._on_volume_changed
 
         self.is_monitoring = False
         self._monitor_thread = None
@@ -273,6 +274,17 @@ class BluetoothMonitor:
                 self.display_controller.render_bluetooth_status(status_enum.value)
             except Exception as e:
                 logger.error(f"Error updating Bluetooth display on status change: {e}")
+
+    def _on_volume_changed(self, interface: str, changed: dict, invalidated: list, path: str):
+        """Handle volume/transport changes from AVRCP"""
+        # MediaTransport1 sends State and Volume changes
+        # We only care about actual Volume changes
+        if 'Volume' in changed:
+            volume = int(changed['Volume'])
+            logger.info(f"🔊 [Bluetooth] Volume changed to: {volume}")
+            # Trigger playback_state_changed to update the volume in PlaybackState
+            self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
+        # Ignore 'State' changes (pending/active) - they don't affect our playback state
     
     def start_monitoring(self):
         """Start monitoring Bluetooth devices and AVRCP"""
