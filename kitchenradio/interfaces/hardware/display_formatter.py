@@ -940,25 +940,24 @@ class DisplayFormatter:
         icon_width = icon_bbox[2] - icon_bbox[0]
         icon_height = icon_bbox[3] - icon_bbox[1]
         
-        # Calculate source text width
+        # Concatenate playlist with source if playlist exists
         source_font = self.fonts['medium']
-        source_bbox = source_font.getbbox(source.upper())
+        if playlist:
+            source_display_text = f"{playlist} - {source.upper()}"
+        else:
+            source_display_text = source.upper()
+        
+        source_bbox = source_font.getbbox(source_display_text)
         source_width = source_bbox[2] - source_bbox[0]
         source_height = source_bbox[3] - source_bbox[1]
         source_y = self.height - 16
         
         # Position both source and icon aligned to the right with 10px margin
-        # Icon is on the far right, source is to its left with 8px spacing
+        # Icon is on the far right, source (with playlist) is to its left with 8px spacing
         # Both aligned at the bottom
         icon_x = self.width - icon_width - 10
         icon_y = source_y  # Same baseline as source for bottom alignment
         source_x = icon_x - source_width - 8
-        
-        # Calculate playlist text (same size as source, left-aligned on same height)
-        playlist_font = self.fonts['medium']  # Same font as source
-        playlist_text = playlist if playlist else ''
-        playlist_x = content_x  # Left-aligned with content
-        playlist_y = source_y  # Same height as source
         
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Get the underlying image for paste operations (brighter rendering)
@@ -993,12 +992,8 @@ class DisplayFormatter:
                 # Monochrome text rendering
                 self._draw_text_mono(draw, img, (content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
             
-            # Draw playlist on the left (same height and size as source)
-            if playlist_text:
-                self._draw_text_mono(draw, img, (playlist_x, playlist_y), playlist_text, font=playlist_font, fill=180)
-            
-            # Draw source aligned to the right (before play icon)
-            self._draw_text_mono(draw, img, (source_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
+            # Draw source (with playlist if available) aligned to the right (before play icon)
+            self._draw_text_mono(draw, img, (source_x, source_y), source_display_text, font=self.fonts['medium'], fill=180)
             
             # Draw play icon aligned to the far right (one size larger than source)
             self._draw_text_mono(draw, img, (icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)
