@@ -203,15 +203,21 @@ class OutputController:
                 if GPIO is not None:
                     # Using RPi.GPIO
                     if enable:
-                        GPIO.output(self.amplifier_pin, GPIO.HIGH if self.active_high else GPIO.LOW)
+                        pin_state = GPIO.HIGH if self.active_high else GPIO.LOW
+                        GPIO.output(self.amplifier_pin, pin_state)
+                        logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if pin_state == GPIO.HIGH else 'LOW'}")
                     else:
-                        GPIO.output(self.amplifier_pin, GPIO.LOW if self.active_high else GPIO.HIGH)
+                        pin_state = GPIO.LOW if self.active_high else GPIO.HIGH
+                        GPIO.output(self.amplifier_pin, pin_state)
+                        logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if pin_state == GPIO.HIGH else 'LOW'}")
                 elif self.gpio_device is not None:
                     # Using gpiozero
                     if enable:
                         self.gpio_device.on()
+                        logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if self.active_high else 'LOW'} (gpiozero on)")
                     else:
                         self.gpio_device.off()
+                        logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if not self.active_high else 'LOW'} (gpiozero off)")
                 
                 logger.info(f"[OK] Amplifier {'enabled' if enable else 'disabled'}")
             except Exception as e:
