@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Any
 
-from kitchenradio.sources.source_model import PlaybackStatus, TrackInfo, SourceInfo, PlaybackState
+from kitchenradio.sources.source_model import PlaybackStatus, TrackInfo, SourceInfo, PlaybackState, SourceType
 
 
 # ============================================================================
@@ -153,7 +153,8 @@ class BluetoothMonitor:
                 self.connected_devices.remove(device_mac)
             
             if self.current_source_info.path == device_path:
-                self.current_source_info = SourceInfo()
+                # Keep source as BLUETOOTH but clear device info (stay on BT input, show "connect device" screen)
+                self.current_source_info = SourceInfo(source=SourceType.BLUETOOTH)
                 self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
                 
             logger.info(f"🔴 Device disconnected: {device_name} ({device_mac})")

@@ -919,7 +919,7 @@ class SourceController:
                      # set_source triggers update, so we can return or continue. 
                      # If we continue, we might send duplicate events, but that's usually fine.
         
-        # Bluetooth: Auto-switch when device connects
+        # Bluetooth: Auto-switch when device connects (but stay on Bluetooth when disconnected)
         if source_type == SourceType.BLUETOOTH and event_name == 'device_connected':
             if self.source != SourceType.BLUETOOTH:
                 self.logger.info("🔵 Auto-switching to Bluetooth (device connected)")
