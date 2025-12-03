@@ -710,12 +710,20 @@ class DisplayController:
         
         # Show track info if available, otherwise show status message
         if track_info:
+            # Extract playlist from track_info if available
+            playlist = ''
+            if isinstance(track_info, TrackInfo):
+                playlist = track_info.playlist if hasattr(track_info, 'playlist') else ''
+            elif isinstance(track_info, dict):
+                playlist = track_info.get('playlist', '')
+            
             # Use unified track info formatter without progress bar for MPD
             track_data = {
                 'track_info': track_info,
                 'playing': playing,
                 'volume': volume,
                 'source': 'Radio',
+                'playlist': playlist,
                 'scroll_offsets': self.current_scroll_offsets
             }
             
@@ -791,12 +799,20 @@ class DisplayController:
             has_track = bool(title and title not in ['Unknown', 'unknown', ''])
             
         if device_connected and has_track:
+            # Extract playlist from track_info if available
+            playlist = ''
+            if isinstance(track_info, TrackInfo):
+                playlist = track_info.playlist if hasattr(track_info, 'playlist') else ''
+            elif isinstance(track_info, dict):
+                playlist = track_info.get('playlist', '')
+            
             # Use unified track info formatter with progress bar for Spotify
             track_data = {
                 'track_info': track_info,
                 'playing': playing,
                 'volume': volume,
                 'source': 'Spotify',
+                'playlist': playlist,
                 'scroll_offsets': self.current_scroll_offsets
             }
             # Track current display state
@@ -949,6 +965,13 @@ class DisplayController:
                 has_track = track_info.get('title') != 'Unknown'
 
             if has_track:
+                # Extract playlist from track_info if available
+                playlist = ''
+                if isinstance(track_info, TrackInfo):
+                    playlist = track_info.playlist if hasattr(track_info, 'playlist') else ''
+                elif isinstance(track_info, dict):
+                    playlist = track_info.get('playlist', '')
+                
                 # Display actual track information from AVRCP
                 # logger.debug(f"📱 Displaying Bluetooth track: {track_info.get('title')} - {track_info.get('artist')}")
                 display_data = {
@@ -956,6 +979,7 @@ class DisplayController:
                     'playing': playback_status == 'playing',
                     'volume': volume,
                     'source': 'Bluetooth',
+                    'playlist': playlist,
                     'scroll_offsets': self.current_scroll_offsets
                 }
                 self.current_display_type = 'track_info'
@@ -1002,14 +1026,17 @@ class DisplayController:
                 title = track.get('title', 'Unknown')
                 artist = track.get('artist', 'Unknown')
                 album = track.get('album', 'Unknown')
+                playlist = track.get('playlist', '')
             elif hasattr(track, 'title'):
                 title = getattr(track, 'title', 'Unknown')
                 artist = getattr(track, 'artist', 'Unknown')
                 album = getattr(track, 'album', 'Unknown')
+                playlist = getattr(track, 'playlist', '')
             else:
                 title = str(track) if track else 'Unknown'
                 artist = 'Unknown'
                 album = 'Unknown'
+                playlist = ''
             
             # Use unified track info formatter
             track_data = {
@@ -1018,6 +1045,7 @@ class DisplayController:
                 'album': album,
                 'playing': playing,
                 'volume': volume if volume is not None else 50,
+                'playlist': playlist,
                 'scroll_offsets': self.current_scroll_offsets
             }
             draw_func, truncation_info = self.formatter.format_track_info(track_data)

@@ -42,9 +42,13 @@ class MPDMonitor:
         self.expected_volume_timestamp = None
         self.expected_value_timeout = 2.0  # Expire expected volume after 2 seconds
         
+        # Track current playlist name (cached from load/clear events)
+        self.current_playlist: str = ""
+        
         # Subscribe to client command events
         self.client.add_callback('volume_command', self._on_volume_command)
         self.client.add_callback('playback_command', self._on_playback_command)
+        self.client.add_callback('playlist_command', self._on_playlist_command)
         logger.debug("Monitor subscribed to client command events")
         
     def add_callback(self, event: str, callback: Callable):
@@ -80,6 +84,23 @@ class MPDMonitor:
         Log the command but don't update state - let actual MPD status drive display.
         """
         logger.info(f"🎵 Client sent playback command: {command}, will wait for MPD status update")
+    
+    def _on_playlist_command(self, command: str, playlist_name: str, **kwargs):
+        """
+        Handle playlist command from client.
+        Caches the playlist name when loaded, clears it when playlist is cleared.
+        """
+        if command == 'load':
+            self.current_playlist = playlist_name
+            logger.info(f"📋 Playlist loaded: '{playlist_name}' - cached in monitor")
+        elif command == 'clear':
+            self.current_playlist = ""
+            logger.info(f"📋 Playlist cleared - cache cleared in monitor")
+        
+        # Update current track with new playlist info if track exists
+        if self.current_track:
+            self.current_track.playlist = self.current_playlist
+            self._trigger_callbacks('track_info_changed', track_info=self.current_track)
     
     def _is_expected_volume_valid(self) -> bool:
         """Check if expected volume is still valid (not expired)."""
@@ -130,7 +151,8 @@ class MPDMonitor:
             artist=song.get('artist', 'Unknown'),
             album=song.get('album', song.get('name', '')),
             duration=int(duration_sec * 1000),
-            file=song.get('file', '')
+            file=song.get('file', ''),
+            playlist=self.current_playlist  # Include cached playlist name
         )
 
     def _parse_playback_status(self, status: Dict[str, Any]) -> PlaybackState:

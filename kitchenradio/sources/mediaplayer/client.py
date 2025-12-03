@@ -287,6 +287,9 @@ class KitchenRadioClient:
         with self._command_lock:
             try:
                 self.client.clear()
+                # Trigger callback to notify monitor that playlist was cleared
+                self._trigger_callbacks('playlist_command', command='clear', playlist_name='')
+                logger.info("🎵 Playlist cleared, notifying monitor")
                 return True
             except Exception as e:
                 logger.error(f"Error clearing playlist: {e}")
@@ -298,6 +301,9 @@ class KitchenRadioClient:
         with self._command_lock:
             try:
                 self.client.load(playlist)
+                # Trigger callback to notify monitor of the loaded playlist
+                self._trigger_callbacks('playlist_command', command='load', playlist_name=playlist)
+                logger.info(f"🎵 Playlist '{playlist}' loaded, notifying monitor")
                 return True
             except Exception as e:
                 logger.error(f"Error loading playlist: {e}")

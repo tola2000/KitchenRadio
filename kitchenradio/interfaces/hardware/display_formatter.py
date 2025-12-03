@@ -815,6 +815,7 @@ class DisplayFormatter:
         playing = track_data.get('playing', False)
         volume = track_data.get('volume', 50)
         source = track_data.get('source', '')  # Get source information
+        playlist = track_data.get('playlist', '')  # Get playlist information
         scroll_offsets = track_data.get('scroll_offsets', {})
         
         # Calculate dimensions
@@ -953,6 +954,12 @@ class DisplayFormatter:
         icon_y = source_y  # Same baseline as source for bottom alignment
         source_x = icon_x - source_width - 8
         
+        # Calculate playlist text (same size as source, left-aligned on same height)
+        playlist_font = self.fonts['medium']  # Same font as source
+        playlist_text = playlist if playlist else ''
+        playlist_x = content_x  # Left-aligned with content
+        playlist_y = source_y  # Same height as source
+        
         def draw_track_info_with_progress(draw: ImageDraw.Draw):
             # Get the underlying image for paste operations (brighter rendering)
             img = draw._image
@@ -985,6 +992,10 @@ class DisplayFormatter:
             elif artist_album_displayed:
                 # Monochrome text rendering
                 self._draw_text_mono(draw, img, (content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
+            
+            # Draw playlist on the left (same height and size as source)
+            if playlist_text:
+                self._draw_text_mono(draw, img, (playlist_x, playlist_y), playlist_text, font=playlist_font, fill=180)
             
             # Draw source aligned to the right (before play icon)
             self._draw_text_mono(draw, img, (source_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
