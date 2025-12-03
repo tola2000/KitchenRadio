@@ -116,8 +116,8 @@ class DisplayController:
         
         # Random message overlay state (for "❤ Duts ❤" when powered off)
         self.next_random_message_time = 0
-        self.random_message_min_interval = 60  # Minimum 1 minute
-        self.random_message_max_interval = 600  # Maximum 10 minutes
+        self.random_message_min_interval = 60  # Testing: 1 minute interval
+        self.random_message_max_interval = 60  # Testing: 1 minute interval
         self._schedule_next_random_message()
         
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
@@ -1249,15 +1249,15 @@ class DisplayController:
         self._render_display_content('notification', notification_data)
     
     def _show_random_message_overlay(self):
-        """Show random message overlay when powered off (❤ Duts ❤)"""
+        """Show random message overlay when powered off (<3 Duts <3)"""
         message_data = {
-            'message': '❤ Duts ❤',
+            'message': '<3 Duts <3',
             'font_size': 'xlarge',
             'brightness': 255
         }
         self._activate_overlay('random_message', timeout=3.0)
         self._render_display_content('centered_message', message_data)
-        logger.info("Showing random message overlay: ❤ Duts ❤")
+        logger.info("Showing random message overlay: <3 Duts <3")
 
     def show_clock(self):
         """Show clock overlay using the generic overlay system"""
