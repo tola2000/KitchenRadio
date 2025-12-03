@@ -70,6 +70,7 @@ class KitchenRadio:
         # UI Controllers (initialized in start())
         self.display_controller = None
         self.button_controller = None
+        self.output_controller = None
         self.web_server = None
     
     def _load_config(self) -> Dict[str, Any]:
@@ -205,6 +206,27 @@ class KitchenRadio:
             except Exception as e:
                 self.logger.error(f"Failed to load Button Controller: {e}")
                 self.button_controller = None
+        
+        # Initialize Output Controller (always enabled - controls amplifier relay)
+        self.logger.info("Initializing Output Controller...")
+        try:
+            from kitchenradio.interfaces.hardware.output_controller import OutputController
+            self.output_controller = OutputController(
+                source_controller=self.source_controller,
+                amplifier_pin=getattr(config, 'AMPLIFIER_PIN', 26),
+                use_hardware=getattr(config, 'OUTPUT_USE_HARDWARE', True),
+                active_high=getattr(config, 'AMPLIFIER_ACTIVE_HIGH', True),
+                power_on_delay=getattr(config, 'AMPLIFIER_POWER_ON_DELAY', 0.0),
+                power_off_delay=getattr(config, 'AMPLIFIER_POWER_OFF_DELAY', 0.0)
+            )
+            if not self.output_controller.initialize():
+                self.logger.warning("Output Controller initialization failed - continuing without output control")
+                self.output_controller = None
+            else:
+                self.logger.info("[OK] Output Controller initialized")
+        except Exception as e:
+            self.logger.error(f"Failed to load Output Controller: {e}")
+            self.output_controller = None
         
         # Initialize Web Interface (if enabled)
         if self.enable_web:
@@ -378,6 +400,14 @@ class KitchenRadio:
                     self.display_controller.cleanup()
                 except Exception as e:
                     self.logger.error(f"Error stopping display controller: {e}")
+            
+            # Stop output controller
+            if self.output_controller:
+                try:
+                    self.logger.info("Stopping output controller...")
+                    self.output_controller.cleanup()
+                except Exception as e:
+                    self.logger.error(f"Error stopping output controller: {e}")
             
             # SourceController cleanup
             # Note: SourceController doesn't have stop_monitoring() or cleanup() methods
