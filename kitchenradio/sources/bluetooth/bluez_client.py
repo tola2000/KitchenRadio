@@ -457,12 +457,12 @@ class BlueZClient:
                 'duration': int(track_data.get('Duration', 0))
             }
             if self.on_track_changed:
-                self.on_track_changed(track)
+                self.on_track_changed(path, track)
         
         if 'Status' in changed:
             status_str = str(changed['Status'])
             if self.on_status_changed:
-                self.on_status_changed(status_str)
+                self.on_status_changed(path, status_str)
 
     def set_active_player(self, player_path: str):
         """
