@@ -93,9 +93,10 @@ class OutputController:
                     GPIO.setmode(GPIO.BCM)
                     GPIO.setup(self.amplifier_pin, GPIO.OUT)
                     # Initialize to OFF state
-                    initial_state = GPIO.HIGH if self.active_high else GPIO.LOW
-                    GPIO.output(self.amplifier_pin, GPIO.LOW if not self.active_high else GPIO.HIGH)
-                    logger.info(f"[OK] GPIO pin {self.amplifier_pin} initialized (RPi.GPIO)")
+                    # For active_high=True: OFF = LOW, for active_high=False: OFF = HIGH
+                    initial_state = GPIO.LOW if self.active_high else GPIO.HIGH
+                    GPIO.output(self.amplifier_pin, initial_state)
+                    logger.info(f"[OK] GPIO pin {self.amplifier_pin} initialized to OFF (RPi.GPIO)")
                 else:
                     # Using gpiozero
                     from gpiozero import OutputDevice
