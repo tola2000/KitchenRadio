@@ -136,7 +136,8 @@ class BluetoothMonitor:
             
             # Trigger callbacks to update display
             # Note: Track/status info will come via property change events when AVRCP becomes available
-            self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
+            from dataclasses import replace
+            self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
             
         except Exception as e:
             logger.error(f"Error handling device connection: {e}")
@@ -161,7 +162,8 @@ class BluetoothMonitor:
             logger.info(f"🔴 Device disconnected: {device_name} ({device_mac})")
             
             # Trigger source_info_changed to update display
-            self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
+            from dataclasses import replace
+            self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
             
             # Clean up AVRCP client
             if self.client.active_player_path == device_path:
@@ -348,13 +350,15 @@ class BluetoothMonitor:
         Get current source information including pairing mode status.
         
         Returns:
-            Source info object with current pairing_mode state
+            Source info object with current pairing_mode state (copy to avoid reference issues)
         """
         # Update pairing_mode from controller if available
         if self.controller and hasattr(self.controller, 'pairing_mode'):
             self.current_source_info.pairing_mode = self.controller.pairing_mode
         
-        return self.current_source_info
+        # Return a copy to prevent external code from holding references to our internal state
+        from dataclasses import replace
+        return replace(self.current_source_info)
     
     def update_pairing_mode(self, pairing_mode: bool):
         """
@@ -368,7 +372,9 @@ class BluetoothMonitor:
         
         if old_pairing != pairing_mode:
             logger.info(f"📡 Pairing mode changed: {old_pairing} → {pairing_mode}")
-            self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
+            # Pass a copy to prevent reference issues with cached values
+            from dataclasses import replace
+            self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
 
     def get_playback_state(self) -> PlaybackState:
         """
