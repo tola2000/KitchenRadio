@@ -87,30 +87,37 @@ class OutputController:
         
         # Setup GPIO hardware
         if self.use_hardware:
+            logger.info(f"Attempting to initialize GPIO hardware on pin {self.amplifier_pin}...")
+            logger.debug(f"GPIO module available: {GPIO is not None}")
             try:
                 if GPIO is not None:
                     # Using RPi.GPIO
+                    logger.debug("Using RPi.GPIO library")
                     GPIO.setmode(GPIO.BCM)
                     GPIO.setup(self.amplifier_pin, GPIO.OUT)
                     # Initialize to OFF state
                     # For active_high=True: OFF = LOW, for active_high=False: OFF = HIGH
                     initial_state = GPIO.LOW if self.active_high else GPIO.HIGH
+                    logger.debug(f"Setting initial state: {'LOW' if initial_state == GPIO.LOW else 'HIGH'}")
                     GPIO.output(self.amplifier_pin, initial_state)
                     logger.info(f"[OK] GPIO pin {self.amplifier_pin} initialized to OFF (RPi.GPIO)")
                 else:
                     # Using gpiozero
+                    logger.debug("Using gpiozero library")
                     from gpiozero import OutputDevice
                     self.gpio_device = OutputDevice(
                         self.amplifier_pin,
                         active_high=self.active_high,
                         initial_value=False
                     )
-                    logger.info(f"[OK] GPIO pin {self.amplifier_pin} initialized (gpiozero)")
+                    logger.info(f"[OK] GPIO pin {self.amplifier_pin} initialized to OFF (gpiozero)")
                     
             except Exception as e:
-                logger.error(f"Failed to initialize GPIO: {e}")
+                logger.error(f"Failed to initialize GPIO: {e}", exc_info=True)
+                logger.warning("Falling back to simulation mode")
                 self.use_hardware = False
-                return False
+                # Don't return False - continue in simulation mode
+                # return False
         else:
             logger.info("[X] Hardware GPIO disabled - running in simulation mode")
         
@@ -204,6 +211,7 @@ class OutputController:
             return
         
         logger.info(f"🔊 {'Enabling' if enable else 'Disabling'} amplifier (pin {self.amplifier_pin})")
+        logger.debug(f"Hardware mode: {self.use_hardware}, GPIO available: {GPIO is not None}, gpio_device: {self.gpio_device is not None}")
         
         if self.use_hardware:
             try:
