@@ -833,8 +833,8 @@ class DisplayFormatter:
         # Triangle pointing DOWN (point at bottom, 90° angle at bottom, 45° slopes)
         # Top edge of triangle connects the bottom of the circles
         triangle_top_y = circles_cy + (circle_radius // 4 ) + 4   # Moved down 3 pixels
-        triangle_left_x = left_circle_cx - ( circle_radius   // 2 ) 
-        triangle_right_x = right_circle_cx + ( circle_radius // 2 ) 
+        triangle_left_x = left_circle_cx - ( circle_radius   // 2 ) + 2
+        triangle_right_x = right_circle_cx + ( circle_radius // 2 ) + 2
         
         # Bottom point (90° angle, 45° slopes)
         # For 45° slopes: height = half of base width
