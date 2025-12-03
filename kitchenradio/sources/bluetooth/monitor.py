@@ -66,7 +66,8 @@ class BluetoothMonitor:
 
         # Track connected devices
         self.connected_devices = set()  # MAC addresses
-        self.current_source_info = SourceInfo()
+        # Initialize with Bluetooth source type (like MPD does with "MPD")
+        self.current_source_info = SourceInfo(source=SourceType.BLUETOOTH, device_name="Bluetooth")
         
     def add_callback(self, event: str, callback: Callable):
         """
@@ -133,7 +134,6 @@ class BluetoothMonitor:
             
             # Trigger callbacks to update display
             # Note: Track/status info will come via property change events when AVRCP becomes available
-            self._trigger_callbacks('device_connected', name=device_name, mac=device_mac)
             self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
             
         except Exception as e:
