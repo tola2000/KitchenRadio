@@ -7,7 +7,7 @@ System-Wide Configuration
 # =============================================================================
 DEFAULT_SOURCE = 'mpd'  # Default audio source on startup: 'mpd', 'librespot', 'bluetooth', or 'none'
 AUTO_START_PLAYBACK = False  # Automatically start playback when switching sources
-POWER_ON_AT_STARTUP = True  # Power on radio when daemon starts
+POWER_ON_AT_STARTUP = False  # Power on radio when daemon starts (changed to False)
 
 # =============================================================================
 # Logging
