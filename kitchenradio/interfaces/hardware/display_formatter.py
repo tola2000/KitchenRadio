@@ -795,12 +795,22 @@ class DisplayFormatter:
             # length = track_info_obj.duration / 1000 if track_info_obj.duration else 0
         else:
             title = track_data.get('title', 'No Track')
-            artist = track_data.get('artist', 'Unknown')
-            album = track_data.get('album', 'Unknown')
+            artist = track_data.get('artist', '')
+            album = track_data.get('album', '')
+        
+        # Validate and clean artist and album values
+        def is_valid(value):
+            return value and value != '' and value != 'Unknown' and value.strip() != ''
+        
+        # Apply validation - set to empty string if invalid
+        if not is_valid(artist):
+            artist = ''
+        if not is_valid(album):
+            album = ''
             
         playing = track_data.get('playing', False)
         volume = track_data.get('volume', 50)
-        source = track_data.get('source', 'Unknown')  # Get source information
+        source = track_data.get('source', '')  # Get source information
         scroll_offsets = track_data.get('scroll_offsets', {})
         
         # Calculate dimensions
@@ -850,9 +860,9 @@ class DisplayFormatter:
         # Check if in pairing mode to adjust formatting
         pairing_mode = track_data.get('pairing_mode', False)
         
-        # Helper to check if value is valid (not Unknown and not empty)
+        # Helper to check if value is valid (not Unknown, not empty, and not blank)
         def is_valid(value):
-            return value and value != 'Unknown' and value.strip() != ''
+            return value and value != '' and value != 'Unknown' and value.strip() != ''
         
         if is_valid(artist) and is_valid(album):
             # Both artist and album are valid - show with separator
