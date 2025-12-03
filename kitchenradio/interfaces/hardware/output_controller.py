@@ -116,12 +116,10 @@ class OutputController:
         
         # Subscribe to power events from SourceController
         try:
-            self.source_controller.subscribe_to_events(
-                event_category='client_changed',
-                event_name='power_changed',
-                callback=self._on_power_changed
-            )
-            logger.info("[OK] Subscribed to power_changed events")
+            # Register callback for 'client_changed' events
+            # The callback will receive event='power_changed' and powered_on=True/False
+            self.source_controller.add_callback('client_changed', self._on_power_changed)
+            logger.info("[OK] Subscribed to client_changed events (for power_changed)")
         except Exception as e:
             logger.error(f"Failed to subscribe to power events: {e}")
             return False
@@ -159,13 +157,22 @@ class OutputController:
         self.initialized = False
         logger.info("[OK] OutputController cleanup complete")
     
-    def _on_power_changed(self, powered_on: bool, **kwargs):
+    def _on_power_changed(self, event: str = None, powered_on: bool = None, **kwargs):
         """
-        Callback for power state changes.
+        Callback for power state changes from SourceController.
         
         Args:
+            event: Event name (should be 'power_changed')
             powered_on: True if system powered on, False if powered off
         """
+        # Only respond to power_changed events
+        if event != 'power_changed':
+            return
+        
+        if powered_on is None:
+            logger.warning("Received power_changed event without powered_on parameter")
+            return
+        
         logger.info(f"🔌 Power state changed: {'ON' if powered_on else 'OFF'}")
         
         if powered_on:
