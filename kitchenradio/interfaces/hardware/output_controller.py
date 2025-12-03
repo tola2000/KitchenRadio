@@ -218,7 +218,7 @@ class OutputController:
             if self.power_on_delay > 0:
                 logger.info(f"Waiting {self.power_on_delay}s before enabling amplifier...")
                 time.sleep(self.power_on_delay)
-            self._set_amplifier_state(True)
+            # self._set_amplifier_state(True)
         else:
             # Apply power-off delay if configured
             if self.power_off_delay > 0:
