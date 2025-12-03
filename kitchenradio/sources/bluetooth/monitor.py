@@ -130,9 +130,9 @@ class BluetoothMonitor:
             
             logger.info(f"🟢 Device connected: {device_name} ({device_mac})")
             
-            # Set active player path (BlueZ will auto-detect MediaPlayer when it appears)
-            self.client.set_active_player(device_path)
-            logger.info(f"📡 BlueZ monitoring for AVRCP MediaPlayer...")
+            # Don't set active player here - let it auto-detect when MediaPlayer1 events arrive
+            # (The player path is different from device path: device/playerN)
+            logger.info(f"📡 Waiting for AVRCP MediaPlayer to appear...")
             
             # Trigger callbacks to update display
             # Note: Track/status info will come via property change events when AVRCP becomes available
