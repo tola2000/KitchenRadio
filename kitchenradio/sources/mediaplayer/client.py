@@ -49,6 +49,8 @@ class KitchenRadioClient:
         # Thread safety locks
         self._command_lock = threading.RLock()  # Reentrant lock for nested calls
         self._connection_lock = threading.RLock()
+        self._idle_lock = threading.Lock()  # Lock to coordinate idle state
+        self._in_idle = False  # Track if idle is currently active
         
         # Create MPD client
         self.client = mpd.MPDClient()
@@ -151,8 +153,20 @@ class KitchenRadioClient:
             return self._connected
     
     # Playback control methods
+    def _ensure_idle_cancelled(self):
+        """Ensure idle is cancelled before sending commands."""
+        with self._idle_lock:
+            if self._in_idle:
+                logger.debug("Cancelling idle before command")
+                try:
+                    self.client_status.noidle()
+                    self._in_idle = False
+                except Exception as e:
+                    logger.debug(f"Error cancelling idle: {e}")
+    
     def play(self, songpos: Optional[int] = None) -> bool:
         """Start playback from current or specified position (thread-safe)."""
+        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 # Emit event BEFORE sending command so monitor knows expected state
@@ -170,6 +184,7 @@ class KitchenRadioClient:
     
     def pause(self, state: Optional[bool] = None) -> bool:
         """Pause or unpause playback (thread-safe)."""
+        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 # Emit event BEFORE sending command
@@ -188,6 +203,7 @@ class KitchenRadioClient:
     
     def stop(self) -> bool:
         """Stop playback (thread-safe)."""
+        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 # Emit event BEFORE sending command
@@ -202,6 +218,7 @@ class KitchenRadioClient:
     
     def next(self) -> bool:
         """Skip to next track (thread-safe)."""
+        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 self.client.next()
@@ -213,6 +230,7 @@ class KitchenRadioClient:
     
     def previous(self) -> bool:
         """Skip to previous track (thread-safe)."""
+        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 self.client.previous()
@@ -225,6 +243,7 @@ class KitchenRadioClient:
     # Volume control
     def set_volume(self, volume: int) -> bool:
         """Set volume (0-100) (thread-safe)."""
+        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 if not 0 <= volume <= 100:
@@ -293,21 +312,38 @@ class KitchenRadioClient:
         # Note: This method uses client_status which should not be locked with command_lock
         # as it's designed for blocking idle operations
         try:
+            with self._idle_lock:
+                self._in_idle = True
+            
             if subsystems:
-                return self.client_status.idle(*subsystems)
-            return self.client_status.idle()
+                result = self.client_status.idle(*subsystems)
+            else:
+                result = self.client_status.idle()
+            
+            with self._idle_lock:
+                self._in_idle = False
+            
+            return result
         except Exception as e:
+            with self._idle_lock:
+                self._in_idle = False
+            
             # Don't log error if it's just a connection lost during shutdown
             if not self._connected:
                 return []
-            logger.error(f"Error in idle: {e}")
+            logger.debug(f"Idle interrupted or error: {e}")
             self.check_connection_error(e)
             return []
 
     def noidle(self):
         """Cancel the current idle wait."""
+        with self._idle_lock:
+            if not self._in_idle:
+                return  # No idle active, nothing to cancel
+        
         try:
             self.client_status.noidle()
+            logger.debug("Sent noidle to cancel idle wait")
         except Exception as e:
             logger.debug(f"Error in noidle: {e}")
         
