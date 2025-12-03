@@ -832,7 +832,7 @@ class DisplayFormatter:
         
         # Triangle pointing DOWN (point at bottom, 90° angle at bottom, 45° slopes)
         # Top edge of triangle connects the bottom of the circles
-        triangle_top_y = circles_cy + circle_radius // 4
+        triangle_top_y = circles_cy + circle_radius // 4 + 3  # Moved down 3 pixels
         triangle_left_x = left_circle_cx - circle_radius // 2
         triangle_right_x = right_circle_cx + circle_radius // 2
         
@@ -887,9 +887,9 @@ class DisplayFormatter:
                 tri_bottom_mono       # Bottom point
             ], fill=1)
             
-            # Cover bottom half of circles to make them half-circles
-            # This rectangle erases the bottom portions
-            cover_y = left_circle_mono[1]
+            # Cover bottom portion of circles to make them more than half-circles (about 60-70%)
+            # This rectangle erases only the bottom 30-40% of the circles
+            cover_y = left_circle_mono[1] + int(circle_radius * 0.35)  # Show 65% of circle
             mono_draw.rectangle([
                 (0, cover_y),
                 (width, cover_y + circle_radius)
