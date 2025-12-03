@@ -930,22 +930,9 @@ class SourceController:
         
         # 2. Forwarding logic - only if active source
         if self.source == source_type:
-            # Generic callback
+            # Forward all events through unified client_changed callback
             self.logger.debug(f"✅ Forwarding event to display: {event_name}")
             self._emit_callback('client_changed', event_name, **kwargs)
-            
-            # Specific callbacks (Bluetooth only for now)
-            if source_type == SourceType.BLUETOOTH:
-                bt_cbs = self._callbacks.get('bluetooth', {})
-                if event_name == 'playback_state_changed' and 'status_changed' in bt_cbs:
-                    try:
-                        bt_cbs['status_changed'](**kwargs)
-                    except Exception: pass
-                if event_name == 'track_changed' and 'track_changed' in bt_cbs:
-                    try:
-                        bt_cbs['track_changed'](**kwargs)
-                    except Exception:
-                        pass
 
     # =========================================================================
     # Event System
@@ -1003,42 +990,38 @@ class SourceController:
         Start monitoring for all connected backends.
         
         Args:
-            mpd_state_callback: Callback for MPD state changes
-            librespot_state_callback: Callback for Librespot state changes
+            mpd_state_callback: Callback for MPD state changes (legacy, maps to client_changed)
+            librespot_state_callback: Callback for Librespot state changes (legacy, maps to client_changed)
             on_client_changed: Callback for any client change
-            on_spotify_track_started: Callback for Spotify track started
-            bluetooth_callbacks: Dict with bluetooth callbacks (connected, disconnected, track_changed, status_changed)
+            on_spotify_track_started: Callback for Spotify track started (legacy, maps to client_changed)
+            bluetooth_callbacks: Dict with bluetooth callbacks (legacy, maps to client_changed) - DEPRECATED, use on_client_changed instead
         """
-        # Register callbacks using new system
-        # Map legacy specific callbacks to generic client_changed if possible, or just register them
-        # Since we removed specific emission, these specific callbacks won't be called unless we map them.
-        # For now, we'll register them but they might not fire if they expect 'mpd_state' event.
-        # Ideally, consumers should move to 'client_changed'.
+        # Register callbacks using unified system
+        # All legacy callbacks are mapped to 'client_changed' for consistency
         
         if mpd_state_callback:
-            # self.add_callback('mpd_state', mpd_state_callback)
-            # Map to generic callback for backward compatibility if it accepts **kwargs
             self.add_callback('client_changed', mpd_state_callback)
             
         if librespot_state_callback:
-            # self.add_callback('librespot_state', librespot_state_callback)
             self.add_callback('client_changed', librespot_state_callback)
             
         if on_client_changed:
             self.add_callback('client_changed', on_client_changed)
             
         if on_spotify_track_started:
-            # self.add_callback('spotify_track_started', on_spotify_track_started)
             self.add_callback('client_changed', on_spotify_track_started)
             
         if bluetooth_callbacks:
-            # Handle bluetooth callbacks specially as they are a dict
-            if 'bluetooth' not in self._callbacks:
-                self._callbacks['bluetooth'] = {}
+            # DEPRECATED: bluetooth_callbacks dict is now handled through unified client_changed callback
+            # For backward compatibility, register the callbacks directly
+            self.logger.warning("bluetooth_callbacks dict parameter is deprecated. Use on_client_changed instead.")
             
-            # Merge with existing
-            if isinstance(self._callbacks['bluetooth'], dict):
-                self._callbacks['bluetooth'].update(bluetooth_callbacks)
+            # Map old bluetooth callback names to new unified system
+            if isinstance(bluetooth_callbacks, dict):
+                for event_name, callback in bluetooth_callbacks.items():
+                    if callback:
+                        # Register as client_changed callback
+                        self.add_callback('client_changed', callback)
         
         self.logger.info("Starting monitoring for all backends...")
         
