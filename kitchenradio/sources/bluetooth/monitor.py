@@ -63,7 +63,6 @@ class BluetoothMonitor:
         self.client.on_track_changed = self._on_track_changed
         self.client.on_status_changed = self._on_status_changed
         self.client.on_volume_changed = self._on_volume_changed
-        logger.info(f"🔊 [Monitor] Volume callback registered: {self.client.on_volume_changed}")
 
         self.is_monitoring = False
         self._monitor_thread = None
@@ -133,13 +132,11 @@ class BluetoothMonitor:
             
             logger.info(f"🟢 Device connected: {device_name} ({device_mac})")
             
-            # Try to get initial volume from DBus (will be None until MediaTransport is ready)
+            # Try to get initial volume from DBus
             initial_volume = self.client.get_volume()
             if initial_volume is not None:
                 self.current_volume = initial_volume
-                logger.info(f"🔊 [Bluetooth] Initial volume retrieved: {initial_volume}")
-            else:
-                logger.debug(f"🔊 Volume not yet available (MediaTransport not ready)")
+                logger.debug(f"Initial volume retrieved: {initial_volume}")
             
             # Don't set active player here - let it auto-detect when MediaPlayer1 events arrive
             # (The player path is different from device path: device/playerN)
@@ -289,7 +286,6 @@ class BluetoothMonitor:
 
     def _on_volume_changed(self, interface: str, changed: dict, invalidated: list, path: str):
         """Handle volume/transport changes from AVRCP"""
-        logger.info(f"🔊 [Monitor] _on_volume_changed called with changed={changed}")
         # MediaTransport1 sends State and Volume changes
         # We only care about actual Volume changes
         if 'Volume' in changed:

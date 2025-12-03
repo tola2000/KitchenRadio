@@ -183,14 +183,6 @@ class DisplayController:
         event_name = kwargs.get('event', 'unknown')
         logger.debug(f"📺 DisplayController received callback: event={event_name}, kwargs_keys={list(kwargs.keys())}")
         
-        # Special logging for volume changes
-        if event_name == 'playback_state_changed':
-            playback_state = kwargs.get('playback_state')
-            if playback_state:
-                volume = playback_state.volume if hasattr(playback_state, 'volume') else 'N/A'
-                status = playback_state.status.value if hasattr(playback_state, 'status') else 'N/A'
-                logger.info(f"📺 Display received playback_state_changed: status={status}, volume={volume}")
-        
         # Detect source change OR device change (within same source) - if changed, refresh display
         source_changed = False
         device_changed = False
@@ -421,43 +413,40 @@ class DisplayController:
                     self.cleanup()
                     return
             
-            # Get status from source_controller
-            if self.source_controller:
-                # Use cached values from events
-                playback_state = self.cached_playback_state
-                track_info = self.cached_track_info
-                source_info = self.cached_source_info
-                current_powered_on = self.cached_powered_on
-                
-                # Derive current source from source_info
-                current_source = 'none'
-                if source_info and source_info.source:
-                    current_source = source_info.source.value
-                
-                # Construct a status object compatible with existing logic for now
-                # Or better, adapt the logic below to use these directly
-                current_status = {
-                    'current_source': current_source,
-                    'powered_on': current_powered_on,
-                    'playback_state': playback_state,
-                    'track_info': track_info,
-                    'source_info': source_info
-                }
-            else:
-                logger.warning("No source_controller available for display updates")
-                return
+
+            # Use cached values from events
+            playback_state = self.cached_playback_state
+            track_info = self.cached_track_info
+            source_info = self.cached_source_info
+            powered_on = self.cached_powered_on
+            
+            # Derive current source from source_info
+            current_source = 'none'
+            if source_info and source_info.source:
+                current_source = source_info.source.value
+            
+            # Construct a status object compatible with existing logic for now
+            # Or better, adapt the logic below to use these directly
+            current_status = {
+                'current_source': current_source,
+                'powered_on': powered_on,
+                'playback_state': playback_state,
+                'track_info': track_info,
+                'source_info': source_info
+            }
+
             
 
             logger.debug(f"[Got status] Full status: {current_status}") 
 
 
             # Determine display content based on current source and status only
-            # current_source and current_powered_on already extracted above
+            # current_source and powered_on already extracted above
 
             # Detect power state change
-            power_state_changed = (self.last_powered_on is not None and current_powered_on != self.last_powered_on)
+            power_state_changed = (self.last_powered_on is not None and powered_on != self.last_powered_on)
             if power_state_changed:
-                logger.info(f"Power state transition detected: {self.last_powered_on} -> {current_powered_on}, source: {current_source}")
+                logger.info(f"Power state transition detected: {self.last_powered_on} -> {powered_on}, source: {current_source}")
 
             # Check for overlay dismissal first
             overlay_dismissed = self._dismiss_overlay()
@@ -483,8 +472,8 @@ class DisplayController:
             scroll_update = self._is_scroll_update_needed()
 
             # Handle power off state
-            if not current_powered_on:
-                self.last_powered_on = current_powered_on
+            if not powered_on:
+                self.last_powered_on = powered_on
                 self.last_status = None
                 self.current_display_type = None
                 self.current_display_data = None
@@ -495,7 +484,7 @@ class DisplayController:
                 self._render_clock_display()
                 return
             elif current_source == 'none' or current_source is None:
-                self.last_powered_on = current_powered_on
+                self.last_powered_on = powered_on
                 self._render_no_source_display(current_status)
                 return
 
@@ -524,10 +513,11 @@ class DisplayController:
                     logger.info("First display update after initialization - forcing render")
                     self._first_update = False
                 if power_state_changed:
-                    logger.info(f"Power state changed: {self.last_powered_on} -> {current_powered_on} - forcing render")
+                    logger.info(f"Power state changed: {self.last_powered_on} -> {powered_on} - forcing render")
 
+ #               self.last_status = current_status.copy()  # Copy to avoid reference comparison issues
                 self.last_status = current_status.copy()  # Copy to avoid reference comparison issues
-                self.last_powered_on = current_powered_on
+                self.last_powered_on = powered_on
 
                 if current_source == 'mpd':
                     logger.info(f"Rendering MPD display after status/power change")
@@ -547,9 +537,11 @@ class DisplayController:
                     return
 
             # Handle scroll updates - refresh current display with updated scroll offsets
+            # (Note: overlay protection already applied above, so we won't reach here if overlay is active)
             if not self.current_display_type or not self.current_display_data:
                 return
-            elif scroll_update:
+            elif scroll_update and not self.overlay_active:
+                # Double-check overlay isn't active (defensive programming)
                 display_data = self.current_display_data.copy()
                 display_data['scroll_offsets'] = self.current_scroll_offsets
                 self._render_display_content(self.current_display_type, display_data)
