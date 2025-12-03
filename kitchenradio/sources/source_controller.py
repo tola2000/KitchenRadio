@@ -42,7 +42,8 @@ class SourceController:
             config_dict: Configuration dictionary. If None, loads from config module.
         """
         self.logger = logging.getLogger(__name__)
-
+        # Enable debug logging to trace event flow
+        self.logger.setLevel(logging.DEBUG)
  
         # Configuration
         self.config = config_dict or self._load_default_config()
@@ -902,7 +903,9 @@ class SourceController:
 
     def _handle_monitor_event(self, source_type: SourceType, event_name: str, **kwargs):
         """Handle events from any monitor"""
-        self.logger.debug(f"🎯 Handling monitor event: source={source_type.value}, event={event_name}, active_source={self.source.value if self.source else 'none'}")
+        # Enhanced debug logging with emoji for easy identification
+        emoji = "🔵" if source_type == SourceType.BLUETOOTH else "🟢" if source_type == SourceType.LIBRESPOT else "🎵"
+        self.logger.debug(f"{emoji} MONITOR EVENT RECEIVED: source={source_type.value}, event={event_name}, active_source={self.source.value if self.source else 'none'}, kwargs_keys={list(kwargs.keys())}")
         
         # 1. Auto-switching logic
         # Spotify: Auto-switch when playback starts
@@ -924,15 +927,20 @@ class SourceController:
         
         # Bluetooth: Auto-switch when device connects (but stay on Bluetooth when disconnected)
         if source_type == SourceType.BLUETOOTH and event_name == 'device_connected':
+            self.logger.debug(f"🔵 Bluetooth device_connected event detected")
             if self.source != SourceType.BLUETOOTH:
                 self.logger.info("🔵 Auto-switching to Bluetooth (device connected)")
                 self.set_source(SourceType.BLUETOOTH)
+            else:
+                self.logger.debug(f"🔵 Already on Bluetooth source, no switch needed")
         
         # 2. Forwarding logic - only if active source
         if self.source == source_type:
             # Forward all events through unified client_changed callback
-            self.logger.debug(f"✅ Forwarding event to display: {event_name}")
+            self.logger.debug(f"✅ FORWARDING {source_type.value} event '{event_name}' to client_changed callbacks (active source matches)")
             self._emit_callback('client_changed', event_name, **kwargs)
+        else:
+            self.logger.debug(f"⏸️ NOT forwarding {source_type.value} event '{event_name}' (not active source: current={self.source.value if self.source else 'none'})")
 
     # =========================================================================
     # Event System
@@ -955,14 +963,21 @@ class SourceController:
 
     def _emit_callback(self, event_name: str, sub_event: str = None, **kwargs):
         """Emit an event to registered callbacks"""
+        # Debug: Show what we're emitting
+        event_desc = f"{event_name}" + (f"/{sub_event}" if sub_event else "")
+        callback_count = len(self._callbacks.get(event_name, [])) + len(self._callbacks.get('any', []))
+        self.logger.debug(f"📤 Emitting callback: {event_desc}, {callback_count} registered callbacks")
+        
         # 1. Specific event callbacks
         if event_name in self._callbacks:
             for callback in self._callbacks[event_name]:
                 try:
                     if sub_event:
                         # If sub_event provided, pass it (useful for 'client_changed')
+                        self.logger.debug(f"  → Calling specific callback with sub_event={sub_event}")
                         callback(event=sub_event, **kwargs)
                     else:
+                        self.logger.debug(f"  → Calling specific callback")
                         callback(**kwargs)
                 except Exception as e:
                     self.logger.error(f"Error in callback for {event_name}: {e}")
@@ -1054,7 +1069,8 @@ class SourceController:
             # Monitor passes event='event_name' as kwarg, so extract it
             def bluetooth_callback(**kwargs):
                 event_name = kwargs.pop('event', 'unknown')
+                self.logger.debug(f"🔵 Bluetooth monitor event received: {event_name}, kwargs: {list(kwargs.keys())}")
                 self._handle_monitor_event(SourceType.BLUETOOTH, event_name, **kwargs)
             self.bluetooth_monitor.add_callback('any', bluetooth_callback)
             self.bluetooth_monitor.start_monitoring()
-            self.logger.info("✅ Bluetooth monitoring started")
+            self.logger.info("✅ Bluetooth monitoring started - callback registered for 'any' event")
