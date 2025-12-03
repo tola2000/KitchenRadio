@@ -175,13 +175,17 @@ class DisplayController:
         return True
     
     def _on_client_changed(self, **kwargs):
+        # Debug: Log entry to callback (ALWAYS log this to verify callback is being called)
+        event_type = kwargs.get('event_type', 'unknown')
+        sub_event = kwargs.get('sub_event', 'none')
+        logger.info(f"📺 DisplayController._on_client_changed CALLED: event_type={event_type}, sub_event={sub_event}, shutting_down={self._shutting_down}")
+        
         # Don't process callbacks during shutdown
         if self._shutting_down:
+            logger.debug(f"📺 Ignoring callback due to shutdown")
             return
         
         # Debug: Log what we received
-        event_type = kwargs.get('event_type', 'unknown')
-        sub_event = kwargs.get('sub_event', 'none')
         logger.debug(f"📺 DisplayController received callback: event_type={event_type}, sub_event={sub_event}, kwargs_keys={list(kwargs.keys())}")
         
         # Detect source change OR device change (within same source) - if changed, refresh display
