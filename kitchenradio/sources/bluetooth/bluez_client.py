@@ -169,6 +169,9 @@ class BlueZClient:
 
     def _on_properties_changed_internal(self, interface, changed, invalidated, path):
         """Internal handler for property changes - forwards to callback"""
+        # Skip MediaTransport1 events - they're handled by _on_volume_changed_internal
+        if interface == 'org.bluez.MediaTransport1':
+            return
         if self.on_properties_changed:
             self.on_properties_changed(interface, dict(changed), list(invalidated), path)
 
