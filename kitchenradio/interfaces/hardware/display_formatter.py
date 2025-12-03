@@ -806,125 +806,121 @@ class DisplayFormatter:
     def _draw_heart(self, target_draw: ImageDraw.Draw, target_img: Image.Image, 
                    cx: int, cy: int, size: float, filled: bool = True, brightness: int = 255):
         """
-        Draw a heart shape with two round humps on top and a sharp triangular bottom (90-45-45 angles).
-        Uses monochrome rendering for maximum brightness.
+        Draw a heart shape: Two circles on top, inverted triangle below (point up, 90° angle at top).
+        Simple geometric approach for clean rendering.
         
         Args:
             target_draw: The ImageDraw object of the target image
             target_img: The target image to draw on
             cx: Center x coordinate of heart
-            cy: Center y coordinate of heart (top of the heart)
+            cy: Center y coordinate of heart center
             size: Size parameter (heart scales with this)
             filled: If True, draws filled heart; if False, draws outline only
             brightness: Brightness level (0-255), default 255 for maximum brightness
         """
         import math
         
-        # Scale size
         s = int(size)
         
-        # Heart dimensions based on size
-        # Two circles on top, triangle pointing down
-        circle_radius = s // 2
+        # Circle specifications
+        circle_radius = s // 3
         
-        # Top circles centers (WIDER - more spacing between circles)
-        circle_spacing = int(circle_radius * 1.2)  # Increased spacing for wider heart
-        left_circle_cx = cx - circle_spacing
-        right_circle_cx = cx + circle_spacing
-        circles_cy = cy
+        # Position circles side-by-side at the top
+        left_circle_cx = cx - circle_radius
+        right_circle_cx = cx + circle_radius
+        circles_cy = cy - s // 3  # Position circles above center
         
-        # Triangle points (90 degree angle at bottom, 45-45 at top corners)
-        # Triangle height should be about 1.5x the circle radius for good proportions
-        triangle_height = int(circle_radius * 1.8)
+        # Inverted triangle (point UP, 90° angle at top, 45° slopes)
+        # The triangle sits below the circles with its point touching between them
+        triangle_height = int(s * 0.8)
         
-        # Top corners of triangle connect to bottom of circles (WIDER spread)
-        triangle_top_y = circles_cy + circle_radius
-        triangle_left_x = left_circle_cx - circle_radius
-        triangle_right_x = right_circle_cx + circle_radius
+        # Top point of triangle (between the two circles)
+        triangle_top_x = cx
+        triangle_top_y = circles_cy + circle_radius // 2
         
-        # Bottom point (90 degree angle)
-        triangle_bottom_x = cx
+        # Bottom corners (90° angle at top means 45° slopes on sides)
+        # For 45° angle: horizontal distance = vertical distance
         triangle_bottom_y = triangle_top_y + triangle_height
+        triangle_left_x = triangle_top_x - triangle_height
+        triangle_right_x = triangle_top_x + triangle_height
         
         # Calculate bounding box
-        min_x = triangle_left_x - circle_radius
-        max_x = triangle_right_x + circle_radius
+        min_x = min(left_circle_cx - circle_radius, triangle_left_x)
+        max_x = max(right_circle_cx + circle_radius, triangle_right_x)
         min_y = circles_cy - circle_radius
         max_y = triangle_bottom_y
         
-        width = max_x - min_x + 1
-        height = max_y - min_y + 1
+        width = max_x - min_x + 2
+        height = max_y - min_y + 2
         
         # Create monochrome image
         mono_img = Image.new('1', (width, height), color=0)
         mono_draw = ImageDraw.Draw(mono_img)
         
-        # Translate coordinates to monochrome image space (0,0 origin)
-        left_circle_x_mono = left_circle_cx - min_x
-        right_circle_x_mono = right_circle_cx - min_x
-        circles_y_mono = circles_cy - min_y
+        # Translate to mono image coordinates
+        def to_mono(x, y):
+            return (x - min_x, y - min_y)
         
-        triangle_left_x_mono = triangle_left_x - min_x
-        triangle_right_x_mono = triangle_right_x - min_x
-        triangle_top_y_mono = triangle_top_y - min_y
-        triangle_bottom_x_mono = triangle_bottom_x - min_x
-        triangle_bottom_y_mono = triangle_bottom_y - min_y
+        left_circle_mono = to_mono(left_circle_cx, circles_cy)
+        right_circle_mono = to_mono(right_circle_cx, circles_cy)
+        tri_top_mono = to_mono(triangle_top_x, triangle_top_y)
+        tri_left_mono = to_mono(triangle_left_x, triangle_bottom_y)
+        tri_right_mono = to_mono(triangle_right_x, triangle_bottom_y)
         
         if filled:
-            # Draw two filled circles on top
+            # Draw filled circles
             mono_draw.ellipse([
-                (left_circle_x_mono - circle_radius, circles_y_mono - circle_radius),
-                (left_circle_x_mono + circle_radius, circles_y_mono + circle_radius)
+                (left_circle_mono[0] - circle_radius, left_circle_mono[1] - circle_radius),
+                (left_circle_mono[0] + circle_radius, left_circle_mono[1] + circle_radius)
             ], fill=1)
             
             mono_draw.ellipse([
-                (right_circle_x_mono - circle_radius, circles_y_mono - circle_radius),
-                (right_circle_x_mono + circle_radius, circles_y_mono + circle_radius)
+                (right_circle_mono[0] - circle_radius, right_circle_mono[1] - circle_radius),
+                (right_circle_mono[0] + circle_radius, right_circle_mono[1] + circle_radius)
             ], fill=1)
             
-            # Draw filled triangle pointing down (90-45-45 angles)
+            # Draw filled inverted triangle (point at top)
             mono_draw.polygon([
-                (triangle_left_x_mono, triangle_top_y_mono),
-                (triangle_right_x_mono, triangle_top_y_mono),
-                (triangle_bottom_x_mono, triangle_bottom_y_mono)
+                tri_top_mono,      # Top point
+                tri_left_mono,     # Bottom left
+                tri_right_mono     # Bottom right
             ], fill=1)
             
-            # Fill the gap between circles and triangle with a rectangle
-            fill_rect_top = circles_y_mono
-            fill_rect_bottom = triangle_top_y_mono + 2
+            # Fill gap between circles and triangle
+            gap_top_y = left_circle_mono[1] - circle_radius // 2
+            gap_bottom_y = tri_top_mono[1] + 2
+            gap_left_x = left_circle_mono[0] - circle_radius // 2
+            gap_right_x = right_circle_mono[0] + circle_radius // 2
+            
             mono_draw.rectangle([
-                (triangle_left_x_mono, fill_rect_top),
-                (triangle_right_x_mono, fill_rect_bottom)
+                (gap_left_x, gap_top_y),
+                (gap_right_x, gap_bottom_y)
             ], fill=1)
         else:
             # Draw circle outlines
             mono_draw.ellipse([
-                (left_circle_x_mono - circle_radius, circles_y_mono - circle_radius),
-                (left_circle_x_mono + circle_radius, circles_y_mono + circle_radius)
+                (left_circle_mono[0] - circle_radius, left_circle_mono[1] - circle_radius),
+                (left_circle_mono[0] + circle_radius, left_circle_mono[1] + circle_radius)
             ], outline=1)
             
             mono_draw.ellipse([
-                (right_circle_x_mono - circle_radius, circles_y_mono - circle_radius),
-                (right_circle_x_mono + circle_radius, circles_y_mono + circle_radius)
+                (right_circle_mono[0] - circle_radius, right_circle_mono[1] - circle_radius),
+                (right_circle_mono[0] + circle_radius, right_circle_mono[1] + circle_radius)
             ], outline=1)
             
             # Draw triangle outline
             mono_draw.polygon([
-                (triangle_left_x_mono, triangle_top_y_mono),
-                (triangle_right_x_mono, triangle_top_y_mono),
-                (triangle_bottom_x_mono, triangle_bottom_y_mono),
-                (triangle_left_x_mono, triangle_top_y_mono)
+                tri_top_mono,
+                tri_left_mono,
+                tri_right_mono,
+                tri_top_mono
             ], outline=1)
         
         # Create grayscale image at target brightness
         heart_img = Image.new('L', (width, height), color=brightness)
         
-        # Calculate final position
-        final_x = min_x
-        final_y = min_y
-        
         # Use monochrome as mask for maximum brightness
-        target_img.paste(heart_img, (final_x, final_y), mask=mono_img)
+        target_img.paste(heart_img, (min_x, min_y), mask=mono_img)
     
     def format_hearts_message(self, message_data: Dict[str, Any]):
         """
