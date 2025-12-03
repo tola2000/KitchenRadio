@@ -200,6 +200,15 @@ class BluetoothController:
             if 'Connected' in changed:
                 if changed['Connected']:
                     if address not in self.connected_devices:
+                        # Disconnect previous device if one is connected
+                        if self.current_device_path and self.current_device_path != path:
+                            old_device_name = self.current_device_name or "Unknown"
+                            logger.info(f"🔄 New device connecting - disconnecting previous device: {old_device_name}")
+                            try:
+                                self.client.disconnect_device(self.current_device_path)
+                            except Exception as e:
+                                logger.warning(f"Failed to disconnect previous device: {e}")
+                        
                         self.connected_devices.add(address)
                         self.current_device_path = path
                         self.current_device_name = name
