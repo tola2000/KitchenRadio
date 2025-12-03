@@ -1143,6 +1143,8 @@ class DisplayController:
         The monitor immediately provides expected volume values via callbacks,
         ensuring instant UI feedback.
         """
+        self._activate_overlay('volume', timeout)
+        
         if timeout is None:
             timeout = display_config.VOLUME_OVERLAY_TIMEOUT
         logger.info(f"📢 show_volume_overlay called, timeout={timeout}")
@@ -1150,7 +1152,9 @@ class DisplayController:
         # Get FRESH playback state (includes expected values from monitor)
         # playback_state = self.source_controller.get_playback_state()
         playback_state = self.cached_playback_state
-        
+
+
+               
         if isinstance(playback_state, PlaybackState):
             display_volume = playback_state.volume
         else:
@@ -1169,7 +1173,7 @@ class DisplayController:
             'show_percentage': True
         }
         self._render_display_content('volume', volume_data)
-        self._activate_overlay('volume', timeout)
+
         logger.info(f"   Volume overlay activated until {self.overlay_end_time}")
         
         # Wake up the display loop to render immediately (no delay)
@@ -1181,10 +1185,12 @@ class DisplayController:
             'main_text': title,
             'sub_text': description
         }
+        self._activate_overlay('notification', timeout)
+        
         if description2:
             notification_data['sub_text2'] = description2
         self._render_display_content('notification', notification_data)
-        self._activate_overlay('notification', timeout)
+
 
     def show_clock(self):
         """Show clock overlay using the generic overlay system"""
@@ -1199,6 +1205,8 @@ class DisplayController:
 
     def show_menu_overlay(self, options: List[str], selected_index: int = 0, timeout: float = None, on_selected: Optional[Callable[[int], None]] = None):
         """Show menu overlay using the generic overlay system"""
+        self._activate_overlay('menu', timeout)
+        
         if timeout is None:
             timeout = display_config.MENU_OVERLAY_TIMEOUT
         menu_data = {
@@ -1210,5 +1218,5 @@ class DisplayController:
         self.on_menu_selected = on_selected
         self.selected_index = selected_index
         self._render_display_content('menu', menu_data)
-        self._activate_overlay('menu', timeout)
+
  
