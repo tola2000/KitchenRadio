@@ -254,6 +254,16 @@ class BluetoothMonitor:
                     if self.current_track and self.current_track.title != 'Unknown':
                         logger.info(f"🎵 Current track: {self.current_track.title} - {self.current_track.artist}")
                     
+                    # IMPORTANT: Trigger callbacks to update display with actual status/track
+                    # Without this, display remains showing "unknown" status
+                    if self.current_track:
+                        logger.info(f"🔔 Triggering track_changed callback after AVRCP connection")
+                        self._trigger_callbacks('track_changed', track_info=self.current_track)
+                    
+                    if self.current_status:
+                        logger.info(f"🔔 Triggering playback_state_changed callback after AVRCP connection (status: {self.current_status.value})")
+                        self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
+                    
                     return  # Success!
                 
                 # Not available yet - wait and retry
