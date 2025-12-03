@@ -133,6 +133,14 @@ class BluetoothMonitor:
             
             logger.info(f"🟢 Device connected: {device_name} ({device_mac})")
             
+            # Try to get initial volume from DBus (will be None until MediaTransport is ready)
+            initial_volume = self.client.get_volume()
+            if initial_volume is not None:
+                self.current_volume = initial_volume
+                logger.info(f"🔊 [Bluetooth] Initial volume retrieved: {initial_volume}")
+            else:
+                logger.debug(f"🔊 Volume not yet available (MediaTransport not ready)")
+            
             # Don't set active player here - let it auto-detect when MediaPlayer1 events arrive
             # (The player path is different from device path: device/playerN)
             logger.info(f"📡 Waiting for AVRCP MediaPlayer to appear...")
