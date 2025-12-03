@@ -284,8 +284,11 @@ class BluetoothMonitor:
         if 'Volume' in changed:
             volume = int(changed['Volume'])
             logger.info(f"🔊 [Bluetooth] Volume changed to: {volume}")
-            # Trigger playback_state_changed to update the volume in PlaybackState
-            self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
+            # Create PlaybackState with the volume from the event (don't query DBus again)
+            status = self.current_status if self.current_status else PlaybackStatus.UNKNOWN
+            playback_state = PlaybackState(status=status, volume=volume)
+            # Trigger playback_state_changed with the updated volume
+            self._trigger_callbacks('playback_state_changed', playback_state=playback_state)
         # Ignore 'State' changes (pending/active) - they don't affect our playback state
     
     def start_monitoring(self):
