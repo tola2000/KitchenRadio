@@ -869,21 +869,31 @@ class DisplayFormatter:
         def is_valid(value):
             return value and value != '' and value != 'Unknown' and value.strip() != ''
         
-        if is_valid(artist) and is_valid(album):
-            # Both artist and album are valid - show with separator
+        # Check if playlist name appears in artist or album - if so, exclude that field
+        # This prevents redundancy when MPD includes playlist name in metadata
+        playlist_lower = playlist.lower() if playlist else ''
+        artist_contains_playlist = playlist and playlist_lower in artist.lower() if is_valid(artist) else False
+        album_contains_playlist = playlist and playlist_lower in album.lower() if is_valid(album) else False
+        
+        # Determine which fields to show based on validity and playlist overlap
+        show_artist = is_valid(artist) and not artist_contains_playlist
+        show_album = is_valid(album) and not album_contains_playlist
+        
+        if show_artist and show_album:
+            # Both artist and album are valid and don't contain playlist - show with separator
             # Remove colon if in pairing mode or use space only
             if pairing_mode:
                 artist_album_text = f"{artist} {album}"
             else:
                 artist_album_text = f"{artist} : {album}"
-        elif is_valid(album):
-            # Only album is valid
+        elif show_album:
+            # Only album is valid (or artist contains playlist)
             artist_album_text = album
-        elif is_valid(artist):
-            # Only artist is valid
+        elif show_artist:
+            # Only artist is valid (or album contains playlist)
             artist_album_text = artist
         else:
-            # Neither is valid - fallback to artist (which might be 'Unknown')
+            # Neither is valid or both contain playlist - fallback to artist (which might be 'Unknown')
             artist_album_text = artist
         
         artist_album_offset = scroll_offsets.get('artist_album', 0)
