@@ -224,7 +224,10 @@ class DisplayController:
                     pairing_mode_changed = True
                     logger.info(f"📡 Pairing mode changed in display: {old_pairing} → {new_pairing}")
             
-            self.cached_source_info = new_source_info
+            # IMPORTANT: Create a copy of source_info to avoid reference issues
+            # (monitor mutates the same object, which would affect our cached copy)
+            from dataclasses import replace
+            self.cached_source_info = replace(new_source_info)
         
         # If source OR device OR pairing_mode changed, fetch fresh state from SourceController
         if (source_changed or device_changed or pairing_mode_changed) and self.source_controller:
