@@ -253,13 +253,16 @@ class OutputController:
             try:
                 if GPIO is not None:
                     # Using RPi.GPIO
+                    # INVERTED LOGIC: The relay control is inverted from the expected behavior
+                    # When enable=True (amplifier should be ON), we set pin LOW
+                    # When enable=False (amplifier should be OFF), we set pin HIGH
                     if enable:
-                        pin_state = GPIO.HIGH if self.active_high else GPIO.LOW
+                        pin_state = GPIO.LOW if self.active_high else GPIO.HIGH
                         GPIO.output(self.amplifier_pin, pin_state)
                         actual_state = GPIO.input(self.amplifier_pin)
                         logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if pin_state == GPIO.HIGH else 'LOW'} (verified: {'HIGH' if actual_state else 'LOW'})")
                     else:
-                        pin_state = GPIO.LOW if self.active_high else GPIO.HIGH
+                        pin_state = GPIO.HIGH if self.active_high else GPIO.LOW
                         GPIO.output(self.amplifier_pin, pin_state)
                         actual_state = GPIO.input(self.amplifier_pin)
                         logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if pin_state == GPIO.HIGH else 'LOW'} (verified: {'HIGH' if actual_state else 'LOW'})")
