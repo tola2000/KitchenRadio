@@ -686,7 +686,7 @@ class SourceController:
         self._stop_source(SourceType.BLUETOOTH)
         
         # Clear source
-        self.source = SourceType.NONE
+        # self.source = SourceType.NONE
         self.powered_on = False
         
         self._emit_callback('client_changed', 'power_changed', powered_on=False)
