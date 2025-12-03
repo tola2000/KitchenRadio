@@ -1,7 +1,41 @@
 """
 Output Controller for KitchenRadio
 
-Controls GPIO output pins to drive external devices like amplifier relays.
+Controls GPIO output pins to drive external devi            logger.debug(f"GPIO module available: {GPIO is not None}")
+            try:
+                if GPIO is not None:
+                    # Using RPi.GPIO
+                    logger.debug("Using RPi.GPIO library")
+                    
+                    # Check if GPIO mode is already set, if not set it
+                    try:
+                        mode = GPIO.getmode()
+                        if mode is None:
+                            logger.debug("GPIO mode not set, setting to BCM")
+                            GPIO.setmode(GPIO.BCM)
+                        elif mode == GPIO.BCM:
+                            logger.debug("GPIO already in BCM mode")
+                        else:
+                            logger.warning(f"GPIO in different mode ({mode}), setting to BCM")
+                            GPIO.setmode(GPIO.BCM)
+                    except Exception as e:
+                        logger.debug(f"Error checking/setting GPIO mode: {e}")
+                        GPIO.setmode(GPIO.BCM)
+                    
+                    # Setup pin as output
+                    GPIO.setup(self.amplifier_pin, GPIO.OUT, initial=GPIO.LOW if self.active_high else GPIO.HIGH)
+                    
+                    # Initialize to OFF state
+                    # For active_high=True: OFF = LOW, for active_high=False: OFF = HIGH
+                    initial_state = GPIO.LOW if self.active_high else GPIO.HIGH
+                    logger.debug(f"Setting initial state: {'LOW' if initial_state == GPIO.LOW else 'HIGH'}")
+                    GPIO.output(self.amplifier_pin, initial_state)
+                    
+                    # Verify the output
+                    actual_state = GPIO.input(self.amplifier_pin)
+                    logger.debug(f"Verified pin state: {'HIGH' if actual_state else 'LOW'}")
+                    
+                    logger.info(f"[OK] GPIO pin {self.amplifier_pin} initialized to OFF (RPi.GPIO)")ifier relays.
 Listens to power events from SourceController and enables/disables outputs accordingly.
 """
 
@@ -221,11 +255,13 @@ class OutputController:
                     if enable:
                         pin_state = GPIO.HIGH if self.active_high else GPIO.LOW
                         GPIO.output(self.amplifier_pin, pin_state)
-                        logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if pin_state == GPIO.HIGH else 'LOW'}")
+                        actual_state = GPIO.input(self.amplifier_pin)
+                        logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if pin_state == GPIO.HIGH else 'LOW'} (verified: {'HIGH' if actual_state else 'LOW'})")
                     else:
                         pin_state = GPIO.LOW if self.active_high else GPIO.HIGH
                         GPIO.output(self.amplifier_pin, pin_state)
-                        logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if pin_state == GPIO.HIGH else 'LOW'}")
+                        actual_state = GPIO.input(self.amplifier_pin)
+                        logger.debug(f"🔌 GPIO pin {self.amplifier_pin} set to {'HIGH' if pin_state == GPIO.HIGH else 'LOW'} (verified: {'HIGH' if actual_state else 'LOW'})")
                 elif self.gpio_device is not None:
                     # Using gpiozero
                     if enable:
