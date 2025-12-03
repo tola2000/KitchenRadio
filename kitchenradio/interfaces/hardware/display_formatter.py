@@ -803,6 +803,86 @@ class DisplayFormatter:
         
         return draw_centered_message
     
+    def _draw_heart(self, draw: ImageDraw.Draw, x: int, y: int, size: int):
+        """
+        Draw a simple pixel heart shape.
+        Converts Arduino C code to Python PIL drawing.
+        
+        Args:
+            draw: PIL ImageDraw object
+            x: Center x coordinate of heart
+            y: Top y coordinate of heart
+            size: Size parameter (heart scales with this)
+        """
+        # Top rectangles (two humps of heart)
+        # display.fillRect(x - s, y, s*2, s, WHITE);
+        draw.rectangle(
+            [(x - size, y), (x + size, y + size)],
+            fill=255
+        )
+        
+        # Upper middle rectangle (connects the humps)
+        # display.fillRect(x - s*2/3, y - s, s*4/3, s, WHITE);
+        draw.rectangle(
+            [(x - size*2//3, y - size), (x + size*2//3, y)],
+            fill=255
+        )
+        
+        # Bottom triangle (point of heart)
+        # display.fillTriangle(x - s, y, x + s, y, x, y + s*2, WHITE);
+        draw.polygon(
+            [(x - size, y), (x + size, y), (x, y + size*2)],
+            fill=255
+        )
+    
+    def format_hearts_message(self, message_data: Dict[str, Any]):
+        """
+        Format a message with animated hearts around it.
+        
+        Args:
+            message_data: Dictionary containing:
+                {
+                    "message": str,
+                    "font_size": str (optional, default "large")
+                }
+            
+        Returns:
+            Drawing function for hearts message display
+        """
+        # Extract data
+        message = message_data.get('message', '')
+        font_size = message_data.get('font_size', 'large')
+        
+        # Get the appropriate font
+        font = self.fonts.get(font_size, self.fonts['large'])
+        
+        # Calculate text dimensions for centering
+        bbox = font.getbbox(message)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Center text
+        text_x = max(0, (self.width - text_width) // 2)
+        text_y = max(0, (self.height - text_height) // 2)
+        
+        def draw_hearts_message(draw: ImageDraw.Draw):
+            # Get the underlying image
+            img = draw._image
+            
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Draw hearts on left side
+            self._draw_heart(draw, text_x - 12, text_y + text_height // 2 - 4, 4)
+            
+            # Draw hearts on right side
+            self._draw_heart(draw, text_x + text_width + 12, text_y + text_height // 2 - 4, 4)
+            
+            # Draw centered text
+            self._draw_text_mono(draw, img, (text_x, text_y), message, font=font, fill=255)
+        
+        return draw_hearts_message
+    
     def format_track_info(self, track_data: Dict[str, Any]) -> tuple:
         """
         Format track information display using JSON structure input.

@@ -701,6 +701,8 @@ class DisplayController:
                 draw_func = self.formatter.format_simple_text(display_data)
             elif display_type == 'centered_message':
                 draw_func = self.formatter.format_centered_message(display_data)
+            elif display_type == 'hearts_message':
+                draw_func = self.formatter.format_hearts_message(display_data)
             else:
                 logger.warning(f"Unknown display type: {display_type}")
                 return
@@ -1249,15 +1251,14 @@ class DisplayController:
         self._render_display_content('notification', notification_data)
     
     def _show_random_message_overlay(self):
-        """Show random message overlay when powered off (<3 Duts <3)"""
+        """Show random message overlay when powered off (hearts with Duts)"""
         message_data = {
-            'message': '<3 Duts <3',
-            'font_size': 'xlarge',
-            'brightness': 255
+            'message': 'Duts',
+            'font_size': 'xlarge'
         }
         self._activate_overlay('random_message', timeout=3.0)
-        self._render_display_content('centered_message', message_data)
-        logger.info("Showing random message overlay: <3 Duts <3")
+        self._render_display_content('hearts_message', message_data)
+        logger.info("Showing random message overlay with hearts: Duts")
 
     def show_clock(self):
         """Show clock overlay using the generic overlay system"""
