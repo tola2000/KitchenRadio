@@ -214,6 +214,12 @@ class BluetoothController:
                         self.current_device_name = name
                         logger.info(f"🟢 DEVICE CONNECTED: {name} ({address})")
                         
+                        # Update active player path for the new device
+                        # MediaPlayer path is device_path + "/player0"
+                        new_player_path = path + "/player0"
+                        logger.info(f"🎵 Setting active player to: {new_player_path}")
+                        self.client.set_active_player(new_player_path)
+                        
                         # Trigger callback
                         if self.on_device_connected:
                             self.on_device_connected(name, address)
