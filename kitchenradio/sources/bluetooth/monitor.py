@@ -221,11 +221,11 @@ class BluetoothMonitor:
         if hasattr(track, 'title'):
             track_info_obj = track
         else:
-            # Extract fields from dbus.Dictionary
-            title = str(track.get('Title', 'Unknown'))
-            artist = str(track.get('Artist', 'Unknown'))
-            album = str(track.get('Album', ''))
-            duration = int(track.get('Duration', 0))
+            # Extract fields from dict (client passes lowercase keys)
+            title = str(track.get('title', 'Unknown'))
+            artist = str(track.get('artist', 'Unknown'))
+            album = str(track.get('album', ''))
+            duration = int(track.get('duration', 0))
             track_info_obj = TrackInfo(title=title, artist=artist, album=album, duration=duration)
         self.current_track = track_info_obj
         
