@@ -154,28 +154,14 @@ class KitchenRadioClient:
     
     # Playback control methods
     def _ensure_idle_cancelled(self):
-        """Ensure idle is cancelled before sending commands."""
-        with self._idle_lock:
-            if self._in_idle:
-                logger.debug("Cancelling idle before command")
-                try:
-                    # Send noidle command using raw interface
-                    self.client_status._write_command("noidle")
-                    # Read and discard the response (changed subsystems or empty list)
-                    try:
-                        # Try the standard way first
-                        list(self.client_status._read_command_list())
-                    except (AttributeError, TypeError):
-                        # Fallback: just consume any pending data
-                        try:
-                            self.client_status._sock.recv(4096)
-                        except:
-                            pass
-                    self._in_idle = False
-                    logger.debug("Idle cancelled successfully")
-                except Exception as e:
-                    logger.debug(f"Error cancelling idle: {e}")
-                    self._in_idle = False  # Reset flag even on error
+        """Ensure idle is cancelled before sending commands.
+        
+        NOTE: Disabled for now as it causes connection issues.
+        Using two separate MPD connections (client and client_status) means
+        commands on 'client' don't interfere with idle on 'client_status'.
+        """
+        # Idle cancellation disabled - dual connections handle this naturally
+        pass
     
     def play(self, songpos: Optional[int] = None) -> bool:
         """Start playback from current or specified position (thread-safe)."""
