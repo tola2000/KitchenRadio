@@ -803,37 +803,48 @@ class DisplayFormatter:
         
         return draw_centered_message
     
-    def _draw_heart(self, draw: ImageDraw.Draw, x: int, y: int, size: int):
+    def _draw_heart(self, draw: ImageDraw.Draw, cx: int, cy: int, size: float, filled: bool = True):
         """
-        Draw a simple pixel heart shape.
-        Converts Arduino C code to Python PIL drawing.
+        Draw a precise heart shape using parametric equations.
+        Based on the heart curve: x = 16sin³(t), y = 13cos(t) - 5cos(2t) - 2cos(3t) - cos(4t)
         
         Args:
             draw: PIL ImageDraw object
-            x: Center x coordinate of heart
-            y: Top y coordinate of heart
+            cx: Center x coordinate of heart
+            cy: Center y coordinate of heart  
             size: Size parameter (heart scales with this)
+            filled: If True, draws filled heart; if False, draws outline only
         """
-        # Top rectangles (two humps of heart)
-        # display.fillRect(x - s, y, s*2, s, WHITE);
-        draw.rectangle(
-            [(x - size, y), (x + size, y + size)],
-            fill=255
-        )
+        import math
         
-        # Upper middle rectangle (connects the humps)
-        # display.fillRect(x - s*2/3, y - s, s*4/3, s, WHITE);
-        draw.rectangle(
-            [(x - size*2//3, y - size), (x + size*2//3, y)],
-            fill=255
-        )
+        step = 0.1  # Smaller = smoother outline (0.05 = very smooth, but slower)
+        points = []
         
-        # Bottom triangle (point of heart)
-        # display.fillTriangle(x - s, y, x + s, y, x, y + s*2, WHITE);
-        draw.polygon(
-            [(x - size, y), (x + size, y), (x, y + size*2)],
-            fill=255
-        )
+        # Generate heart shape points using parametric equation
+        t = 0
+        while t < 2 * math.pi:
+            x = 16 * math.pow(math.sin(t), 3)
+            y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
+            
+            # Scale and translate to center position
+            px = cx + int(x * size * 0.06)
+            py = cy - int(y * size * 0.06)
+            
+            points.append((px, py))
+            t += step
+        
+        # Close the shape by connecting back to start
+        if len(points) > 0:
+            points.append(points[0])
+        
+        if filled:
+            # Draw filled polygon
+            if len(points) > 2:
+                draw.polygon(points, fill=255)
+        else:
+            # Draw outline only
+            if len(points) > 1:
+                draw.line(points, fill=255, width=1)
     
     def format_hearts_message(self, message_data: Dict[str, Any]):
         """
@@ -872,11 +883,21 @@ class DisplayFormatter:
             # Clear background
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Draw hearts on left side
-            self._draw_heart(draw, text_x - 12, text_y + text_height // 2 - 4, 4)
+            # Calculate heart size based on available space
+            heart_size = 8.0  # Larger hearts for better visibility
             
-            # Draw hearts on right side
-            self._draw_heart(draw, text_x + text_width + 12, text_y + text_height // 2 - 4, 4)
+            # Calculate vertical center for hearts to align with text middle
+            heart_cy = text_y + text_height // 2
+            
+            # Draw heart on left side (with more spacing)
+            left_heart_cx = text_x - 18
+            if left_heart_cx > 10:  # Only draw if there's enough space
+                self._draw_heart(draw, left_heart_cx, heart_cy, heart_size, filled=True)
+            
+            # Draw heart on right side (with more spacing)
+            right_heart_cx = text_x + text_width + 18
+            if right_heart_cx < self.width - 10:  # Only draw if there's enough space
+                self._draw_heart(draw, right_heart_cx, heart_cy, heart_size, filled=True)
             
             # Draw centered text
             self._draw_text_mono(draw, img, (text_x, text_y), message, font=font, fill=255)
