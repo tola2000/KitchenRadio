@@ -838,7 +838,7 @@ class DisplayFormatter:
         
         # Bottom point (90° angle, 45° slopes)
         # For 45° slopes: height = half of base width
-        triangle_base = triangle_right_x - triangle_left_x + 2
+        triangle_base = triangle_right_x - triangle_left_x + 5
         triangle_height = int(triangle_base / 2) 
         
         triangle_bottom_x = cx
