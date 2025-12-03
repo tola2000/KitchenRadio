@@ -57,6 +57,7 @@ class BluetoothMonitor:
         self.callbacks = {}
         self.current_track = None
         self.current_status = None
+        self.current_volume = None  # Track volume to avoid unnecessary DBus queries
 
         # Set up callbacks on the client
         self.client.on_track_changed = self._on_track_changed
@@ -266,8 +267,10 @@ class BluetoothMonitor:
         else:
             logger.info(f"🎵 [Bluetooth] Playback status changed: {old_status.value if old_status else 'None'} → {status_enum.value}")
 
-        # Always trigger playback_state_changed
-        self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
+        # Create PlaybackState with cached volume (preserve volume across status changes)
+        playback_state = PlaybackState(status=status_enum, volume=self.current_volume)
+        # Trigger playback_state_changed with current volume maintained
+        self._trigger_callbacks('playback_state_changed', playback_state=playback_state)
 
         # Update the display when status changes
         if self.display_controller:
@@ -283,6 +286,7 @@ class BluetoothMonitor:
         # We only care about actual Volume changes
         if 'Volume' in changed:
             volume = int(changed['Volume'])
+            self.current_volume = volume  # Cache the volume
             logger.info(f"🔊 [Bluetooth] Volume changed to: {volume}")
             # Create PlaybackState with the volume from the event (don't query DBus again)
             status = self.current_status if self.current_status else PlaybackStatus.UNKNOWN
@@ -394,9 +398,10 @@ class BluetoothMonitor:
         Get current playback state.
         
         Returns:
-            Playback state object
+            Playback state object with cached volume
         """
-        volume = self.client.get_volume()
+        # Use cached volume to avoid DBus query, fall back to query if not cached
+        volume = self.current_volume if self.current_volume is not None else self.client.get_volume()
         status = self.current_status if self.current_status else PlaybackStatus.UNKNOWN
         return PlaybackState(status=status, volume=volume)
     
