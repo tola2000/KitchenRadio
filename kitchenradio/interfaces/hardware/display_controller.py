@@ -175,17 +175,13 @@ class DisplayController:
         return True
     
     def _on_client_changed(self, **kwargs):
-        # Debug: Log entry to callback (ALWAYS log this to verify callback is being called)
-        event_type = kwargs.get('event_type', 'unknown')
-        sub_event = kwargs.get('sub_event', 'none')
-        logger.info(f"📺 DisplayController._on_client_changed CALLED: event_type={event_type}, sub_event={sub_event}, shutting_down={self._shutting_down}")
-        
         # Don't process callbacks during shutdown
         if self._shutting_down:
-            logger.debug(f"📺 Ignoring callback due to shutdown")
             return
         
         # Debug: Log what we received
+        event_type = kwargs.get('event_type', 'unknown')
+        sub_event = kwargs.get('sub_event', 'none')
         logger.debug(f"📺 DisplayController received callback: event_type={event_type}, sub_event={sub_event}, kwargs_keys={list(kwargs.keys())}")
         
         # Detect source change OR device change (within same source) - if changed, refresh display
@@ -193,12 +189,8 @@ class DisplayController:
         device_changed = False
         pairing_mode_changed = False
         
-        logger.info(f"📺 Checking for changes - 'source_info' in kwargs: {'source_info' in kwargs}")
-        
         if 'source_info' in kwargs:
             new_source_info = kwargs['source_info']
-            logger.info(f"📺 Got source_info from kwargs: {new_source_info}")
-            logger.info(f"📺 cached_source_info exists: {self.cached_source_info is not None}")
             if self.cached_source_info:
                 # Check if source type changed
                 old_source = self.cached_source_info.source if hasattr(self.cached_source_info, 'source') else None
@@ -219,15 +211,12 @@ class DisplayController:
                 # Check if pairing_mode changed (important for Bluetooth pairing screen)
                 old_pairing = self.cached_source_info.pairing_mode if hasattr(self.cached_source_info, 'pairing_mode') else False
                 new_pairing = new_source_info.pairing_mode if hasattr(new_source_info, 'pairing_mode') else False
-                logger.info(f"📺 Comparing pairing_mode: old={old_pairing}, new={new_pairing}, changed={old_pairing != new_pairing}")
                 if old_pairing != new_pairing:
                     pairing_mode_changed = True
                     logger.info(f"📡 Pairing mode changed in display: {old_pairing} → {new_pairing}")
             
-            # IMPORTANT: Create a copy of source_info to avoid reference issues
-            # (monitor mutates the same object, which would affect our cached copy)
-            from dataclasses import replace
-            self.cached_source_info = replace(new_source_info)
+            # Store the new source_info (monitor now returns copies, not references)
+            self.cached_source_info = new_source_info
         
         # If source OR device OR pairing_mode changed, fetch fresh state from SourceController
         if (source_changed or device_changed or pairing_mode_changed) and self.source_controller:
@@ -818,10 +807,10 @@ class DisplayController:
             # Render the display content
             self._render_display_content('track_info', track_data)
         else:
-            # No device connected or no track playing - show "Connecteer een apparaat"
+            # No device connected or no track playing - show "Verbind een apparaat"
             display_data = {
                 'title': 'Spotify Connect',
-                'artist': 'Connecteer een apparaat',
+                'artist': 'Verbind apparaat',
                 'album': '',
                 'playing': False,
                 'pairing_mode': True,  # Use dimmed volume bar and no colon

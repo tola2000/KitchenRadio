@@ -5,7 +5,7 @@ This module defines the data models used to represent AVRCP device state,
 playback information, and track metadata.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Any
@@ -136,7 +136,6 @@ class BluetoothMonitor:
             
             # Trigger callbacks to update display
             # Note: Track/status info will come via property change events when AVRCP becomes available
-            from dataclasses import replace
             self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
             
         except Exception as e:
@@ -162,7 +161,6 @@ class BluetoothMonitor:
             logger.info(f"🔴 Device disconnected: {device_name} ({device_mac})")
             
             # Trigger source_info_changed to update display
-            from dataclasses import replace
             self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
             
             # Clean up AVRCP client
@@ -357,7 +355,6 @@ class BluetoothMonitor:
             self.current_source_info.pairing_mode = self.controller.pairing_mode
         
         # Return a copy to prevent external code from holding references to our internal state
-        from dataclasses import replace
         return replace(self.current_source_info)
     
     def update_pairing_mode(self, pairing_mode: bool):
@@ -373,7 +370,6 @@ class BluetoothMonitor:
         if old_pairing != pairing_mode:
             logger.info(f"📡 Pairing mode changed: {old_pairing} → {pairing_mode}")
             # Pass a copy to prevent reference issues with cached values
-            from dataclasses import replace
             self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
 
     def get_playback_state(self) -> PlaybackState:
