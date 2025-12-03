@@ -794,13 +794,17 @@ class DisplayFormatter:
             album = track_info_obj.album
             # length = track_info_obj.duration / 1000 if track_info_obj.duration else 0
         else:
-            title = track_data.get('title', 'No Track')
+            title = track_data.get('title', 'Geen Info')
             artist = track_data.get('artist', '')
             album = track_data.get('album', '')
         
         # Validate and clean artist and album values
         def is_valid(value):
             return value and value != '' and value != 'Unknown' and value.strip() != ''
+        
+        # Apply validation to title - replace Unknown with "Geen Info"
+        if not is_valid(title):
+            title = 'Geen Info'
         
         # Apply validation - set to empty string if invalid
         if not is_valid(artist):
