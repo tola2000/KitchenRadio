@@ -133,7 +133,7 @@ class OutputController:
                     GPIO.setup(self.amplifier_pin, GPIO.OUT)
                     # Initialize to OFF state
                     # For active_high=True: OFF = LOW, for active_high=False: OFF = HIGH
-                    initial_state = GPIO.LOW if self.active_high else GPIO.HIGH
+                    initial_state =  GPIO.HIGH
                     logger.debug(f"Setting initial state: {'LOW' if initial_state == GPIO.LOW else 'HIGH'}")
                     GPIO.output(self.amplifier_pin, initial_state)
                     logger.info(f"[OK] GPIO pin {self.amplifier_pin} initialized to OFF (RPi.GPIO)")
@@ -169,11 +169,6 @@ class OutputController:
         
         self.initialized = True
         logger.info("[OK] OutputController initialized")
-        
-        # Sync initial state with current power state
-        if self.source_controller.powered_on:
-            logger.info("System already powered on - enabling amplifier")
-            self._set_amplifier_state(True)
         
         return True
     
