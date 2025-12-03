@@ -180,9 +180,16 @@ class DisplayController:
             return
         
         # Debug: Log what we received
-        event_type = kwargs.get('event_type', 'unknown')
-        sub_event = kwargs.get('sub_event', 'none')
-        logger.debug(f"📺 DisplayController received callback: event_type={event_type}, sub_event={sub_event}, kwargs_keys={list(kwargs.keys())}")
+        event_name = kwargs.get('event', 'unknown')
+        logger.debug(f"📺 DisplayController received callback: event={event_name}, kwargs_keys={list(kwargs.keys())}")
+        
+        # Special logging for volume changes
+        if event_name == 'playback_state_changed':
+            playback_state = kwargs.get('playback_state')
+            if playback_state:
+                volume = playback_state.volume if hasattr(playback_state, 'volume') else 'N/A'
+                status = playback_state.status.value if hasattr(playback_state, 'status') else 'N/A'
+                logger.info(f"📺 Display received playback_state_changed: status={status}, volume={volume}")
         
         # Detect source change OR device change (within same source) - if changed, refresh display
         source_changed = False

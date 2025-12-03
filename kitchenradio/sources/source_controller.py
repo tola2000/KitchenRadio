@@ -938,6 +938,13 @@ class SourceController:
         if self.source == source_type:
             # Forward all events through unified client_changed callback
             self.logger.debug(f"✅ FORWARDING {source_type.value} event '{event_name}' to client_changed callbacks (active source matches)")
+            
+            # Extra logging for volume changes
+            if event_name == 'playback_state_changed' and 'playback_state' in kwargs:
+                ps = kwargs['playback_state']
+                vol = ps.volume if hasattr(ps, 'volume') else 'N/A'
+                self.logger.info(f"🔊 SourceController forwarding playback_state_changed with volume={vol}")
+            
             self._emit_callback('client_changed', event_name, **kwargs)
         else:
             self.logger.debug(f"⏸️ NOT forwarding {source_type.value} event '{event_name}' (not active source: current={self.source.value if self.source else 'none'})")
