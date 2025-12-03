@@ -15,7 +15,7 @@ AMPLIFIER_PIN = 26
 # Relay activation logic
 # True = relay activates on HIGH signal
 # False = relay activates on LOW signal (inverted/active-low)
-AMPLIFIER_ACTIVE_HIGH = False  # Changed to False - relay is active-LOW (closes on LOW signal)
+AMPLIFIER_ACTIVE_HIGH = True  # Changed back to True - relay activates on HIGH signal
 
 # Delays for amplifier power control (in seconds)
 # Power-on delay: wait before turning on amplifier after system power-on
