@@ -9,6 +9,7 @@ import logging
 from re import S
 import threading
 import time
+import random
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING, Callable
 
@@ -113,6 +114,12 @@ class DisplayController:
         self.last_volume_change_time = 0
         self.selected_index = 0
         
+        # Random message overlay state (for "❤ Duts ❤" when powered off)
+        self.next_random_message_time = 0
+        self.random_message_min_interval = 60  # Minimum 1 minute
+        self.random_message_max_interval = 600  # Maximum 10 minutes
+        self._schedule_next_random_message()
+        
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)
         self._kitchen_radio_was_running = False
         
@@ -125,6 +132,12 @@ class DisplayController:
         self._shutting_down = False  # Flag to prevent any status calls during shutdown
         
         logger.info(f"Simplified DisplayController initialized for SSD1322")
+    
+    def _schedule_next_random_message(self):
+        """Schedule the next random message appearance at a random interval (1-10 minutes)"""
+        interval = random.randint(self.random_message_min_interval, self.random_message_max_interval)
+        self.next_random_message_time = time.time() + interval
+        logger.debug(f"Next random message scheduled in {interval} seconds ({interval/60:.1f} minutes)")
     
     def initialize(self) -> bool:
         """
@@ -480,7 +493,25 @@ class DisplayController:
                 self.current_scroll_offsets = {}
                 self.scroll_pause_until = {}
                 logger.debug("Power OFF - cleared display state")
-                self._render_clock_display()
+                
+                # Check if it's time to show random message overlay
+                current_time = time.time()
+                if current_time >= self.next_random_message_time and not self.overlay_active:
+                    # Show the "❤ Duts ❤" message overlay for 3 seconds
+                    self._show_random_message_overlay()
+                    # Schedule next appearance
+                    self._schedule_next_random_message()
+                
+                # Show clock (or overlay if active)
+                if self.overlay_active and self.overlay_type == 'random_message':
+                    # Overlay is being shown, check if it should be dismissed
+                    if current_time >= self.overlay_end_time:
+                        self.overlay_active = False
+                        self.overlay_type = None
+                        self._render_clock_display()
+                    # Otherwise overlay stays visible (already rendered)
+                else:
+                    self._render_clock_display()
                 return
             elif current_source == 'none' or current_source is None:
                 self.last_powered_on = powered_on
@@ -668,6 +699,8 @@ class DisplayController:
                 draw_func = self.formatter.format_clock_display(display_data)
             elif display_type == 'notification':
                 draw_func = self.formatter.format_simple_text(display_data)
+            elif display_type == 'centered_message':
+                draw_func = self.formatter.format_centered_message(display_data)
             else:
                 logger.warning(f"Unknown display type: {display_type}")
                 return
@@ -1214,7 +1247,17 @@ class DisplayController:
         if description2:
             notification_data['sub_text2'] = description2
         self._render_display_content('notification', notification_data)
-        
+    
+    def _show_random_message_overlay(self):
+        """Show random message overlay when powered off (❤ Duts ❤)"""
+        message_data = {
+            'message': '❤ Duts ❤',
+            'font_size': 'xlarge',
+            'brightness': 255
+        }
+        self._activate_overlay('random_message', timeout=3.0)
+        self._render_display_content('centered_message', message_data)
+        logger.info("Showing random message overlay: ❤ Duts ❤")
 
     def show_clock(self):
         """Show clock overlay using the generic overlay system"""

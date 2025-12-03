@@ -755,11 +755,53 @@ class DisplayFormatter:
                     numeric_text = f"{volume}/{max_volume}"
                     info_x = (self.width - len(numeric_text) * 8) // 2
                     self._draw_text_mono(draw, img, (info_x, info_y), numeric_text, font=self.fonts['medium'], fill=255)
-            
-
- 
         
         return draw_volume
+    
+    def format_centered_message(self, message_data: Dict[str, Any]) -> Callable:
+        """
+        Format large centered message display using JSON structure input.
+        Perfect for notifications like "❤ Duts ❤" when radio is powered off.
+        
+        Args:
+            message_data: Dictionary containing:
+                {
+                    "message": str,
+                    "font_size": str (optional, default "xlarge", options: "medium", "large", "xlarge", "xxlarge"),
+                    "brightness": int (optional, default 255)
+                }
+            
+        Returns:
+            Drawing function for centered message display
+        """
+        # Extract data from JSON structure
+        message = message_data.get('message', '')
+        font_size = message_data.get('font_size', 'xlarge')
+        brightness = message_data.get('brightness', 255)
+        
+        # Get the appropriate font
+        font = self.fonts.get(font_size, self.fonts['xlarge'])
+        
+        # Calculate text dimensions for centering
+        bbox = font.getbbox(message)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Center horizontally and vertically
+        text_x = max(0, (self.width - text_width) // 2)
+        text_y = max(0, (self.height - text_height) // 2)
+        
+        def draw_centered_message(draw: ImageDraw.Draw):
+            # Get the underlying image for monochrome text operations
+            img = draw._image
+            
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Draw centered text using monochrome for crisp, bright rendering
+            self._draw_text_mono(draw, img, (text_x, text_y), message, font=font, fill=brightness)
+        
+        return draw_centered_message
     
     def format_track_info(self, track_data: Dict[str, Any]) -> tuple:
         """
