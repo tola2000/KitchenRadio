@@ -806,8 +806,8 @@ class DisplayFormatter:
     def _draw_heart(self, target_draw: ImageDraw.Draw, target_img: Image.Image, 
                    cx: int, cy: int, size: float, filled: bool = True, brightness: int = 255):
         """
-        Draw a heart shape: Two circles on top, inverted triangle below (point up, 90° angle at top).
-        Simple geometric approach for clean rendering.
+        Draw a heart shape: Two half-circles (humps) on top, triangle pointing DOWN below.
+        Triangle has 90° angle at bottom point, 45° slopes on sides.
         
         Args:
             target_draw: The ImageDraw object of the target image
@@ -822,7 +822,7 @@ class DisplayFormatter:
         
         s = int(size)
         
-        # Circle specifications
+        # Circle specifications for the humps
         circle_radius = s // 3
         
         # Position circles side-by-side at the top
@@ -830,23 +830,23 @@ class DisplayFormatter:
         right_circle_cx = cx + circle_radius
         circles_cy = cy - s // 3  # Position circles above center
         
-        # Inverted triangle (point UP, 90° angle at top, 45° slopes)
-        # The triangle sits below the circles with its point touching between them
-        triangle_height = int(s * 0.8)
+        # Triangle pointing DOWN (point at bottom, 90° angle at bottom, 45° slopes)
+        # Top edge of triangle connects the bottom of the circles
+        triangle_top_y = circles_cy + circle_radius // 4
+        triangle_left_x = left_circle_cx - circle_radius // 2
+        triangle_right_x = right_circle_cx + circle_radius // 2
         
-        # Top point of triangle (between the two circles)
-        triangle_top_x = cx
-        triangle_top_y = circles_cy + circle_radius // 2
+        # Bottom point (90° angle, 45° slopes)
+        # For 45° slopes: height = half of base width
+        triangle_base = triangle_right_x - triangle_left_x
+        triangle_height = int(triangle_base / 2)  # This gives 45° angles
         
-        # Bottom corners (90° angle at top means 45° slopes on sides)
-        # For 45° angle: horizontal distance = vertical distance
+        triangle_bottom_x = cx
         triangle_bottom_y = triangle_top_y + triangle_height
-        triangle_left_x = triangle_top_x - triangle_height
-        triangle_right_x = triangle_top_x + triangle_height
         
         # Calculate bounding box
-        min_x = min(left_circle_cx - circle_radius, triangle_left_x)
-        max_x = max(right_circle_cx + circle_radius, triangle_right_x)
+        min_x = left_circle_cx - circle_radius
+        max_x = right_circle_cx + circle_radius
         min_y = circles_cy - circle_radius
         max_y = triangle_bottom_y
         
@@ -863,12 +863,13 @@ class DisplayFormatter:
         
         left_circle_mono = to_mono(left_circle_cx, circles_cy)
         right_circle_mono = to_mono(right_circle_cx, circles_cy)
-        tri_top_mono = to_mono(triangle_top_x, triangle_top_y)
-        tri_left_mono = to_mono(triangle_left_x, triangle_bottom_y)
-        tri_right_mono = to_mono(triangle_right_x, triangle_bottom_y)
+        tri_top_left_mono = to_mono(triangle_left_x, triangle_top_y)
+        tri_top_right_mono = to_mono(triangle_right_x, triangle_top_y)
+        tri_bottom_mono = to_mono(triangle_bottom_x, triangle_bottom_y)
         
         if filled:
-            # Draw filled circles
+            # Draw filled half-circles (top humps only)
+            # Draw full circles first, then cover the bottom half with background
             mono_draw.ellipse([
                 (left_circle_mono[0] - circle_radius, left_circle_mono[1] - circle_radius),
                 (left_circle_mono[0] + circle_radius, left_circle_mono[1] + circle_radius)
@@ -879,41 +880,49 @@ class DisplayFormatter:
                 (right_circle_mono[0] + circle_radius, right_circle_mono[1] + circle_radius)
             ], fill=1)
             
-            # Draw filled inverted triangle (point at top)
+            # Draw filled triangle pointing DOWN
             mono_draw.polygon([
-                tri_top_mono,      # Top point
-                tri_left_mono,     # Bottom left
-                tri_right_mono     # Bottom right
+                tri_top_left_mono,    # Top left corner
+                tri_top_right_mono,   # Top right corner
+                tri_bottom_mono       # Bottom point
             ], fill=1)
             
-            # Fill gap between circles and triangle
-            gap_top_y = left_circle_mono[1] - circle_radius // 2
-            gap_bottom_y = tri_top_mono[1] + 2
-            gap_left_x = left_circle_mono[0] - circle_radius // 2
-            gap_right_x = right_circle_mono[0] + circle_radius // 2
-            
+            # Cover bottom half of circles to make them half-circles
+            # This rectangle erases the bottom portions
+            cover_y = left_circle_mono[1]
             mono_draw.rectangle([
-                (gap_left_x, gap_top_y),
-                (gap_right_x, gap_bottom_y)
+                (0, cover_y),
+                (width, cover_y + circle_radius)
+            ], fill=0)
+            
+            # Redraw triangle to ensure it's on top
+            mono_draw.polygon([
+                tri_top_left_mono,
+                tri_top_right_mono,
+                tri_bottom_mono
             ], fill=1)
         else:
-            # Draw circle outlines
-            mono_draw.ellipse([
+            # Draw half-circle outlines (arcs for top half only)
+            # PIL's arc draws from 0° (3 o'clock) counter-clockwise
+            # 180° = left (9 o'clock), 0° = right (3 o'clock)
+            # For top half: start=180, end=360 (or 0)
+            
+            mono_draw.arc([
                 (left_circle_mono[0] - circle_radius, left_circle_mono[1] - circle_radius),
                 (left_circle_mono[0] + circle_radius, left_circle_mono[1] + circle_radius)
-            ], outline=1)
+            ], start=180, end=360, fill=1)
             
-            mono_draw.ellipse([
+            mono_draw.arc([
                 (right_circle_mono[0] - circle_radius, right_circle_mono[1] - circle_radius),
                 (right_circle_mono[0] + circle_radius, right_circle_mono[1] + circle_radius)
-            ], outline=1)
+            ], start=180, end=360, fill=1)
             
             # Draw triangle outline
             mono_draw.polygon([
-                tri_top_mono,
-                tri_left_mono,
-                tri_right_mono,
-                tri_top_mono
+                tri_top_left_mono,
+                tri_top_right_mono,
+                tri_bottom_mono,
+                tri_top_left_mono
             ], outline=1)
         
         # Create grayscale image at target brightness
