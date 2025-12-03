@@ -193,8 +193,12 @@ class DisplayController:
         device_changed = False
         pairing_mode_changed = False
         
+        logger.info(f"📺 Checking for changes - 'source_info' in kwargs: {'source_info' in kwargs}")
+        
         if 'source_info' in kwargs:
             new_source_info = kwargs['source_info']
+            logger.info(f"📺 Got source_info from kwargs: {new_source_info}")
+            logger.info(f"📺 cached_source_info exists: {self.cached_source_info is not None}")
             if self.cached_source_info:
                 # Check if source type changed
                 old_source = self.cached_source_info.source if hasattr(self.cached_source_info, 'source') else None
@@ -215,6 +219,7 @@ class DisplayController:
                 # Check if pairing_mode changed (important for Bluetooth pairing screen)
                 old_pairing = self.cached_source_info.pairing_mode if hasattr(self.cached_source_info, 'pairing_mode') else False
                 new_pairing = new_source_info.pairing_mode if hasattr(new_source_info, 'pairing_mode') else False
+                logger.info(f"📺 Comparing pairing_mode: old={old_pairing}, new={new_pairing}, changed={old_pairing != new_pairing}")
                 if old_pairing != new_pairing:
                     pairing_mode_changed = True
                     logger.info(f"📡 Pairing mode changed in display: {old_pairing} → {new_pairing}")
