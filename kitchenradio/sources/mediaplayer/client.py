@@ -161,7 +161,12 @@ class KitchenRadioClient:
                 try:
                     # Send noidle command using raw interface
                     self.client_status._write_command("noidle")
-                    self.client_status._read_list()
+                    # Read the response (changed subsystems or empty list)
+                    try:
+                        self.client_status._read_list()
+                    except AttributeError:
+                        # Fallback if _read_list doesn't exist
+                        self.client_status._fetch_list()
                     self._in_idle = False
                     logger.debug("Idle cancelled successfully")
                 except Exception as e:
@@ -349,7 +354,12 @@ class KitchenRadioClient:
             # Send noidle command - this will cause idle() to return immediately
             # We need to use the raw command interface
             self.client_status._write_command("noidle")
-            self.client_status._read_list()
+            # Read the response (changed subsystems or empty list)
+            try:
+                self.client_status._read_list()
+            except AttributeError:
+                # Fallback if _read_list doesn't exist
+                self.client_status._fetch_list()
             logger.debug("Sent noidle to cancel idle wait")
         except Exception as e:
             logger.debug(f"Error in noidle: {e}")

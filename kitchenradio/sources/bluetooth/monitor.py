@@ -119,6 +119,7 @@ class BluetoothMonitor:
             # Track the connected device
             self.connected_devices.add(device_mac)
             self.current_source_info = SourceInfo(
+                source=SourceType.BLUETOOTH,
                 device_name=device_name,
                 device_mac=device_mac,
                 path=device_path
