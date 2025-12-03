@@ -842,7 +842,7 @@ class DisplayFormatter:
         triangle_height = int(triangle_base / 2) 
         
         triangle_bottom_x = cx
-        triangle_bottom_y = triangle_top_y + triangle_height + 2
+        triangle_bottom_y = triangle_top_y + triangle_height 
         
         # Calculate bounding box
         min_x = left_circle_cx - circle_radius
