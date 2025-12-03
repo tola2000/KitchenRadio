@@ -246,7 +246,10 @@ class SourceController:
         # Auto-power on if currently off
         if not self.powered_on:
             self.logger.info("Auto-powering on via source selection...")
-            self.power()
+            # Pass the requested source as trigger_source to power_on
+            self.power_on(trigger_source=source)
+            # power_on already sets the source, so return
+            return True
         
         self.logger.info(f"Setting audio source to: {source.value}")
         
