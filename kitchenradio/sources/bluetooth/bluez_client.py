@@ -596,24 +596,44 @@ class BlueZClient:
 
     def get_volume(self) -> Optional[int]:
         """
-        Get current volume from AVRCP MediaPlayer.
+        Get current volume from AVRCP MediaTransport.
+        
+        Volume is on MediaTransport1, not MediaPlayer1.
         
         Returns:
             Volume level (0-127) or None if not available
         """
         if not self.active_player_path:
+            logger.debug("🔊 get_volume: No active player path")
             return None
         
         try:
-            player_obj = self.bus.get_object(self.BLUEZ_SERVICE, self.active_player_path)
-            props = dbus.Interface(player_obj, self.PROPERTIES_INTERFACE)
+            # Volume is on MediaTransport1, not MediaPlayer1
+            # Need to find the MediaTransport path for this device
+            objects = self.obj_manager.GetManagedObjects()
             
-            # Check if Volume property exists
-            try:
-                volume = props.Get(self.MEDIA_PLAYER_INTERFACE, 'Volume')
-                return int(volume)
-            except dbus.exceptions.DBusException:
-                return None
+            # Extract device path from player path (e.g., /org/bluez/hci0/dev_XX_XX_XX_XX_XX_XX/player0)
+            device_path = '/'.join(self.active_player_path.split('/')[:-1])
+            logger.debug(f"🔊 get_volume: Looking for MediaTransport1 under {device_path}")
+            
+            # Find MediaTransport1 interface for this device
+            for path, interfaces in objects.items():
+                if path.startswith(device_path) and 'org.bluez.MediaTransport1' in interfaces:
+                    # Found the transport, get volume
+                    logger.debug(f"🔊 get_volume: Found MediaTransport1 at {path}")
+                    transport_obj = self.bus.get_object(self.BLUEZ_SERVICE, path)
+                    props = dbus.Interface(transport_obj, self.PROPERTIES_INTERFACE)
+                    try:
+                        volume = props.Get('org.bluez.MediaTransport1', 'Volume')
+                        logger.info(f"🔊 get_volume: Retrieved volume = {volume}")
+                        return int(volume)
+                    except dbus.exceptions.DBusException as e:
+                        logger.debug(f"🔊 get_volume: DBus exception getting Volume property: {e}")
+                        return None
+            
+            # No MediaTransport1 found
+            logger.debug(f"🔊 get_volume: No MediaTransport1 found for device {device_path}")
+            return None
             
         except Exception as e:
             logger.error(f"Error getting AVRCP volume: {e}")
