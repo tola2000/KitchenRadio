@@ -187,6 +187,7 @@ class DisplayController:
         # Detect source change OR device change (within same source) - if changed, refresh display
         source_changed = False
         device_changed = False
+        pairing_mode_changed = False
         
         if 'source_info' in kwargs:
             new_source_info = kwargs['source_info']
@@ -206,15 +207,24 @@ class DisplayController:
                     old_device_name = self.cached_source_info.device_name if hasattr(self.cached_source_info, 'device_name') else 'Unknown'
                     new_device_name = new_source_info.device_name if hasattr(new_source_info, 'device_name') else 'Unknown'
                     logger.info(f"🔵 Device changed in display: {old_device_name} (MAC:{old_device_mac or 'none'}) → {new_device_name} (MAC:{new_device_mac or 'none'})")
+                
+                # Check if pairing_mode changed (important for Bluetooth pairing screen)
+                old_pairing = self.cached_source_info.pairing_mode if hasattr(self.cached_source_info, 'pairing_mode') else False
+                new_pairing = new_source_info.pairing_mode if hasattr(new_source_info, 'pairing_mode') else False
+                if old_pairing != new_pairing:
+                    pairing_mode_changed = True
+                    logger.info(f"📡 Pairing mode changed in display: {old_pairing} → {new_pairing}")
             
             self.cached_source_info = new_source_info
         
-        # If source OR device changed, fetch fresh state from SourceController
-        if (source_changed or device_changed) and self.source_controller:
+        # If source OR device OR pairing_mode changed, fetch fresh state from SourceController
+        if (source_changed or device_changed or pairing_mode_changed) and self.source_controller:
             if source_changed:
                 logger.info("🔄 Refreshing display cache for new source...")
             elif device_changed:
                 logger.info("🔵 Refreshing display cache for device change...")
+            elif pairing_mode_changed:
+                logger.info("📡 Refreshing display cache for pairing mode change...")
             
             try:
                 # Force fresh state query from monitors (not cached values with expected states)
