@@ -1259,6 +1259,22 @@ class DisplayController:
         self._activate_overlay('random_message', timeout=3.0)
         self._render_display_content('hearts_message', message_data)
         logger.info("Showing random message overlay with hearts: Duts")
+    
+    def show_hearts_message(self, timeout: float = 3.0):
+        """
+        Manually show the hearts message overlay.
+        Can be called anytime (e.g., when display button is pressed while powered off).
+        
+        Args:
+            timeout: How long to show the message (default 3 seconds)
+        """
+        message_data = {
+            'message': 'Duts',
+            'font_size': 'xlarge'
+        }
+        self._activate_overlay('hearts_display', timeout=timeout)
+        self._render_display_content('hearts_message', message_data)
+        logger.info(f"Showing hearts message overlay manually (timeout={timeout}s)")
 
     def show_clock(self):
         """Show clock overlay using the generic overlay system"""
