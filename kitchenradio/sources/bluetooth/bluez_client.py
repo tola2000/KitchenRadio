@@ -455,6 +455,9 @@ class BlueZClient:
 
         if 'Track' in changed:
             track_data = changed['Track']
+            logger.info(f"🎵 [Raw DBus Track Data] {dict(track_data)}")
+            logger.info(f"🎵 [Raw DBus Track Keys] {list(track_data.keys())}")
+            
             # Convert dbus types to python types
             track = {
                 'title': str(track_data.get('Title', 'Unknown')),
