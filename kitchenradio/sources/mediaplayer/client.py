@@ -159,10 +159,14 @@ class KitchenRadioClient:
             if self._in_idle:
                 logger.debug("Cancelling idle before command")
                 try:
-                    self.client_status.noidle()
+                    # Send noidle command using raw interface
+                    self.client_status._write_command("noidle")
+                    self.client_status._read_list()
                     self._in_idle = False
+                    logger.debug("Idle cancelled successfully")
                 except Exception as e:
                     logger.debug(f"Error cancelling idle: {e}")
+                    self._in_idle = False  # Reset flag even on error
     
     def play(self, songpos: Optional[int] = None) -> bool:
         """Start playback from current or specified position (thread-safe)."""
@@ -342,7 +346,10 @@ class KitchenRadioClient:
                 return  # No idle active, nothing to cancel
         
         try:
-            self.client_status.noidle()
+            # Send noidle command - this will cause idle() to return immediately
+            # We need to use the raw command interface
+            self.client_status._write_command("noidle")
+            self.client_status._read_list()
             logger.debug("Sent noidle to cancel idle wait")
         except Exception as e:
             logger.debug(f"Error in noidle: {e}")
