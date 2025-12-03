@@ -174,8 +174,11 @@ class BlueZClient:
 
     def _on_volume_changed_internal(self, interface, changed, invalidated, path):
         """Internal handler for property changes - forwards to callback"""
+        logger.info(f"🔊 [DBus Event] Volume changed on {interface} at {path}: {dict(changed)}")
         if self.on_volume_changed:
             self.on_volume_changed(interface, dict(changed), list(invalidated), path)
+        else:
+            logger.warning(f"🔊 Volume changed but no callback registered!")
 
 
     def register_agent(self) -> bool:
@@ -438,8 +441,11 @@ class BlueZClient:
             invalidated: List of invalidated properties
             path: Object path
         """
+        logger.info(f"🎵 [DBus Event] MediaPlayer1 properties changed at {path}: {dict(changed).keys()}")
+        
         # If we have an active player, only process events for it
         if self.active_player_path and path != self.active_player_path:
+            logger.debug(f"🎵 Ignoring event from non-active player: {path} (active: {self.active_player_path})")
             return
             
         # If we don't have an active player, auto-select this one
