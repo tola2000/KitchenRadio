@@ -239,32 +239,29 @@ class MPDMonitor:
             logger.error(f"Error checking for changes: {e}", exc_info=True)
     
     def _monitor_loop(self):
-        """Main monitoring loop."""
-        logger.info("Starting MPD monitoring loop")
+        """Main monitoring loop - uses polling instead of idle."""
+        logger.info("Starting MPD monitoring loop (polling mode)")
+        
+        poll_interval = 0.5  # Poll every 500ms
         
         while not self._stop_event.is_set():
             try:
                 if self.client.is_connected():
-                    # Wait for changes (blocking)
-                    # We watch 'player' (status/currentsong), 'mixer' (volume), 'options' (repeat/random)
-                    changes = self.client.idle(['player', 'mixer', 'options'])
+                    # Check for changes by comparing current state
+                    self._check_for_changes()
                     
-                    if self._stop_event.is_set():
-                        break
-                        
-                    if changes:
-                        logger.debug(f"MPD idle returned changes: {changes}")
-                        self._check_for_changes()
+                    # Wait before next poll (with interruptible sleep)
+                    self._stop_event.wait(poll_interval)
                 else:
                     # Don't try to reconnect if we're shutting down
                     if not self._stop_event.is_set():
                         logger.warning("MPD connection lost, try to reconnect")
                         if not self.client.connect():
-                            time.sleep(5.0) # Wait longer before retry if failed
+                            self._stop_event.wait(5.0)  # Wait longer before retry if failed
                         
             except Exception as e:
                 logger.error(f"Error in monitor loop: {e}")
-                time.sleep(1.0) # Avoid tight loop on error
+                self._stop_event.wait(1.0)  # Avoid tight loop on error
         
         logger.info("MPD monitoring loop stopped")
     
@@ -298,9 +295,6 @@ class MPDMonitor:
         
         self.is_monitoring = False
         self._stop_event.set()
-        
-        # Break the idle loop
-        self.client.noidle()
         
         if self._monitor_thread and self._monitor_thread.is_alive():
             logger.debug("Waiting for MPD monitor thread to exit...")

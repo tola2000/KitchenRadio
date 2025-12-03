@@ -49,18 +49,10 @@ class KitchenRadioClient:
         # Thread safety locks
         self._command_lock = threading.RLock()  # Reentrant lock for nested calls
         self._connection_lock = threading.RLock()
-        self._idle_lock = threading.Lock()  # Lock to coordinate idle state
-        self._in_idle = False  # Track if idle is currently active
         
-        # Create MPD client
+        # Create MPD client (single connection for polling)
         self.client = mpd.MPDClient()
         self.client.timeout = timeout
-        self.client.idletimeout = None
-
-        # Create MPD client_status
-        self.client_status = mpd.MPDClient()
-        self.client_status.timeout = timeout
-        self.client_status.idletimeout = None
         
         logger.info(f"KitchenRadio MPD client initialized for {host}:{port}")
     
@@ -78,11 +70,6 @@ class KitchenRadioClient:
                 
                 if self.password:
                     self.client.password(self.password)
-
-                self.client_status.connect(self.host, self.port)
-                
-                if self.password:
-                    self.client_status.password(self.password)
                 
                 self._connected = True
                 logger.info("Connected to MPD successfully")
@@ -153,19 +140,8 @@ class KitchenRadioClient:
             return self._connected
     
     # Playback control methods
-    def _ensure_idle_cancelled(self):
-        """Ensure idle is cancelled before sending commands.
-        
-        NOTE: Disabled for now as it causes connection issues.
-        Using two separate MPD connections (client and client_status) means
-        commands on 'client' don't interfere with idle on 'client_status'.
-        """
-        # Idle cancellation disabled - dual connections handle this naturally
-        pass
-    
     def play(self, songpos: Optional[int] = None) -> bool:
         """Start playback from current or specified position (thread-safe)."""
-        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 # Emit event BEFORE sending command so monitor knows expected state
@@ -183,7 +159,6 @@ class KitchenRadioClient:
     
     def pause(self, state: Optional[bool] = None) -> bool:
         """Pause or unpause playback (thread-safe)."""
-        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 # Emit event BEFORE sending command
@@ -202,7 +177,6 @@ class KitchenRadioClient:
     
     def stop(self) -> bool:
         """Stop playback (thread-safe)."""
-        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 # Emit event BEFORE sending command
@@ -217,7 +191,6 @@ class KitchenRadioClient:
     
     def next(self) -> bool:
         """Skip to next track (thread-safe)."""
-        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 self.client.next()
@@ -229,7 +202,6 @@ class KitchenRadioClient:
     
     def previous(self) -> bool:
         """Skip to previous track (thread-safe)."""
-        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 self.client.previous()
@@ -242,7 +214,6 @@ class KitchenRadioClient:
     # Volume control
     def set_volume(self, volume: int) -> bool:
         """Set volume (0-100) (thread-safe)."""
-        self._ensure_idle_cancelled()
         with self._command_lock:
             try:
                 if not 0 <= volume <= 100:
@@ -298,66 +269,6 @@ class KitchenRadioClient:
        
             self._connected = False
     
-    def idle(self, subsystems: Optional[List[str]] = None) -> List[str]:
-        """
-        Wait for changes in MPD subsystems (blocking).
-        
-        Args:
-            subsystems: List of subsystems to watch. If None, watches all.
-            
-        Returns:
-            List of subsystems that changed.
-        """
-        # Note: This method uses client_status which should not be locked with command_lock
-        # as it's designed for blocking idle operations
-        try:
-            with self._idle_lock:
-                self._in_idle = True
-            
-            if subsystems:
-                result = self.client_status.idle(*subsystems)
-            else:
-                result = self.client_status.idle()
-            
-            with self._idle_lock:
-                self._in_idle = False
-            
-            return result
-        except Exception as e:
-            with self._idle_lock:
-                self._in_idle = False
-            
-            # Don't log error if it's just a connection lost during shutdown
-            if not self._connected:
-                return []
-            logger.debug(f"Idle interrupted or error: {e}")
-            self.check_connection_error(e)
-            return []
-
-    def noidle(self):
-        """Cancel the current idle wait."""
-        with self._idle_lock:
-            if not self._in_idle:
-                return  # No idle active, nothing to cancel
-        
-        try:
-            # Send noidle command - this will cause idle() to return immediately
-            # We need to use the raw command interface
-            self.client_status._write_command("noidle")
-            # Read and discard the response (changed subsystems or empty list)
-            try:
-                # Try the standard way first
-                list(self.client_status._read_command_list())
-            except (AttributeError, TypeError):
-                # Fallback: just consume any pending data
-                try:
-                    self.client_status._sock.recv(4096)
-                except:
-                    pass
-            logger.debug("Sent noidle to cancel idle wait")
-        except Exception as e:
-            logger.debug(f"Error in noidle: {e}")
-        
     def get_current_song(self) -> Optional[Dict[str, Any]]:
         """Get current song info (thread-safe)."""
         with self._command_lock:
