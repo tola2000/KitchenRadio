@@ -116,8 +116,8 @@ class DisplayController:
         
         # Random message overlay state (for "❤ Duts ❤" when powered off)
         self.next_random_message_time = 0
-        self.random_message_min_interval = 60  # Testing: 1 minute interval
-        self.random_message_max_interval = 60  # Testing: 1 minute interval
+        self.random_message_min_interval = 60  # Minimum 1 minute
+        self.random_message_max_interval = 600  # Maximum 10 minutes
         self._schedule_next_random_message()
         
         # Track if kitchen_radio has ever been running (to distinguish startup from shutdown)

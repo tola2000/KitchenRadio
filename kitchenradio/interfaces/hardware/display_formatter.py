@@ -806,72 +806,121 @@ class DisplayFormatter:
     def _draw_heart(self, target_draw: ImageDraw.Draw, target_img: Image.Image, 
                    cx: int, cy: int, size: float, filled: bool = True, brightness: int = 255):
         """
-        Draw a precise heart shape using parametric equations with monochrome rendering for maximum brightness.
-        Based on the heart curve: x = 16sin³(t), y = 13cos(t) - 5cos(2t) - 2cos(3t) - cos(4t)
+        Draw a heart shape with two round humps on top and a sharp triangular bottom (90-45-45 angles).
+        Uses monochrome rendering for maximum brightness.
         
         Args:
             target_draw: The ImageDraw object of the target image
             target_img: The target image to draw on
             cx: Center x coordinate of heart
-            cy: Center y coordinate of heart  
+            cy: Center y coordinate of heart (top of the heart)
             size: Size parameter (heart scales with this)
             filled: If True, draws filled heart; if False, draws outline only
             brightness: Brightness level (0-255), default 255 for maximum brightness
         """
         import math
         
-        step = 0.05  # Smaller step = smoother outline (especially important for larger hearts)
-        points = []
+        # Scale size
+        s = int(size)
         
-        # Generate heart shape points using parametric equation
-        t = 0
-        while t < 2 * math.pi:
-            x = 16 * math.pow(math.sin(t), 3)
-            y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
-            
-            # Scale and translate to center position (relative to 0,0 for now)
-            px = int(x * size * 0.06)
-            py = -int(y * size * 0.06)
-            
-            points.append((px, py))
-            t += step
+        # Heart dimensions based on size
+        # Two circles on top, triangle pointing down
+        circle_radius = s // 2
         
-        # Close the shape by connecting back to start
-        if len(points) > 0:
-            points.append(points[0])
+        # Top circles centers (side by side)
+        left_circle_cx = cx - circle_radius // 2
+        right_circle_cx = cx + circle_radius // 2
+        circles_cy = cy
         
-        if len(points) < 3:
-            return
+        # Triangle points (90 degree angle at bottom, 45-45 at top corners)
+        # Triangle height should be about 1.5x the circle radius for good proportions
+        triangle_height = int(circle_radius * 1.8)
         
-        # Calculate bounding box for the heart shape
-        min_x = min(p[0] for p in points)
-        max_x = max(p[0] for p in points)
-        min_y = min(p[1] for p in points)
-        max_y = max(p[1] for p in points)
+        # Top corners of triangle connect to bottom of circles
+        triangle_top_y = circles_cy + circle_radius
+        triangle_left_x = left_circle_cx - circle_radius // 2
+        triangle_right_x = right_circle_cx + circle_radius // 2
+        
+        # Bottom point (90 degree angle)
+        triangle_bottom_x = cx
+        triangle_bottom_y = triangle_top_y + triangle_height
+        
+        # Calculate bounding box
+        min_x = triangle_left_x - circle_radius
+        max_x = triangle_right_x + circle_radius
+        min_y = circles_cy - circle_radius
+        max_y = triangle_bottom_y
         
         width = max_x - min_x + 1
         height = max_y - min_y + 1
         
-        # Translate points to monochrome image coordinates (0,0 origin)
-        mono_points = [(p[0] - min_x, p[1] - min_y) for p in points]
-        
-        # Render to monochrome (1-bit) to eliminate antialiasing
+        # Create monochrome image
         mono_img = Image.new('1', (width, height), color=0)
         mono_draw = ImageDraw.Draw(mono_img)
         
+        # Translate coordinates to monochrome image space (0,0 origin)
+        left_circle_x_mono = left_circle_cx - min_x
+        right_circle_x_mono = right_circle_cx - min_x
+        circles_y_mono = circles_cy - min_y
+        
+        triangle_left_x_mono = triangle_left_x - min_x
+        triangle_right_x_mono = triangle_right_x - min_x
+        triangle_top_y_mono = triangle_top_y - min_y
+        triangle_bottom_x_mono = triangle_bottom_x - min_x
+        triangle_bottom_y_mono = triangle_bottom_y - min_y
+        
         if filled:
-            # Draw filled polygon in monochrome
-            mono_draw.polygon(mono_points, fill=1)
+            # Draw two filled circles on top
+            mono_draw.ellipse([
+                (left_circle_x_mono - circle_radius, circles_y_mono - circle_radius),
+                (left_circle_x_mono + circle_radius, circles_y_mono + circle_radius)
+            ], fill=1)
+            
+            mono_draw.ellipse([
+                (right_circle_x_mono - circle_radius, circles_y_mono - circle_radius),
+                (right_circle_x_mono + circle_radius, circles_y_mono + circle_radius)
+            ], fill=1)
+            
+            # Draw filled triangle pointing down (90-45-45 angles)
+            mono_draw.polygon([
+                (triangle_left_x_mono, triangle_top_y_mono),
+                (triangle_right_x_mono, triangle_top_y_mono),
+                (triangle_bottom_x_mono, triangle_bottom_y_mono)
+            ], fill=1)
+            
+            # Fill the gap between circles and triangle with a rectangle
+            fill_rect_top = circles_y_mono
+            fill_rect_bottom = triangle_top_y_mono + 2
+            mono_draw.rectangle([
+                (triangle_left_x_mono, fill_rect_top),
+                (triangle_right_x_mono, fill_rect_bottom)
+            ], fill=1)
         else:
-            # Draw outline only in monochrome
-            mono_draw.line(mono_points, fill=1, width=1)
+            # Draw circle outlines
+            mono_draw.ellipse([
+                (left_circle_x_mono - circle_radius, circles_y_mono - circle_radius),
+                (left_circle_x_mono + circle_radius, circles_y_mono + circle_radius)
+            ], outline=1)
+            
+            mono_draw.ellipse([
+                (right_circle_x_mono - circle_radius, circles_y_mono - circle_radius),
+                (right_circle_x_mono + circle_radius, circles_y_mono + circle_radius)
+            ], outline=1)
+            
+            # Draw triangle outline
+            mono_draw.polygon([
+                (triangle_left_x_mono, triangle_top_y_mono),
+                (triangle_right_x_mono, triangle_top_y_mono),
+                (triangle_bottom_x_mono, triangle_bottom_y_mono),
+                (triangle_left_x_mono, triangle_top_y_mono)
+            ], outline=1)
         
         # Create grayscale image at target brightness
         heart_img = Image.new('L', (width, height), color=brightness)
         
-        # Calculate final position (center of heart at cx, cy)
-        final_x = cx + min_x
-        final_y = cy + min_y
+        # Calculate final position
+        final_x = min_x
+        final_y = min_y
         
         # Use monochrome as mask for maximum brightness
         target_img.paste(heart_img, (final_x, final_y), mask=mono_img)
