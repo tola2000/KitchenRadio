@@ -758,6 +758,16 @@ class ButtonController:
                 self.display_controller.show_status_message(f"Error: {e}", "❌", "error")
             return False
     
+    def _display(self) -> bool:
+        """Display button - show hearts message (especially useful when powered off)"""
+        logger.info("Display button pressed - showing hearts message")
+        if self.display_controller:
+            self.display_controller.show_hearts_message()
+            return True
+        else:
+            logger.warning("Display controller not available")
+            return False
+    
     def _power(self) -> bool:
         """Power button short press - toggle power on/off"""
         logger.info("Power button short press - toggling power")
