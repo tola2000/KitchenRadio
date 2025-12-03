@@ -107,7 +107,8 @@ class BluetoothMonitor:
         Handle device connection event.
         
         Called by BlueZ client when a Bluetooth device connects. 
-        Attempts to establish AVRCP connection to get track information.
+        BlueZ will automatically detect MediaPlayer interface when it appears
+        and send property change events for track/status.
         
         Args:
             device_path: D-Bus path to the device
@@ -125,11 +126,12 @@ class BluetoothMonitor:
             
             logger.info(f"🟢 Device connected: {device_name} ({device_mac})")
             
-            # Try to establish AVRCP connection for track info
-            logger.info(f"📡 Attempting to establish AVRCP connection...")
-            self._setup_avrcp_client(device_path, device_name, device_mac)
+            # Set active player path (BlueZ will auto-detect MediaPlayer when it appears)
+            self.client.set_active_player(device_path)
+            logger.info(f"📡 BlueZ monitoring for AVRCP MediaPlayer...")
             
-            # Trigger callback
+            # Trigger callbacks to update display
+            # Note: Track/status info will come via property change events when AVRCP becomes available
             self._trigger_callbacks('device_connected', name=device_name, mac=device_mac)
             self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
             
@@ -206,78 +208,7 @@ class BluetoothMonitor:
         except Exception as e:
             logger.error(f"Error handling device property change: {e}")
     
-    def _setup_avrcp_client(self, device_path: str, name: str, address: str):
-        """
-        Setup AVRCP client for connected device.
-        
-        Waits for MediaPlayer1 interface to become available, then creates
-        AVRCP client to monitor track information and playback status.
-        Uses retry logic to handle devices that take time to expose AVRCP.
-        
-        Args:
-            device_path: D-Bus path to the device
-            name: Device name
-            address: Device MAC address
-        """
-        try:
-            # Set active player in BlueZ client
-            self.client.set_active_player(device_path)
-            
-            # Try to establish AVRCP connection with retries
-            logger.info("⏳ Attempting to establish AVRCP MediaPlayer connection...")
-            max_retries = 10  # Try for ~10 seconds
-            retry_delay = 1.0  # 1 second between retries
-            
-            for attempt in range(max_retries):
-                # Check if we can get status (implies interface is available)
-                status_str = self.client.get_player_status()
-                if status_str != "unknown":
-                    logger.info(f"✅ AVRCP connection established on attempt {attempt + 1}")
-                    
-                    # Get initial track
-                    track_dict = self.client.get_track_info()
-                    if track_dict:
-                        self.current_track = TrackInfo(
-                            title=track_dict.get('title', 'Unknown'),
-                            artist=track_dict.get('artist', 'Unknown'),
-                            album=track_dict.get('album', ''),
-                            duration=track_dict.get('duration', 0)
-                        )
-                    
-                    # Get initial status
-                    try:
-                        self.current_status = PlaybackStatus(status_str)
-                    except ValueError:
-                        self.current_status = PlaybackStatus.UNKNOWN
-                    
-                    # Log initial track info if available
-                    if self.current_track and self.current_track.title != 'Unknown':
-                        logger.info(f"🎵 Current track: {self.current_track.title} - {self.current_track.artist}")
-                    
-                    # IMPORTANT: Trigger callbacks to update display with actual status/track
-                    # Without this, display remains showing "unknown" status
-                    if self.current_track:
-                        logger.info(f"🔔 Triggering track_changed callback after AVRCP connection")
-                        self._trigger_callbacks('track_changed', track_info=self.current_track)
-                    
-                    if self.current_status:
-                        logger.info(f"🔔 Triggering playback_state_changed callback after AVRCP connection (status: {self.current_status.value})")
-                        self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
-                    
-                    return  # Success!
-                
-                # Not available yet - wait and retry
-                if attempt < max_retries - 1:  # Don't sleep on last attempt
-                    logger.info(f"⏳ AVRCP not available yet (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
-                    time.sleep(retry_delay)
-                else:
-                    logger.info(f"⏳ AVRCP still not available after attempt {attempt + 1}/{max_retries}")
-            
-            # After all retries, AVRCP still not available
-            logger.info("⏳ AVRCP not available after retries - will be activated when playback starts")
-                
-        except Exception as e:
-            logger.error(f"Error setting up AVRCP client: {e}")
+
     
     def _on_track_changed(self, path: str, track: TrackInfo):
         """Handle track change from AVRCP"""

@@ -901,7 +901,8 @@ class SourceController:
         """Handle events from any monitor"""
         self.logger.debug(f"🎯 Handling monitor event: source={source_type.value}, event={event_name}, active_source={self.source.value if self.source else 'none'}")
         
-        # 1. Auto-switching logic (e.g. Spotify starts playing)
+        # 1. Auto-switching logic
+        # Spotify: Auto-switch when playback starts
         if source_type == SourceType.LIBRESPOT and event_name == 'playback_state_changed':
              playback_state = kwargs.get('playback_state')
              # Handle both object and dict for backward compatibility during transition
@@ -917,6 +918,12 @@ class SourceController:
                      self.set_source(SourceType.LIBRESPOT)
                      # set_source triggers update, so we can return or continue. 
                      # If we continue, we might send duplicate events, but that's usually fine.
+        
+        # Bluetooth: Auto-switch when device connects
+        if source_type == SourceType.BLUETOOTH and event_name == 'device_connected':
+            if self.source != SourceType.BLUETOOTH:
+                self.logger.info("🔵 Auto-switching to Bluetooth (device connected)")
+                self.set_source(SourceType.BLUETOOTH)
         
         # 2. Forwarding logic - only if active source
         if self.source == source_type:
