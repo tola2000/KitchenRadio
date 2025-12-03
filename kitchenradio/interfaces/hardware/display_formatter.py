@@ -886,21 +886,6 @@ class DisplayFormatter:
                 tri_top_right_mono,   # Top right corner
                 tri_bottom_mono       # Bottom point
             ], fill=1)
-            
-            # Cover bottom portion of circles to make them more than half-circles (about 60-70%)
-            # This rectangle erases only the bottom 30-40% of the circles
-            cover_y = left_circle_mono[1] + int(circle_radius * 0.35)  # Show 65% of circle
-            mono_draw.rectangle([
-                (0, cover_y),
-                (width, cover_y + circle_radius)
-            ], fill=0)
-            
-            # Redraw triangle to ensure it's on top
-            mono_draw.polygon([
-                tri_top_left_mono,
-                tri_top_right_mono,
-                tri_bottom_mono
-            ], fill=1)
         else:
             # Draw half-circle outlines (arcs for top half only)
             # PIL's arc draws from 0° (3 o'clock) counter-clockwise
