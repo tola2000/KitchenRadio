@@ -841,7 +841,7 @@ class DisplayFormatter:
         triangle_base = triangle_right_x - triangle_left_x
         triangle_height = int(triangle_base / 2) 
         
-        triangle_bottom_x = cx - 1
+        triangle_bottom_x = cx 
         triangle_bottom_y = triangle_top_y + triangle_height 
         
         # Calculate bounding box
