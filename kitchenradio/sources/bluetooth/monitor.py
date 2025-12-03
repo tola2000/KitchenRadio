@@ -153,12 +153,13 @@ class BluetoothMonitor:
             if device_mac in self.connected_devices:
                 self.connected_devices.remove(device_mac)
             
-            if self.current_source_info.path == device_path:
-                # Keep source as BLUETOOTH but clear device info (stay on BT input, show "connect device" screen)
-                self.current_source_info = SourceInfo(source=SourceType.BLUETOOTH)
-                self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
-                
+            # Always update source_info when device disconnects (regardless of path matching)
+            # Keep source as BLUETOOTH but clear device info (stay on BT input, show "connect device" screen)
+            self.current_source_info = SourceInfo(source=SourceType.BLUETOOTH, device_name="Bluetooth")
             logger.info(f"🔴 Device disconnected: {device_name} ({device_mac})")
+            
+            # Trigger source_info_changed to update display
+            self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
             
             # Clean up AVRCP client
             if self.client.active_player_path == device_path:
