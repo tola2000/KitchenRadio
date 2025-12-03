@@ -453,8 +453,7 @@ class DisplayController:
 
             # If overlay is active, skip all normal updates (including scroll) to prevent interference
             if self.overlay_active:
-                # Check if we should ignore volume updates (recently changed by user)
-                time_since_volume_change = time.time() - self.last_volume_change_time
+
                 if self.overlay_type == 'volume':
                     if isinstance(playback_state, PlaybackState):
                         current_volume = playback_state.volume
@@ -464,9 +463,9 @@ class DisplayController:
                     if (current_volume != self.last_volume):
                         self._render_volume_overlay(current_volume)
                         self.last_volume = current_volume
-                        return
-                else:
-                    return
+                        
+
+                return
 
             # No overlay active - check if scroll update is needed
             scroll_update = self._is_scroll_update_needed()
