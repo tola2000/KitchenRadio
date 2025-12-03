@@ -204,6 +204,10 @@ class SourceController:
             self.bluetooth_controller = BluetoothController()
             self.bluetooth_monitor = self.bluetooth_controller.monitor
             
+            # Register callbacks for device connection events
+            self.bluetooth_controller.on_device_connected = self._on_bluetooth_device_connected
+            self.bluetooth_controller.on_device_disconnected = self._on_bluetooth_device_disconnected
+            
             # Give it time to initialize
             time.sleep(0.5)
             
@@ -214,6 +218,30 @@ class SourceController:
         except Exception as e:
             self.logger.warning(f"Bluetooth initialization failed: {e}")
             return False
+    
+    def _on_bluetooth_device_connected(self, name: str, address: str):
+        """
+        Handle Bluetooth device connection event.
+        
+        Args:
+            name: Device name
+            address: Device MAC address
+        """
+        self.logger.info(f"🔵 Bluetooth device connected: {name} ({address})")
+        # Emit device_connected event for auto-switching logic
+        self._handle_source_event(SourceType.BLUETOOTH, 'device_connected', device_name=name, device_address=address)
+    
+    def _on_bluetooth_device_disconnected(self, name: str, address: str):
+        """
+        Handle Bluetooth device disconnection event.
+        
+        Args:
+            name: Device name
+            address: Device MAC address
+        """
+        self.logger.info(f"🔴 Bluetooth device disconnected: {name} ({address})")
+        # Emit device_disconnected event (but don't auto-switch away from Bluetooth)
+        self._handle_source_event(SourceType.BLUETOOTH, 'device_disconnected', device_name=name, device_address=address)
     
     # =========================================================================
     # Source Management
