@@ -1143,18 +1143,15 @@ class DisplayController:
         The monitor immediately provides expected volume values via callbacks,
         ensuring instant UI feedback.
         """
-        self._activate_overlay('volume', timeout)
-        
         if timeout is None:
             timeout = display_config.VOLUME_OVERLAY_TIMEOUT
         logger.info(f"📢 show_volume_overlay called, timeout={timeout}")
-        
+        self._activate_overlay('volume', timeout)
+
         # Get FRESH playback state (includes expected values from monitor)
         # playback_state = self.source_controller.get_playback_state()
         playback_state = self.cached_playback_state
-
-
-               
+        
         if isinstance(playback_state, PlaybackState):
             display_volume = playback_state.volume
         else:
@@ -1186,11 +1183,10 @@ class DisplayController:
             'sub_text': description
         }
         self._activate_overlay('notification', timeout)
-        
         if description2:
             notification_data['sub_text2'] = description2
         self._render_display_content('notification', notification_data)
-
+        
 
     def show_clock(self):
         """Show clock overlay using the generic overlay system"""
@@ -1205,10 +1201,9 @@ class DisplayController:
 
     def show_menu_overlay(self, options: List[str], selected_index: int = 0, timeout: float = None, on_selected: Optional[Callable[[int], None]] = None):
         """Show menu overlay using the generic overlay system"""
-        self._activate_overlay('menu', timeout)
-        
         if timeout is None:
             timeout = display_config.MENU_OVERLAY_TIMEOUT
+        self._activate_overlay('menu', timeout)
         menu_data = {
             'title': 'Menu',
             'menu_items': options,
