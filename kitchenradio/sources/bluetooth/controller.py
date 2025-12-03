@@ -335,15 +335,21 @@ class BluetoothController:
     
     def exit_pairing_mode(self) -> bool:
         """Exit pairing mode and make non-discoverable"""
+        logger.info(f"🔵 exit_pairing_mode called, current pairing_mode={self.pairing_mode}")
         if not self.pairing_mode:
+            logger.info(f"🔵 Already exited pairing mode, skipping")
             return False
         
         try:
             self.pairing_mode = False
+            logger.info(f"🔵 Setting pairing_mode=False in controller")
             
             # Notify monitor to update source_info and trigger display update
             if self.monitor:
+                logger.info(f"🔵 Calling monitor.update_pairing_mode(False)")
                 self.monitor.update_pairing_mode(False)
+            else:
+                logger.warning(f"🔵 No monitor available to update pairing_mode")
             
             if self.client:
                 self.client.set_adapter_property('Discoverable', False)
