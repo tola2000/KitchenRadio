@@ -215,6 +215,9 @@ class ButtonController:
             ButtonType.MENU_UP: self._menu_up,
             ButtonType.MENU_DOWN: self._menu_down,
             
+            # Display button
+            ButtonType.DISPLAY: self._display,
+            
             # Power button
             ButtonType.POWER: self._power,
         }

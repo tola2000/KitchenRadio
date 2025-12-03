@@ -560,7 +560,7 @@ class KitchenRadioWeb:
             ButtonType.SLEEP: "Sleep",              
             ButtonType.REPEAT: "Repeat",           
             ButtonType.SHUFFLE: "Shuffle",          
-            ButtonType.DISPLAY: "Display", 
+            ButtonType.DISPLAY: "Show hearts message (❤ Duts ❤)", 
             ButtonType.POWER: "Power button - stop all playback"
         }
         return descriptions.get(button_type, "Unknown button")
