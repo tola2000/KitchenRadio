@@ -462,13 +462,19 @@ class BlueZClient:
                 'album': str(track_data.get('Album', '')),
                 'duration': int(track_data.get('Duration', 0))
             }
+            logger.info(f"🎵 Track changed: {track['title']} - {track['artist']}")
             if self.on_track_changed:
                 self.on_track_changed(path, track)
+            else:
+                logger.warning(f"🎵 Track changed but no callback registered!")
         
         if 'Status' in changed:
             status_str = str(changed['Status'])
+            logger.debug(f"🎵 Status changed to: {status_str}")
             if self.on_status_changed:
                 self.on_status_changed(path, status_str)
+            else:
+                logger.warning(f"🎵 Status changed but no callback registered!")
 
     def set_active_player(self, player_path: str):
         """
