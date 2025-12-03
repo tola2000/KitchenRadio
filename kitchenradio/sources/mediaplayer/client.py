@@ -358,12 +358,16 @@ class KitchenRadioClient:
             # Send noidle command - this will cause idle() to return immediately
             # We need to use the raw command interface
             self.client_status._write_command("noidle")
-            # Read the response (changed subsystems or empty list)
+            # Read and discard the response (changed subsystems or empty list)
             try:
-                self.client_status._read_list()
-            except AttributeError:
-                # Fallback if _read_list doesn't exist
-                self.client_status._fetch_list()
+                # Try the standard way first
+                list(self.client_status._read_command_list())
+            except (AttributeError, TypeError):
+                # Fallback: just consume any pending data
+                try:
+                    self.client_status._sock.recv(4096)
+                except:
+                    pass
             logger.debug("Sent noidle to cancel idle wait")
         except Exception as e:
             logger.debug(f"Error in noidle: {e}")
