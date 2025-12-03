@@ -229,7 +229,7 @@ class SourceController:
         """
         self.logger.info(f"🔵 Bluetooth device connected: {name} ({address})")
         # Emit device_connected event for auto-switching logic
-        self._handle_source_event(SourceType.BLUETOOTH, 'device_connected', device_name=name, device_address=address)
+        self._handle_monitor_event(SourceType.BLUETOOTH, 'device_connected', device_name=name, device_address=address)
     
     def _on_bluetooth_device_disconnected(self, name: str, address: str):
         """
@@ -241,7 +241,7 @@ class SourceController:
         """
         self.logger.info(f"🔴 Bluetooth device disconnected: {name} ({address})")
         # Emit device_disconnected event (but don't auto-switch away from Bluetooth)
-        self._handle_source_event(SourceType.BLUETOOTH, 'device_disconnected', device_name=name, device_address=address)
+        self._handle_monitor_event(SourceType.BLUETOOTH, 'device_disconnected', device_name=name, device_address=address)
     
     # =========================================================================
     # Source Management
