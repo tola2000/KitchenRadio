@@ -888,18 +888,18 @@ class DisplayController:
         if isinstance(source_info, SourceInfo):
             device_name = source_info.device_name
             device_mac = source_info.device_mac
+            pairing_mode = source_info.pairing_mode
         else:
             device_name = source_info.get('device_name', 'Unknown')
             device_mac = source_info.get('device_mac', '')
+            pairing_mode = source_info.get('pairing_mode', False)
             
         is_connected = device_mac != ''
         
-        # Check pairing mode
-        is_discoverable = False 
-        if self.source_controller and hasattr(self.source_controller, 'bluetooth_controller') and self.source_controller.bluetooth_controller:
-             is_discoverable = getattr(self.source_controller.bluetooth_controller, 'pairing_mode', False)
+        # Use pairing_mode from source_info (more reliable than polling controller state)
+        is_discoverable = pairing_mode
 
-        logger.debug(f"[BluetoothDisplay] is_discoverable={is_discoverable}, connected={is_connected}, device={device_name}")
+        logger.debug(f"[BluetoothDisplay] pairing_mode={is_discoverable}, connected={is_connected}, device={device_name}")
 
         if is_discoverable:
             # Show pairing mode in track info format (no connected device yet)

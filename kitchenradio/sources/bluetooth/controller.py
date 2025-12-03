@@ -39,7 +39,8 @@ class BluetoothController:
             adapter_path: Path to Bluetooth adapter (default: /org/bluez/hci0)
         """
         self.client = BlueZClient(adapter_path)
-        self.monitor = BluetoothMonitor(self.client)
+        # Initialize monitor with controller reference for pairing_mode status
+        self.monitor = BluetoothMonitor(self.client, controller=self)
         self.adapter_path = adapter_path
 
         self.mainloop: Optional[GLib.MainLoop] = None
@@ -322,6 +323,10 @@ class BluetoothController:
             logger.info("👁️  Bluetooth is now DISCOVERABLE")
             logger.info("📱 Pair your device now!")
             
+            # Notify monitor to update source_info and trigger display update
+            if self.monitor:
+                self.monitor.update_pairing_mode(True)
+            
             return True
             
         except Exception as e:
@@ -335,6 +340,10 @@ class BluetoothController:
         
         try:
             self.pairing_mode = False
+            
+            # Notify monitor to update source_info and trigger display update
+            if self.monitor:
+                self.monitor.update_pairing_mode(False)
             
             if self.client:
                 self.client.set_adapter_property('Discoverable', False)

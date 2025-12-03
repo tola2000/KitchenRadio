@@ -81,6 +81,7 @@ class SourceInfo:
     device_mac: str = ""
     path: str = ""
     power: bool = False
+    pairing_mode: bool = False  # True when Bluetooth is in pairing/discoverable mode
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -88,7 +89,8 @@ class SourceInfo:
             'device_name': self.device_name,
             'device_mac': self.device_mac,
             'path': self.path,
-            'power': self.power
+            'power': self.power,
+            'pairing_mode': self.pairing_mode
         }
 
 

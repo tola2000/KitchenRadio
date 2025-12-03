@@ -42,15 +42,17 @@ class BluetoothMonitor:
     - AVRCP state changes
     """
     
-    def __init__(self, client: BlueZClient, display_controller=None):
+    def __init__(self, client: BlueZClient, controller=None, display_controller=None):
         """
         Initialize monitor with BlueZ client.
         
         Args:
             client: BlueZ D-Bus client instance
+            controller: BluetoothController instance (optional, for pairing_mode status)
             display_controller: DisplayController instance (optional)
         """
         self.client = client
+        self.controller = controller  # Reference to controller for pairing_mode state
         self.display_controller = display_controller
         self.callbacks = {}
         self.current_track = None
@@ -343,12 +345,30 @@ class BluetoothMonitor:
 
     def get_source_info(self) -> SourceInfo:
         """
-        Get current source information.
+        Get current source information including pairing mode status.
         
         Returns:
-            Source info object
+            Source info object with current pairing_mode state
         """
+        # Update pairing_mode from controller if available
+        if self.controller and hasattr(self.controller, 'pairing_mode'):
+            self.current_source_info.pairing_mode = self.controller.pairing_mode
+        
         return self.current_source_info
+    
+    def update_pairing_mode(self, pairing_mode: bool):
+        """
+        Update pairing mode status and trigger source_info_changed event.
+        
+        Args:
+            pairing_mode: True when entering pairing mode, False when exiting
+        """
+        old_pairing = self.current_source_info.pairing_mode
+        self.current_source_info.pairing_mode = pairing_mode
+        
+        if old_pairing != pairing_mode:
+            logger.info(f"📡 Pairing mode changed: {old_pairing} → {pairing_mode}")
+            self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
 
     def get_playback_state(self) -> PlaybackState:
         """
