@@ -803,21 +803,24 @@ class DisplayFormatter:
         
         return draw_centered_message
     
-    def _draw_heart(self, draw: ImageDraw.Draw, cx: int, cy: int, size: float, filled: bool = True):
+    def _draw_heart(self, target_draw: ImageDraw.Draw, target_img: Image.Image, 
+                   cx: int, cy: int, size: float, filled: bool = True, brightness: int = 255):
         """
-        Draw a precise heart shape using parametric equations.
+        Draw a precise heart shape using parametric equations with monochrome rendering for maximum brightness.
         Based on the heart curve: x = 16sin³(t), y = 13cos(t) - 5cos(2t) - 2cos(3t) - cos(4t)
         
         Args:
-            draw: PIL ImageDraw object
+            target_draw: The ImageDraw object of the target image
+            target_img: The target image to draw on
             cx: Center x coordinate of heart
             cy: Center y coordinate of heart  
             size: Size parameter (heart scales with this)
             filled: If True, draws filled heart; if False, draws outline only
+            brightness: Brightness level (0-255), default 255 for maximum brightness
         """
         import math
         
-        step = 0.1  # Smaller = smoother outline (0.05 = very smooth, but slower)
+        step = 0.05  # Smaller step = smoother outline (especially important for larger hearts)
         points = []
         
         # Generate heart shape points using parametric equation
@@ -826,9 +829,9 @@ class DisplayFormatter:
             x = 16 * math.pow(math.sin(t), 3)
             y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
             
-            # Scale and translate to center position
-            px = cx + int(x * size * 0.06)
-            py = cy - int(y * size * 0.06)
+            # Scale and translate to center position (relative to 0,0 for now)
+            px = int(x * size * 0.06)
+            py = -int(y * size * 0.06)
             
             points.append((px, py))
             t += step
@@ -837,14 +840,41 @@ class DisplayFormatter:
         if len(points) > 0:
             points.append(points[0])
         
+        if len(points) < 3:
+            return
+        
+        # Calculate bounding box for the heart shape
+        min_x = min(p[0] for p in points)
+        max_x = max(p[0] for p in points)
+        min_y = min(p[1] for p in points)
+        max_y = max(p[1] for p in points)
+        
+        width = max_x - min_x + 1
+        height = max_y - min_y + 1
+        
+        # Translate points to monochrome image coordinates (0,0 origin)
+        mono_points = [(p[0] - min_x, p[1] - min_y) for p in points]
+        
+        # Render to monochrome (1-bit) to eliminate antialiasing
+        mono_img = Image.new('1', (width, height), color=0)
+        mono_draw = ImageDraw.Draw(mono_img)
+        
         if filled:
-            # Draw filled polygon
-            if len(points) > 2:
-                draw.polygon(points, fill=255)
+            # Draw filled polygon in monochrome
+            mono_draw.polygon(mono_points, fill=1)
         else:
-            # Draw outline only
-            if len(points) > 1:
-                draw.line(points, fill=255, width=1)
+            # Draw outline only in monochrome
+            mono_draw.line(mono_points, fill=1, width=1)
+        
+        # Create grayscale image at target brightness
+        heart_img = Image.new('L', (width, height), color=brightness)
+        
+        # Calculate final position (center of heart at cx, cy)
+        final_x = cx + min_x
+        final_y = cy + min_y
+        
+        # Use monochrome as mask for maximum brightness
+        target_img.paste(heart_img, (final_x, final_y), mask=mono_img)
     
     def format_hearts_message(self, message_data: Dict[str, Any]):
         """
@@ -880,24 +910,24 @@ class DisplayFormatter:
             # Get the underlying image
             img = draw._image
             
-            # Clear background
+            # Clear background (ensure completely black)
             draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
             
-            # Calculate heart size based on available space
-            heart_size = 8.0  # Larger hearts for better visibility
+            # Calculate heart size - MUCH BIGGER for visibility
+            heart_size = 15.0  # Increased from 8.0 to 15.0 for bigger hearts
             
             # Calculate vertical center for hearts to align with text middle
             heart_cy = text_y + text_height // 2
             
-            # Draw heart on left side (with more spacing)
-            left_heart_cx = text_x - 18
-            if left_heart_cx > 10:  # Only draw if there's enough space
-                self._draw_heart(draw, left_heart_cx, heart_cy, heart_size, filled=True)
+            # Draw heart on left side (with more spacing for bigger hearts)
+            left_heart_cx = text_x - 25  # More spacing for bigger hearts
+            if left_heart_cx > 15:  # Only draw if there's enough space
+                self._draw_heart(draw, img, left_heart_cx, heart_cy, heart_size, filled=True, brightness=255)
             
-            # Draw heart on right side (with more spacing)
-            right_heart_cx = text_x + text_width + 18
-            if right_heart_cx < self.width - 10:  # Only draw if there's enough space
-                self._draw_heart(draw, right_heart_cx, heart_cy, heart_size, filled=True)
+            # Draw heart on right side (with more spacing for bigger hearts)
+            right_heart_cx = text_x + text_width + 25  # More spacing for bigger hearts
+            if right_heart_cx < self.width - 15:  # Only draw if there's enough space
+                self._draw_heart(draw, img, right_heart_cx, heart_cy, heart_size, filled=True, brightness=255)
             
             # Draw centered text
             self._draw_text_mono(draw, img, (text_x, text_y), message, font=font, fill=255)
