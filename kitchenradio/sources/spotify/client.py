@@ -34,6 +34,7 @@ class KitchenRadioLibrespotClient:
         self.port = port
         self.timeout = timeout
         self._connected = False
+        self._was_connected = False  # Track previous connection state for disconnection detection
         self.websocket = None
         self.callbacks = {}
 
@@ -42,6 +43,21 @@ class KitchenRadioLibrespotClient:
         self.wsurl = f"ws://{host}:{port}/events"
         
         logger.info(f"KitchenRadio LibreSpot client initialized for {self.base_url}")
+    
+    def _handle_disconnection(self):
+        """
+        Handle disconnection from go-librespot server.
+        Detects when connection is lost and triggers disconnection event.
+        """
+        if self._connected:
+            # We just transitioned from connected to disconnected
+            self._connected = False
+            if self._was_connected:
+                logger.warning(f"❌ Lost connection to go-librespot server - device likely disconnected")
+                self._trigger_callbacks('device_disconnected')
+        else:
+            # Already disconnected, just update state
+            self._connected = False
     
     def _send_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
         """
@@ -73,7 +89,10 @@ class KitchenRadioLibrespotClient:
             # If we got a successful response, mark as connected
             if not self._connected:
                 self._connected = True
-                logger.debug(f"Connection restored to go-librespot")
+                self._was_connected = True
+                logger.info(f"✅ Connection (re)established to go-librespot")
+                # Trigger connection restored event
+                self._trigger_callbacks('connection_restored')
             
             # Check if response has content
             if not response.text or response.text.strip() == '':
@@ -86,10 +105,11 @@ class KitchenRadioLibrespotClient:
             
         except requests.exceptions.Timeout:
             logger.error(f"Request timeout for {url}")
+            self._handle_disconnection()
             return None
         except requests.exceptions.ConnectionError:
             logger.error(f"Connection error for {url}")
-            self._connected = False
+            self._handle_disconnection()
             return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error for {url}: {e}")
@@ -134,6 +154,7 @@ class KitchenRadioLibrespotClient:
                     # Server responded! Even 204 No Content or empty response is fine
                     if response.status_code in [200, 204]:
                         self._connected = True
+                        self._was_connected = True
                         logger.info(f"✅ go-librespot server is responding (status: {response.status_code})")
                         
                         # Start WebSocket connection

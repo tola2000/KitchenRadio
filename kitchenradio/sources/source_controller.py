@@ -185,6 +185,10 @@ class SourceController:
             self.librespot_monitor = self.librespot_controller.monitor
             self.librespot_connected = True
             
+            # Register callbacks for device connection/disconnection
+            self.librespot_controller.on_device_connected = self._on_spotify_device_connected
+            self.librespot_controller.on_device_disconnected = self._on_spotify_device_disconnected
+            
             self.logger.info(f"Librespot backend initialized - {self.config['librespot_host']}:{self.config['librespot_port']}")
             return True
             
@@ -242,6 +246,22 @@ class SourceController:
         self.logger.info(f"🔴 Bluetooth device disconnected: {name} ({address})")
         # Emit device_disconnected event (but don't auto-switch away from Bluetooth)
         self._handle_monitor_event(SourceType.BLUETOOTH, 'device_disconnected', device_name=name, device_address=address)
+    
+    def _on_spotify_device_connected(self):
+        """
+        Handle Spotify device connection event.
+        """
+        self.logger.info(f"🟢 Spotify device connected")
+        # Emit device_connected event
+        self._handle_monitor_event(SourceType.SPOTIFY, 'device_connected')
+    
+    def _on_spotify_device_disconnected(self):
+        """
+        Handle Spotify device disconnection event.
+        """
+        self.logger.info(f"🔴 Spotify device disconnected")
+        # Emit device_disconnected event
+        self._handle_monitor_event(SourceType.SPOTIFY, 'device_disconnected')
     
     # =========================================================================
     # Source Management
