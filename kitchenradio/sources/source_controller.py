@@ -253,7 +253,7 @@ class SourceController:
         """
         self.logger.info(f"🟢 Spotify device connected")
         # Emit device_connected event
-        self._handle_monitor_event(SourceType.SPOTIFY, 'device_connected')
+        self._handle_monitor_event(SourceType.LIBRESPOT, 'device_connected')
     
     def _on_spotify_device_disconnected(self):
         """
@@ -261,7 +261,7 @@ class SourceController:
         """
         self.logger.info(f"🔴 Spotify device disconnected")
         # Emit device_disconnected event
-        self._handle_monitor_event(SourceType.SPOTIFY, 'device_disconnected')
+        self._handle_monitor_event(SourceType.LIBRESPOT, 'device_disconnected')
     
     # =========================================================================
     # Source Management
