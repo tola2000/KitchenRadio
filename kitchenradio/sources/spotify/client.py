@@ -241,7 +241,7 @@ class KitchenRadioLibrespotClient:
                 try:
                     callback(event=event, **kwargs)
                 except Exception as e:
-                    logger.error(f"Error in 'any' callback for {event}: {e}")
+                    logger.error(f"Error in 'any' callback for {event}: {e}", exc_info=True)
 
         # Trigger specific event callbacks
         if event in self.callbacks:
@@ -249,7 +249,7 @@ class KitchenRadioLibrespotClient:
                 try:
                     callback(**kwargs)
                 except Exception as e:
-                    logger.error(f"Error in callback for {event}: {e}")
+                    logger.error(f"Error in callback for {event}: {e}", exc_info=True)
 
     async def handle_message(self, message):
         """Handle incoming WebSocket messages"""
