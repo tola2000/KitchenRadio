@@ -26,7 +26,30 @@ class LibrespotController:
         """
         self.client = KitchenRadioLibrespotClient(host, port, timeout)
         self.monitor = LibrespotMonitor(self.client)
+        
+        # Callbacks for device connection/disconnection
+        self.on_device_connected: Optional[callable] = None
+        self.on_device_disconnected: Optional[callable] = None
+        
+        # Register client callbacks
+        self.client.add_callback('device_disconnected', self._on_device_disconnected)
+        self.client.add_callback('connection_restored', self._on_connection_restored)
 
+    def _on_device_disconnected(self):
+        """Handle device disconnection from client"""
+        logger.info("🔴 Spotify device disconnected")
+        # Reset monitor state (playback status and track info)
+        self.monitor.reset_state()
+        # Notify source controller
+        if self.on_device_disconnected:
+            self.on_device_disconnected()
+    
+    def _on_connection_restored(self):
+        """Handle connection restoration"""
+        logger.info("🟢 Spotify device connected")
+        if self.on_device_connected:
+            self.on_device_connected()
+    
     def connect(self) -> bool:
         """Connect to Librespot"""
         return self.client.connect()

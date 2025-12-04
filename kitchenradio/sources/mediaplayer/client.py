@@ -8,6 +8,7 @@ import threading
 from typing import Optional, Callable, Dict, Any, List
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class KitchenRadioClient:
@@ -49,15 +50,9 @@ class KitchenRadioClient:
         self._command_lock = threading.RLock()  # Reentrant lock for nested calls
         self._connection_lock = threading.RLock()
         
-        # Create MPD client
+        # Create MPD client (single connection for polling)
         self.client = mpd.MPDClient()
         self.client.timeout = timeout
-        self.client.idletimeout = None
-
-        # Create MPD client_status
-        self.client_status = mpd.MPDClient()
-        self.client_status.timeout = timeout
-        self.client_status.idletimeout = None
         
         logger.info(f"KitchenRadio MPD client initialized for {host}:{port}")
     
@@ -75,11 +70,6 @@ class KitchenRadioClient:
                 
                 if self.password:
                     self.client.password(self.password)
-
-                self.client_status.connect(self.host, self.port)
-                
-                if self.password:
-                    self.client_status.password(self.password)
                 
                 self._connected = True
                 logger.info("Connected to MPD successfully")
@@ -279,17 +269,6 @@ class KitchenRadioClient:
        
             self._connected = False
     
-    def wait_for_changes(self) -> Dict[str, Any]:
-        """Get player status (thread-safe, uses separate client)."""
-        # Note: This method uses client_status which should not be locked with command_lock
-        # as it's designed for blocking idle operations
-        try:
-            return self.client_status.idle()
-        except Exception as e:
-            logger.error(f"Error getting status: {e}")
-            self.check_connection_error(e)
-            return {}
-        
     def get_current_song(self) -> Optional[Dict[str, Any]]:
         """Get current song info (thread-safe)."""
         with self._command_lock:
@@ -308,6 +287,9 @@ class KitchenRadioClient:
         with self._command_lock:
             try:
                 self.client.clear()
+                # Trigger callback to notify monitor that playlist was cleared
+                self._trigger_callbacks('playlist_command', command='clear', playlist_name='')
+                logger.info("🎵 Playlist cleared, notifying monitor")
                 return True
             except Exception as e:
                 logger.error(f"Error clearing playlist: {e}")
@@ -319,6 +301,9 @@ class KitchenRadioClient:
         with self._command_lock:
             try:
                 self.client.load(playlist)
+                # Trigger callback to notify monitor of the loaded playlist
+                self._trigger_callbacks('playlist_command', command='load', playlist_name=playlist)
+                logger.info(f"🎵 Playlist '{playlist}' loaded, notifying monitor")
                 return True
             except Exception as e:
                 logger.error(f"Error loading playlist: {e}")
@@ -330,6 +315,9 @@ class KitchenRadioClient:
         with self._command_lock:
             try:
                 self.client.add(uri)
+                #for streaming show the uri instead of the playlist name
+                playlist = uri
+                self._trigger_callbacks('playlist_command', command='load', playlist_name=playlist)
                 return True
             except Exception as e:
                 logger.error(f"Error adding to playlist: {e}")

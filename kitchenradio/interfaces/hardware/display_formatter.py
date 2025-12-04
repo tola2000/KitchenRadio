@@ -755,11 +755,224 @@ class DisplayFormatter:
                     numeric_text = f"{volume}/{max_volume}"
                     info_x = (self.width - len(numeric_text) * 8) // 2
                     self._draw_text_mono(draw, img, (info_x, info_y), numeric_text, font=self.fonts['medium'], fill=255)
-            
-
- 
         
         return draw_volume
+    
+    def format_centered_message(self, message_data: Dict[str, Any]) -> Callable:
+        """
+        Format large centered message display using JSON structure input.
+        Perfect for notifications like "❤ Duts ❤" when radio is powered off.
+        
+        Args:
+            message_data: Dictionary containing:
+                {
+                    "message": str,
+                    "font_size": str (optional, default "xlarge", options: "medium", "large", "xlarge", "xxlarge"),
+                    "brightness": int (optional, default 255)
+                }
+            
+        Returns:
+            Drawing function for centered message display
+        """
+        # Extract data from JSON structure
+        message = message_data.get('message', '')
+        font_size = message_data.get('font_size', 'xlarge')
+        brightness = message_data.get('brightness', 255)
+        
+        # Get the appropriate font
+        font = self.fonts.get(font_size, self.fonts['xlarge'])
+        
+        # Calculate text dimensions for centering
+        bbox = font.getbbox(message)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Center horizontally and vertically
+        text_x = max(0, (self.width - text_width) // 2)
+        text_y = max(0, (self.height - text_height) // 2)
+        
+        def draw_centered_message(draw: ImageDraw.Draw):
+            # Get the underlying image for monochrome text operations
+            img = draw._image
+            
+            # Clear background
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Draw centered text using monochrome for crisp, bright rendering
+            self._draw_text_mono(draw, img, (text_x, text_y), message, font=font, fill=brightness)
+        
+        return draw_centered_message
+    
+    def _draw_heart(self, target_draw: ImageDraw.Draw, target_img: Image.Image, 
+                   cx: int, cy: int, size: float, filled: bool = True, brightness: int = 255):
+        """
+        Draw a heart shape: Two half-circles (humps) on top, triangle pointing DOWN below.
+        Triangle has 90° angle at bottom point, 45° slopes on sides.
+        
+        Args:
+            target_draw: The ImageDraw object of the target image
+            target_img: The target image to draw on
+            cx: Center x coordinate of heart
+            cy: Center y coordinate of heart center
+            size: Size parameter (heart scales with this)
+            filled: If True, draws filled heart; if False, draws outline only
+            brightness: Brightness level (0-255), default 255 for maximum brightness
+        """
+        import math
+        
+        s = int(size)
+        
+        # Circle specifications for the humps
+        circle_radius = s // 3
+        
+        # Position circles side-by-side at the top
+        left_circle_cx = cx - circle_radius
+        right_circle_cx = cx + circle_radius
+        circles_cy = cy - s // 3  # Position circles above center
+        
+        # Triangle pointing DOWN (point at bottom, 90° angle at bottom, 45° slopes)
+        # Top edge of triangle connects the bottom of the circles
+        triangle_top_y = circles_cy + (circle_radius // 4 ) + 2   # Moved down 3 pixels
+        triangle_left_x = left_circle_cx - ( circle_radius   // 2 ) - 2
+        triangle_right_x = right_circle_cx + ( circle_radius // 2 ) + 2
+        
+        # Bottom point (90° angle, 45° slopes)
+        # For 45° slopes: height = half of base width
+        triangle_base = triangle_right_x - triangle_left_x
+        triangle_height = int(triangle_base / 2) 
+        
+        triangle_bottom_x = cx 
+        triangle_bottom_y = triangle_top_y + triangle_height 
+        
+        # Calculate bounding box
+        min_x = left_circle_cx - circle_radius
+        max_x = right_circle_cx + circle_radius
+        min_y = circles_cy - circle_radius
+        max_y = triangle_bottom_y
+        
+        width = max_x - min_x + 2
+        height = max_y - min_y + 2
+        
+        # Create monochrome image
+        mono_img = Image.new('1', (width, height), color=0)
+        mono_draw = ImageDraw.Draw(mono_img)
+        
+        # Translate to mono image coordinates
+        def to_mono(x, y):
+            return (x - min_x, y - min_y)
+        
+        left_circle_mono = to_mono(left_circle_cx, circles_cy)
+        right_circle_mono = to_mono(right_circle_cx, circles_cy)
+        tri_top_left_mono = to_mono(triangle_left_x, triangle_top_y)
+        tri_top_right_mono = to_mono(triangle_right_x, triangle_top_y)
+        tri_bottom_mono = to_mono(triangle_bottom_x, triangle_bottom_y)
+        
+        if filled:
+            # Draw filled half-circles (top humps only)
+            # Draw full circles first, then cover the bottom half with background
+            mono_draw.ellipse([
+                (left_circle_mono[0] - circle_radius, left_circle_mono[1] - circle_radius),
+                (left_circle_mono[0] + circle_radius, left_circle_mono[1] + circle_radius)
+            ], fill=1)
+            
+            mono_draw.ellipse([
+                (right_circle_mono[0] - circle_radius, right_circle_mono[1] - circle_radius),
+                (right_circle_mono[0] + circle_radius, right_circle_mono[1] + circle_radius)
+            ], fill=1)
+            
+            # Draw filled triangle pointing DOWN
+            mono_draw.polygon([
+                tri_top_left_mono,    # Top left corner
+                tri_top_right_mono,   # Top right corner
+                tri_bottom_mono       # Bottom point
+            ], fill=1)
+        else:
+            # Draw half-circle outlines (arcs for top half only)
+            # PIL's arc draws from 0° (3 o'clock) counter-clockwise
+            # 180° = left (9 o'clock), 0° = right (3 o'clock)
+            # For top half: start=180, end=360 (or 0)
+            
+            mono_draw.arc([
+                (left_circle_mono[0] - circle_radius, left_circle_mono[1] - circle_radius),
+                (left_circle_mono[0] + circle_radius, left_circle_mono[1] + circle_radius)
+            ], start=180, end=360, fill=1)
+            
+            mono_draw.arc([
+                (right_circle_mono[0] - circle_radius, right_circle_mono[1] - circle_radius),
+                (right_circle_mono[0] + circle_radius, right_circle_mono[1] + circle_radius)
+            ], start=180, end=360, fill=1)
+            
+            # Draw triangle outline
+            mono_draw.polygon([
+                tri_top_left_mono,
+                tri_top_right_mono,
+                tri_bottom_mono,
+                tri_top_left_mono
+            ], outline=1)
+        
+        # Create grayscale image at target brightness
+        heart_img = Image.new('L', (width, height), color=brightness)
+        
+        # Use monochrome as mask for maximum brightness
+        target_img.paste(heart_img, (min_x, min_y), mask=mono_img)
+    
+    def format_hearts_message(self, message_data: Dict[str, Any]):
+        """
+        Format a message with animated hearts around it.
+        
+        Args:
+            message_data: Dictionary containing:
+                {
+                    "message": str,
+                    "font_size": str (optional, default "xlarge")
+                }
+            
+        Returns:
+            Drawing function for hearts message display
+        """
+        # Extract data
+        message = message_data.get('message', '')
+        font_size = message_data.get('font_size', 'xlarge')  # Changed from 'large' to 'xxlarge'
+        
+        # Get the appropriate font
+        font = self.fonts.get(font_size, self.fonts['xlarge'])  # Changed from 'large' to 'xxlarge'
+        
+        # Calculate text dimensions for centering
+        bbox = font.getbbox(message)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Center text
+        text_x = max(0, (self.width - text_width) // 2)
+        text_y = max(0, (self.height - text_height) // 2)
+        
+        def draw_hearts_message(draw: ImageDraw.Draw):
+            # Get the underlying image
+            img = draw._image
+            
+            # Clear background (ensure completely black)
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=0)
+            
+            # Calculate heart size - BIGGER for visibility
+            heart_size = 20.0  # Increased from 15.0 to 20.0 for even bigger hearts
+            
+            # Calculate vertical center for hearts to align with text middle
+            heart_cy = text_y + text_height // 2
+            
+            # Draw heart on left side (with more spacing for bigger hearts)
+            left_heart_cx = text_x - 30  # More spacing for bigger hearts (was 25)
+            if left_heart_cx > 15:  # Only draw if there's enough space
+                self._draw_heart(draw, img, left_heart_cx, heart_cy, heart_size, filled=True, brightness=255)
+            
+            # Draw heart on right side (with more spacing for bigger hearts)
+            right_heart_cx = text_x + text_width + 30  # More spacing for bigger hearts (was 25)
+            if right_heart_cx < self.width - 20:  # Only draw if there's enough space (was 15)
+                self._draw_heart(draw, img, right_heart_cx, heart_cy, heart_size, filled=True, brightness=255)
+            
+            # Draw centered text
+            self._draw_text_mono(draw, img, (text_x, text_y), message, font=font, fill=255)
+        
+        return draw_hearts_message
     
     def format_track_info(self, track_data: Dict[str, Any]) -> tuple:
         """
@@ -794,13 +1007,28 @@ class DisplayFormatter:
             album = track_info_obj.album
             # length = track_info_obj.duration / 1000 if track_info_obj.duration else 0
         else:
-            title = track_data.get('title', 'No Track')
-            artist = track_data.get('artist', 'Unknown')
-            album = track_data.get('album', 'Unknown')
+            title = track_data.get('title', 'Geen Info')
+            artist = track_data.get('artist', '')
+            album = track_data.get('album', '')
+        
+        # Validate and clean artist and album values
+        def is_valid(value):
+            return value and value != '' and value != 'Unknown' and value.strip() != ''
+        
+        # Apply validation to title - replace Unknown with "Geen Info"
+        if not is_valid(title):
+            title = 'Geen Info'
+        
+        # Apply validation - set to empty string if invalid
+        if not is_valid(artist):
+            artist = ''
+        if not is_valid(album):
+            album = ''
             
         playing = track_data.get('playing', False)
         volume = track_data.get('volume', 50)
-        source = track_data.get('source', 'Unknown')  # Get source information
+        source = track_data.get('source', '')  # Get source information
+        playlist = track_data.get('playlist', '')  # Get playlist information
         scroll_offsets = track_data.get('scroll_offsets', {})
         
         # Calculate dimensions
@@ -850,25 +1078,35 @@ class DisplayFormatter:
         # Check if in pairing mode to adjust formatting
         pairing_mode = track_data.get('pairing_mode', False)
         
-        # Helper to check if value is valid (not Unknown and not empty)
+        # Helper to check if value is valid (not Unknown, not empty, and not blank)
         def is_valid(value):
-            return value and value != 'Unknown' and value.strip() != ''
+            return value and value != '' and value != 'Unknown' and value.strip() != ''
         
-        if is_valid(artist) and is_valid(album):
-            # Both artist and album are valid - show with separator
+        # Check if playlist name appears in artist or album - if so, exclude that field
+        # This prevents redundancy when MPD includes playlist name in metadata
+        playlist_lower = playlist.lower() if playlist else ''
+        artist_contains_playlist = playlist and playlist_lower in artist.lower() if is_valid(artist) else False
+        album_contains_playlist = playlist and playlist_lower in album.lower() if is_valid(album) else False
+        
+        # Determine which fields to show based on validity and playlist overlap
+        show_artist = is_valid(artist) and not artist_contains_playlist
+        show_album = is_valid(album) and not album_contains_playlist
+        
+        if show_artist and show_album:
+            # Both artist and album are valid and don't contain playlist - show with separator
             # Remove colon if in pairing mode or use space only
             if pairing_mode:
                 artist_album_text = f"{artist} {album}"
             else:
                 artist_album_text = f"{artist} : {album}"
-        elif is_valid(album):
-            # Only album is valid
+        elif show_album:
+            # Only album is valid (or artist contains playlist)
             artist_album_text = album
-        elif is_valid(artist):
-            # Only artist is valid
+        elif show_artist:
+            # Only artist is valid (or album contains playlist)
             artist_album_text = artist
         else:
-            # Neither is valid - fallback to artist (which might be 'Unknown')
+            # Neither is valid or both contain playlist - fallback to artist (which might be 'Unknown')
             artist_album_text = artist
         
         artist_album_offset = scroll_offsets.get('artist_album', 0)
@@ -925,15 +1163,20 @@ class DisplayFormatter:
         icon_width = icon_bbox[2] - icon_bbox[0]
         icon_height = icon_bbox[3] - icon_bbox[1]
         
-        # Calculate source text width
+        # Concatenate playlist with source if playlist exists
         source_font = self.fonts['medium']
-        source_bbox = source_font.getbbox(source.upper())
+        if playlist:
+            source_display_text = f"{playlist} - {source.upper()}"
+        else:
+            source_display_text = source.upper()
+        
+        source_bbox = source_font.getbbox(source_display_text)
         source_width = source_bbox[2] - source_bbox[0]
         source_height = source_bbox[3] - source_bbox[1]
         source_y = self.height - 16
         
         # Position both source and icon aligned to the right with 10px margin
-        # Icon is on the far right, source is to its left with 8px spacing
+        # Icon is on the far right, source (with playlist) is to its left with 8px spacing
         # Both aligned at the bottom
         icon_x = self.width - icon_width - 10
         icon_y = source_y  # Same baseline as source for bottom alignment
@@ -972,8 +1215,8 @@ class DisplayFormatter:
                 # Monochrome text rendering
                 self._draw_text_mono(draw, img, (content_x, 28), artist_album_displayed, font=self.fonts['medium'], fill=255)
             
-            # Draw source aligned to the right (before play icon)
-            self._draw_text_mono(draw, img, (source_x, source_y), source.upper(), font=self.fonts['medium'], fill=180)
+            # Draw source (with playlist if available) aligned to the right (before play icon)
+            self._draw_text_mono(draw, img, (source_x, source_y), source_display_text, font=self.fonts['medium'], fill=180)
             
             # Draw play icon aligned to the far right (one size larger than source)
             self._draw_text_mono(draw, img, (icon_x, icon_y), play_icon, font=self.fonts['large'], fill=255)

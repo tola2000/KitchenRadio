@@ -53,10 +53,11 @@ class LibrespotMonitor:
         logger.debug(f"Added callback for {event}")
 
     def _on_client_changed(self, **kwargs):
+        """Handle WebSocket events from Spotify client"""
         try:
             self._wake_event.set()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Error setting wake event: {e}")
 
     def _trigger_callbacks(self, event: str, **kwargs):
         """Trigger callbacks for event."""
@@ -120,6 +121,9 @@ class LibrespotMonitor:
             status = PlaybackStatus.PAUSED
         elif status_data.get('playing') or status_data.get('is_playing'):
             status = PlaybackStatus.PLAYING
+        elif not status_data.get('stopped') and not status_data.get('paused') and status_data.get('track'):
+            # If stopped=False, paused=False, and we have a track, then we're playing
+            status = PlaybackStatus.PLAYING
         else:
             # Fallback logic
             state_str = str(status_data.get('state', '')).lower()
@@ -129,7 +133,7 @@ class LibrespotMonitor:
                 status = PlaybackStatus.PAUSED
             elif state_str == 'stopped':
                 status = PlaybackStatus.STOPPED
-            # If we have a track but not playing, assume paused if not explicitly stopped
+            # If we have a track but status unclear, assume paused
             elif status_data.get('track'):
                 status = PlaybackStatus.PAUSED
             else:
@@ -150,20 +154,30 @@ class LibrespotMonitor:
         try:
             status = self.client.get_status()
             if not status or not isinstance(status, dict):
+                logger.debug("[Spotify] No status data received")
                 return
-
+            
             # Check for playback state change
             new_state = self._parse_playback_status(status)
+            logger.debug(f"[Spotify] Status check - Current: {self.current_status.status.value}, New: {new_state.status.value}, Vol: {self.current_status.volume}→{new_state.volume}")
             
             # Compare states (status and volume)
-            if self.current_status != new_state:
+            status_changed = self.current_status.status != new_state.status
+            volume_changed = self.current_status.volume != new_state.volume
+            
+            if status_changed or volume_changed:
+                # Parse track info for logging
+                new_track = self._parse_track_info(status)
+                
                 # If status changed (enum)
-                if self.current_status.status != new_state.status:
-                    logger.info(f"Playback status changed: {self.current_status.status} → {new_state.status}")
+                if status_changed:
+                    track_display = f"{new_track.artist} - {new_track.title}" if new_track and new_track.title != 'Unknown' else "No track"
+                    album_display = f" [{new_track.album}]" if new_track and new_track.album else ""
+                    logger.info(f"🎵 [Spotify] Playback status changed: {self.current_status.status.value} → {new_state.status.value} | Track: {track_display}{album_display}")
                 
                 # If volume changed
-                if self.current_status.volume != new_state.volume:
-                    logger.debug(f"Volume changed: {self.current_status.volume} → {new_state.volume}")
+                if volume_changed:
+                    logger.info(f"🔊 [Spotify] Volume changed: {self.current_status.volume} → {new_state.volume}")
 
                 self.current_status = new_state
                 self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
@@ -172,7 +186,10 @@ class LibrespotMonitor:
             new_track = self._parse_track_info(status)
             
             if self.current_track != new_track:
-                logger.info(f"Track changed: {self.current_track.title} → {new_track.title}")
+                # Format old and new track with full details
+                old_display = f"{self.current_track.artist} - {self.current_track.title} [{self.current_track.album}]" if self.current_track and self.current_track.title != 'Unknown' else 'None'
+                new_display = f"{new_track.artist} - {new_track.title} [{new_track.album}]" if new_track and new_track.title != 'Unknown' else 'None'
+                logger.info(f"🎵 [Spotify] Track changed: {old_display} → {new_display}")
                 self.current_track = new_track
                 self._trigger_callbacks('track_changed', track_info=self.get_track_info())
 
@@ -184,14 +201,8 @@ class LibrespotMonitor:
         logger.info("Starting go-librespot monitoring loop")
         
         while not self._stop_event.is_set():
-            if self.client.is_connected():
-                self._check_for_changes()
-            else:
-                # Don't try to reconnect if we're shutting down
-                if not self._stop_event.is_set():
-                    logger.warning("go-librespot connection lost")
-                    # Try to reconnect
-                    self.client.connect()
+            # Always check for changes - the client will handle reconnection internally
+            self._check_for_changes()
                 
             try:
                 # Wait either for wake_event (set by callback) or timeout
@@ -199,6 +210,7 @@ class LibrespotMonitor:
                 # Clear wake flag so next wait will block again until next callback
                 self._wake_event.clear()
             except Exception as e:
+                logger.error(f"[Spotify] Exception in monitor loop wait: {e}")
                 # Fallback to small sleep if wait fails for any reason
                 time.sleep(1.0)
         
@@ -212,6 +224,10 @@ class LibrespotMonitor:
         
         logger.info("Starting go-librespot monitoring")
         
+        # Reset reconnection state
+        self._reconnect_attempts = 0
+        self._last_reconnect_time = 0
+        
         # Ensure connection
         if not self.client.is_connected():
             self.client.connect()
@@ -220,6 +236,9 @@ class LibrespotMonitor:
         status = self.client.get_status()
         self.current_status = self._parse_playback_status(status)
         self.current_track = self._parse_track_info(status)
+        
+        logger.info(f"[Spotify] Initial state - Status: {self.current_status.status.value}, Track: {self.current_track.title if self.current_track else 'None'}")
+        logger.debug(f"[Spotify] Raw status data: {status}")
         
         # Start monitoring thread
         self._stop_event.clear()
@@ -263,18 +282,55 @@ class LibrespotMonitor:
         """
         return self.current_source_info
 
-    def get_playback_state(self) -> PlaybackState:
+    def get_playback_state(self, force_refresh: bool = False) -> PlaybackState:
         """
         Get current playback state.
+        
+        Args:
+            force_refresh: If True, fetch fresh state from Spotify instead of using cached value
         
         Returns:
             Playback state object
         """
+        # If force_refresh requested, get fresh state from Spotify
+        if force_refresh:
+            try:
+                status = self.client.get_status()
+                if status:
+                    return self._parse_playback_status(status)
+            except Exception as e:
+                logger.debug(f"Error fetching fresh playback state: {e}")
+        
+        # Fall back to cached current_status
         if isinstance(self.current_status, PlaybackState):
             return self.current_status
             
         # Fallback if somehow it's not initialized or wrong type
         return PlaybackState(status=PlaybackStatus.UNKNOWN, volume=0)
+    
+    def reset_state(self):
+        """
+        Reset playback state and track info to default values.
+        Called when device disconnects.
+        """
+        logger.info("🔄 Resetting Spotify state (device disconnected)")
+        
+        # Store previous state for comparison
+        old_status = self.current_status
+        old_track = self.current_track
+        
+        # Reset to stopped state with no track
+        self.current_status = PlaybackState(status=PlaybackStatus.STOPPED, volume=None)
+        self.current_track = None
+        
+        # Emit events if state changed
+        if old_status.status != PlaybackStatus.STOPPED:
+            logger.info(f"🎵 [Spotify] Playback status changed: {old_status.status.value} → stopped | Track: No track")
+            self._trigger_callbacks('playback_state_changed', playback_state=self.current_status)
+        
+        if old_track is not None:
+            logger.info(f"🎵 [Spotify] Track changed: {old_track.artist} - {old_track.title} → None")
+            self._trigger_callbacks('track_changed', track_info=None)
     
     def run_forever(self):
         """Run monitoring loop forever."""

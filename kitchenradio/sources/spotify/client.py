@@ -34,6 +34,7 @@ class KitchenRadioLibrespotClient:
         self.port = port
         self.timeout = timeout
         self._connected = False
+        self._was_connected = False  # Track previous connection state for disconnection detection
         self.websocket = None
         self.callbacks = {}
 
@@ -42,6 +43,21 @@ class KitchenRadioLibrespotClient:
         self.wsurl = f"ws://{host}:{port}/events"
         
         logger.info(f"KitchenRadio LibreSpot client initialized for {self.base_url}")
+    
+    def _handle_disconnection(self):
+        """
+        Handle disconnection from go-librespot server.
+        Detects when connection is lost and triggers disconnection event.
+        """
+        if self._connected:
+            # We just transitioned from connected to disconnected
+            self._connected = False
+            if self._was_connected:
+                logger.warning(f"❌ Lost connection to go-librespot server - device likely disconnected")
+                self._trigger_callbacks('device_disconnected')
+        else:
+            # Already disconnected, just update state
+            self._connected = False
     
     def _send_request(self, endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
         """
@@ -70,6 +86,14 @@ class KitchenRadioLibrespotClient:
             
             response.raise_for_status()
             
+            # If we got a successful response, mark as connected
+            if not self._connected:
+                self._connected = True
+                self._was_connected = True
+                logger.info(f"✅ Connection (re)established to go-librespot")
+                # Trigger connection restored event
+                self._trigger_callbacks('connection_restored')
+            
             # Check if response has content
             if not response.text or response.text.strip() == '':
                 # Empty response can be valid (e.g., 204 No Content or when no device connected)
@@ -81,10 +105,11 @@ class KitchenRadioLibrespotClient:
             
         except requests.exceptions.Timeout:
             logger.error(f"Request timeout for {url}")
+            self._handle_disconnection()
             return None
         except requests.exceptions.ConnectionError:
             logger.error(f"Connection error for {url}")
-            self._connected = False
+            self._handle_disconnection()
             return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error for {url}: {e}")
@@ -129,6 +154,7 @@ class KitchenRadioLibrespotClient:
                     # Server responded! Even 204 No Content or empty response is fine
                     if response.status_code in [200, 204]:
                         self._connected = True
+                        self._was_connected = True
                         logger.info(f"✅ go-librespot server is responding (status: {response.status_code})")
                         
                         # Start WebSocket connection
@@ -161,25 +187,38 @@ class KitchenRadioLibrespotClient:
             return False
         
     async def connect_ws(self):
-        try:
-            logger.info(f"Connecting to go-librespot WebSocket at {self.wsurl}")
+        """Connect to WebSocket and automatically reconnect if connection drops"""
+        reconnect_delay = 2.0
+        max_reconnect_delay = 30.0
+        
+        while True:  # Auto-reconnect loop
+            try:
+                logger.info(f"Connecting to go-librespot WebSocket at {self.wsurl}")
 
-            async with websockets.connect(self.wsurl) as websocket:
-                self.websocket = websocket
-                logger.info("Connected successfully  {self.wsurl}!")
-                
-                # Listen for messages
-                async for message in websocket:
-                    await self.handle_message(message)
-                
-        except websockets.exceptions.ConnectionClosed:
-            logger.warning("WebSocket connection closed")
-        except websockets.exceptions.InvalidURI:
-            logger.error(f"Invalid WebSocket URI: {self.uri}")
-        except ConnectionRefusedError:
-            logger.error(f"Connection refused to {self.uri}. Is go-librespot running?")
-        except Exception as e:
-            logger.error(f"WebSocket error: {e}")
+                async with websockets.connect(self.wsurl) as websocket:
+                    self.websocket = websocket
+                    logger.info("Connected successfully  {self.wsurl}!")
+                    reconnect_delay = 2.0  # Reset delay on successful connection
+                    
+                    # Listen for messages
+                    async for message in websocket:
+                        await self.handle_message(message)
+                    
+            except websockets.exceptions.ConnectionClosed:
+                logger.info("WebSocket connection closed - reconnecting...")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 1.5, max_reconnect_delay)  # Exponential backoff
+            except websockets.exceptions.InvalidURI:
+                logger.error(f"Invalid WebSocket URI: {self.wsurl}")
+                break  # Don't retry on invalid URI
+            except ConnectionRefusedError:
+                logger.warning(f"Connection refused to {self.wsurl}. Server may be restarting, retrying in {reconnect_delay}s...")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 1.5, max_reconnect_delay)
+            except Exception as e:
+                logger.warning(f"WebSocket error: {e}, reconnecting in {reconnect_delay}s...")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 1.5, max_reconnect_delay)
 
     def add_callback(self, event: str, callback: Callable):
         """
@@ -202,7 +241,7 @@ class KitchenRadioLibrespotClient:
                 try:
                     callback(event=event, **kwargs)
                 except Exception as e:
-                    logger.error(f"Error in 'any' callback for {event}: {e}")
+                    logger.error(f"Error in 'any' callback for {event}: {e}", exc_info=True)
 
         # Trigger specific event callbacks
         if event in self.callbacks:
@@ -210,13 +249,14 @@ class KitchenRadioLibrespotClient:
                 try:
                     callback(**kwargs)
                 except Exception as e:
-                    logger.error(f"Error in callback for {event}: {e}")
+                    logger.error(f"Error in callback for {event}: {e}", exc_info=True)
 
     async def handle_message(self, message):
         """Handle incoming WebSocket messages"""
         try:
             data = json.loads(message)
             message_type = data.get('type', 'unknown')
+            logger.debug(f"[Spotify WebSocket] {message_type}")
             
             if message_type == 'metadata':
                 self._trigger_callbacks('metadata', data=data)

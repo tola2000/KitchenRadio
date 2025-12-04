@@ -5,12 +5,12 @@ This module defines the data models used to represent AVRCP device state,
 playback information, and track metadata.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Any
 
-from kitchenradio.sources.source_model import PlaybackStatus, TrackInfo, SourceInfo, PlaybackState
+from kitchenradio.sources.source_model import PlaybackStatus, TrackInfo, SourceInfo, PlaybackState, SourceType
 
 
 # ============================================================================
@@ -42,23 +42,27 @@ class BluetoothMonitor:
     - AVRCP state changes
     """
     
-    def __init__(self, client: BlueZClient, display_controller=None):
+    def __init__(self, client: BlueZClient, controller=None, display_controller=None):
         """
         Initialize monitor with BlueZ client.
         
         Args:
             client: BlueZ D-Bus client instance
+            controller: BluetoothController instance (optional, for pairing_mode status)
             display_controller: DisplayController instance (optional)
         """
         self.client = client
+        self.controller = controller  # Reference to controller for pairing_mode state
         self.display_controller = display_controller
         self.callbacks = {}
         self.current_track = None
         self.current_status = None
+        self.current_volume = None  # Track volume to avoid unnecessary DBus queries
 
         # Set up callbacks on the client
         self.client.on_track_changed = self._on_track_changed
         self.client.on_status_changed = self._on_status_changed
+        self.client.on_volume_changed = self._on_volume_changed
 
         self.is_monitoring = False
         self._monitor_thread = None
@@ -66,7 +70,8 @@ class BluetoothMonitor:
 
         # Track connected devices
         self.connected_devices = set()  # MAC addresses
-        self.current_source_info = SourceInfo()
+        # Initialize with Bluetooth source type (like MPD does with "MPD")
+        self.current_source_info = SourceInfo(source=SourceType.BLUETOOTH, device_name="Bluetooth")
         
     def add_callback(self, event: str, callback: Callable):
         """
@@ -107,7 +112,8 @@ class BluetoothMonitor:
         Handle device connection event.
         
         Called by BlueZ client when a Bluetooth device connects. 
-        Attempts to establish AVRCP connection to get track information.
+        BlueZ will automatically detect MediaPlayer interface when it appears
+        and send property change events for track/status.
         
         Args:
             device_path: D-Bus path to the device
@@ -118,6 +124,7 @@ class BluetoothMonitor:
             # Track the connected device
             self.connected_devices.add(device_mac)
             self.current_source_info = SourceInfo(
+                source=SourceType.BLUETOOTH,
                 device_name=device_name,
                 device_mac=device_mac,
                 path=device_path
@@ -125,13 +132,19 @@ class BluetoothMonitor:
             
             logger.info(f"🟢 Device connected: {device_name} ({device_mac})")
             
-            # Try to establish AVRCP connection for track info
-            logger.info(f"📡 Attempting to establish AVRCP connection...")
-            self._setup_avrcp_client(device_path, device_name, device_mac)
+            # Try to get initial volume from DBus
+            initial_volume = self.client.get_volume()
+            if initial_volume is not None:
+                self.current_volume = initial_volume
+                logger.debug(f"Initial volume retrieved: {initial_volume}")
             
-            # Trigger callback
-            self._trigger_callbacks('device_connected', name=device_name, mac=device_mac)
-            self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
+            # Don't set active player here - let it auto-detect when MediaPlayer1 events arrive
+            # (The player path is different from device path: device/playerN)
+            logger.info(f"📡 Waiting for AVRCP MediaPlayer to appear...")
+            
+            # Trigger callbacks to update display
+            # Note: Track/status info will come via property change events when AVRCP becomes available
+            self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
             
         except Exception as e:
             logger.error(f"Error handling device connection: {e}")
@@ -150,11 +163,13 @@ class BluetoothMonitor:
             if device_mac in self.connected_devices:
                 self.connected_devices.remove(device_mac)
             
-            if self.current_source_info.path == device_path:
-                self.current_source_info = SourceInfo()
-                self._trigger_callbacks('source_info_changed', source_info=self.current_source_info)
-                
+            # Always update source_info when device disconnects (regardless of path matching)
+            # Keep source as BLUETOOTH but clear device info (stay on BT input, show "connect device" screen)
+            self.current_source_info = SourceInfo(source=SourceType.BLUETOOTH, device_name="Bluetooth")
             logger.info(f"🔴 Device disconnected: {device_name} ({device_mac})")
+            
+            # Trigger source_info_changed to update display
+            self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
             
             # Clean up AVRCP client
             if self.client.active_player_path == device_path:
@@ -206,68 +221,7 @@ class BluetoothMonitor:
         except Exception as e:
             logger.error(f"Error handling device property change: {e}")
     
-    def _setup_avrcp_client(self, device_path: str, name: str, address: str):
-        """
-        Setup AVRCP client for connected device.
-        
-        Waits for MediaPlayer1 interface to become available, then creates
-        AVRCP client to monitor track information and playback status.
-        Uses retry logic to handle devices that take time to expose AVRCP.
-        
-        Args:
-            device_path: D-Bus path to the device
-            name: Device name
-            address: Device MAC address
-        """
-        try:
-            # Set active player in BlueZ client
-            self.client.set_active_player(device_path)
-            
-            # Try to establish AVRCP connection with retries
-            logger.info("⏳ Attempting to establish AVRCP MediaPlayer connection...")
-            max_retries = 10  # Try for ~10 seconds
-            retry_delay = 1.0  # 1 second between retries
-            
-            for attempt in range(max_retries):
-                # Check if we can get status (implies interface is available)
-                status_str = self.client.get_player_status()
-                if status_str != "unknown":
-                    logger.info(f"✅ AVRCP connection established on attempt {attempt + 1}")
-                    
-                    # Get initial track
-                    track_dict = self.client.get_track_info()
-                    if track_dict:
-                        self.current_track = TrackInfo(
-                            title=track_dict.get('title', 'Unknown'),
-                            artist=track_dict.get('artist', 'Unknown'),
-                            album=track_dict.get('album', ''),
-                            duration=track_dict.get('duration', 0)
-                        )
-                    
-                    # Get initial status
-                    try:
-                        self.current_status = PlaybackStatus(status_str)
-                    except ValueError:
-                        self.current_status = PlaybackStatus.UNKNOWN
-                    
-                    # Log initial track info if available
-                    if self.current_track and self.current_track.title != 'Unknown':
-                        logger.info(f"🎵 Current track: {self.current_track.title} - {self.current_track.artist}")
-                    
-                    return  # Success!
-                
-                # Not available yet - wait and retry
-                if attempt < max_retries - 1:  # Don't sleep on last attempt
-                    logger.info(f"⏳ AVRCP not available yet (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
-                    time.sleep(retry_delay)
-                else:
-                    logger.info(f"⏳ AVRCP still not available after attempt {attempt + 1}/{max_retries}")
-            
-            # After all retries, AVRCP still not available
-            logger.info("⏳ AVRCP not available after retries - will be activated when playback starts")
-                
-        except Exception as e:
-            logger.error(f"Error setting up AVRCP client: {e}")
+
     
     def _on_track_changed(self, path: str, track: TrackInfo):
         """Handle track change from AVRCP"""
@@ -275,14 +229,17 @@ class BluetoothMonitor:
         if hasattr(track, 'title'):
             track_info_obj = track
         else:
-            # Extract fields from dbus.Dictionary
-            title = str(track.get('Title', 'Unknown'))
-            artist = str(track.get('Artist', 'Unknown'))
-            album = str(track.get('Album', ''))
-            duration = int(track.get('Duration', 0))
+            # Extract fields from dict (client passes lowercase keys)
+            title = str(track.get('title', 'Unknown'))
+            artist = str(track.get('artist', 'Unknown'))
+            album = str(track.get('album', ''))
+            duration = int(track.get('duration', 0))
             track_info_obj = TrackInfo(title=title, artist=artist, album=album, duration=duration)
         self.current_track = track_info_obj
-        logger.info(f"🎵 Track changed: {track_info_obj.title} - {track_info_obj.artist}")
+        
+        # Log with full track details including album
+        album_display = f" [{track_info_obj.album}]" if track_info_obj.album else ""
+        logger.info(f"🎵 [Bluetooth] Track changed: {track_info_obj.artist} - {track_info_obj.title}{album_display}")
 
         self._trigger_callbacks('track_changed', track_info=track_info_obj)
 
@@ -307,10 +264,18 @@ class BluetoothMonitor:
         old_status = self.current_status
         self.current_status = status_enum
 
-        logger.info(f"▶️  Status changed: {old_status.value if old_status else 'None'} → {status_enum.value}")
+        # Log with full track details
+        if self.current_track:
+            track_display = f"{self.current_track.artist} - {self.current_track.title}" if self.current_track.title != 'Unknown' else "No track"
+            album_display = f" [{self.current_track.album}]" if self.current_track.album else ""
+            logger.info(f"🎵 [Bluetooth] Playback status changed: {old_status.value if old_status else 'None'} → {status_enum.value} | Track: {track_display}{album_display}")
+        else:
+            logger.info(f"🎵 [Bluetooth] Playback status changed: {old_status.value if old_status else 'None'} → {status_enum.value}")
 
-        # Always trigger playback_state_changed
-        self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
+        # Create PlaybackState with cached volume (preserve volume across status changes)
+        playback_state = PlaybackState(status=status_enum, volume=self.current_volume)
+        # Trigger playback_state_changed with current volume maintained
+        self._trigger_callbacks('playback_state_changed', playback_state=playback_state)
 
         # Update the display when status changes
         if self.display_controller:
@@ -318,6 +283,21 @@ class BluetoothMonitor:
                 self.display_controller.render_bluetooth_status(status_enum.value)
             except Exception as e:
                 logger.error(f"Error updating Bluetooth display on status change: {e}")
+
+    def _on_volume_changed(self, interface: str, changed: dict, invalidated: list, path: str):
+        """Handle volume/transport changes from AVRCP"""
+        # MediaTransport1 sends State and Volume changes
+        # We only care about actual Volume changes
+        if 'Volume' in changed:
+            volume = int(changed['Volume'])
+            self.current_volume = volume  # Cache the volume
+            logger.info(f"🔊 [Bluetooth] Volume changed to: {volume}")
+            # Create PlaybackState with the volume from the event (don't query DBus again)
+            status = self.current_status if self.current_status else PlaybackStatus.UNKNOWN
+            playback_state = PlaybackState(status=status, volume=volume)
+            # Trigger playback_state_changed with the updated volume
+            self._trigger_callbacks('playback_state_changed', playback_state=playback_state)
+        # Ignore 'State' changes (pending/active) - they don't affect our playback state
     
     def start_monitoring(self):
         """Start monitoring Bluetooth devices and AVRCP"""
@@ -390,21 +370,42 @@ class BluetoothMonitor:
 
     def get_source_info(self) -> SourceInfo:
         """
-        Get current source information.
+        Get current source information including pairing mode status.
         
         Returns:
-            Source info object
+            Source info object with current pairing_mode state (copy to avoid reference issues)
         """
-        return self.current_source_info
+        # Update pairing_mode from controller if available
+        if self.controller and hasattr(self.controller, 'pairing_mode'):
+            self.current_source_info.pairing_mode = self.controller.pairing_mode
+        
+        # Return a copy to prevent external code from holding references to our internal state
+        return replace(self.current_source_info)
+    
+    def update_pairing_mode(self, pairing_mode: bool):
+        """
+        Update pairing mode status and trigger source_info_changed event.
+        
+        Args:
+            pairing_mode: True when entering pairing mode, False when exiting
+        """
+        old_pairing = self.current_source_info.pairing_mode
+        self.current_source_info.pairing_mode = pairing_mode
+        
+        if old_pairing != pairing_mode:
+            logger.info(f"📡 Pairing mode changed: {old_pairing} → {pairing_mode}")
+            # Pass a copy to prevent reference issues with cached values
+            self._trigger_callbacks('source_info_changed', source_info=replace(self.current_source_info))
 
     def get_playback_state(self) -> PlaybackState:
         """
         Get current playback state.
         
         Returns:
-            Playback state object
+            Playback state object with cached volume
         """
-        volume = self.client.get_volume()
+        # Use cached volume to avoid DBus query, fall back to query if not cached
+        volume = self.current_volume if self.current_volume is not None else self.client.get_volume()
         status = self.current_status if self.current_status else PlaybackStatus.UNKNOWN
         return PlaybackState(status=status, volume=volume)
     

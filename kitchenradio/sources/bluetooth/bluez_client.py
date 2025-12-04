@@ -169,13 +169,19 @@ class BlueZClient:
 
     def _on_properties_changed_internal(self, interface, changed, invalidated, path):
         """Internal handler for property changes - forwards to callback"""
+        # Skip MediaTransport1 events - they're handled by _on_volume_changed_internal
+        if interface == 'org.bluez.MediaTransport1':
+            return
         if self.on_properties_changed:
             self.on_properties_changed(interface, dict(changed), list(invalidated), path)
 
     def _on_volume_changed_internal(self, interface, changed, invalidated, path):
         """Internal handler for property changes - forwards to callback"""
+        logger.info(f"🔊 [DBus Event] Volume changed on {interface} at {path}: {dict(changed)}")
         if self.on_volume_changed:
             self.on_volume_changed(interface, dict(changed), list(invalidated), path)
+        else:
+            logger.warning(f"🔊 Volume changed but no callback registered!")
 
 
     def register_agent(self) -> bool:
@@ -438,8 +444,11 @@ class BlueZClient:
             invalidated: List of invalidated properties
             path: Object path
         """
+        logger.info(f"🎵 [DBus Event] MediaPlayer1 properties changed at {path}: {dict(changed).keys()}")
+        
         # If we have an active player, only process events for it
         if self.active_player_path and path != self.active_player_path:
+            logger.debug(f"🎵 Ignoring event from non-active player: {path} (active: {self.active_player_path})")
             return
             
         # If we don't have an active player, auto-select this one
@@ -449,6 +458,9 @@ class BlueZClient:
 
         if 'Track' in changed:
             track_data = changed['Track']
+            logger.info(f"🎵 [Raw DBus Track Data] {dict(track_data)}")
+            logger.info(f"🎵 [Raw DBus Track Keys] {list(track_data.keys())}")
+            
             # Convert dbus types to python types
             track = {
                 'title': str(track_data.get('Title', 'Unknown')),
@@ -456,13 +468,19 @@ class BlueZClient:
                 'album': str(track_data.get('Album', '')),
                 'duration': int(track_data.get('Duration', 0))
             }
+            logger.info(f"🎵 Track changed: {track['title']} - {track['artist']}")
             if self.on_track_changed:
-                self.on_track_changed(track)
+                self.on_track_changed(path, track)
+            else:
+                logger.warning(f"🎵 Track changed but no callback registered!")
         
         if 'Status' in changed:
             status_str = str(changed['Status'])
+            logger.debug(f"🎵 Status changed to: {status_str}")
             if self.on_status_changed:
-                self.on_status_changed(status_str)
+                self.on_status_changed(path, status_str)
+            else:
+                logger.warning(f"🎵 Status changed but no callback registered!")
 
     def set_active_player(self, player_path: str):
         """
@@ -578,7 +596,9 @@ class BlueZClient:
 
     def get_volume(self) -> Optional[int]:
         """
-        Get current volume from AVRCP MediaPlayer.
+        Get current volume from AVRCP MediaTransport.
+        
+        Volume is on MediaTransport1, not MediaPlayer1.
         
         Returns:
             Volume level (0-127) or None if not available
@@ -587,15 +607,27 @@ class BlueZClient:
             return None
         
         try:
-            player_obj = self.bus.get_object(self.BLUEZ_SERVICE, self.active_player_path)
-            props = dbus.Interface(player_obj, self.PROPERTIES_INTERFACE)
+            # Volume is on MediaTransport1, not MediaPlayer1
+            # Need to find the MediaTransport path for this device
+            objects = self.obj_manager.GetManagedObjects()
             
-            # Check if Volume property exists
-            try:
-                volume = props.Get(self.MEDIA_PLAYER_INTERFACE, 'Volume')
-                return int(volume)
-            except dbus.exceptions.DBusException:
-                return None
+            # Extract device path from player path (e.g., /org/bluez/hci0/dev_XX_XX_XX_XX_XX_XX/player0)
+            device_path = '/'.join(self.active_player_path.split('/')[:-1])
+            
+            # Find MediaTransport1 interface for this device
+            for path, interfaces in objects.items():
+                if path.startswith(device_path) and 'org.bluez.MediaTransport1' in interfaces:
+                    # Found the transport, get volume
+                    transport_obj = self.bus.get_object(self.BLUEZ_SERVICE, path)
+                    props = dbus.Interface(transport_obj, self.PROPERTIES_INTERFACE)
+                    try:
+                        volume = props.Get('org.bluez.MediaTransport1', 'Volume')
+                        return int(volume)
+                    except dbus.exceptions.DBusException:
+                        return None
+            
+            # No MediaTransport1 found
+            return None
             
         except Exception as e:
             logger.error(f"Error getting AVRCP volume: {e}")

@@ -215,6 +215,9 @@ class ButtonController:
             ButtonType.MENU_UP: self._menu_up,
             ButtonType.MENU_DOWN: self._menu_down,
             
+            # Display button
+            ButtonType.DISPLAY: self._display,
+            
             # Power button
             ButtonType.POWER: self._power,
         }
@@ -612,12 +615,8 @@ class ButtonController:
         """Menu up navigation"""
         logger.info("Menu up navigation")
         try:
-            powered_on = self.source_controller.powered_on
-            if powered_on:
-                current_source = self.source_controller.get_current_source()
-                menu_options = self.source_controller.get_menu_options() if current_source else None
-            else:
-                menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
+            # Always get menu options from kitchen_radio (it will delegate to source_controller when appropriate)
+            menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
             if not menu_options or not menu_options.get('has_menu', False):
                 logger.info("Menu not available.")
                 if self.display_controller:
@@ -647,12 +646,8 @@ class ButtonController:
         """Menu down navigation"""
         logger.info("Menu down navigation")
         try:
-            powered_on = self.source_controller.powered_on
-            if powered_on:
-                current_source = self.source_controller.get_current_source()
-                menu_options = self.source_controller.get_menu_options() if current_source else None
-            else:
-                menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
+            # Always get menu options from kitchen_radio (it will delegate to source_controller when appropriate)
+            menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
             if not menu_options or not menu_options.get('has_menu', False):
                 logger.info("Menu not available.")
                 if self.display_controller:
@@ -726,13 +721,15 @@ class ButtonController:
     def _on_menu_item_selected(self, index: int) -> None:
         """Handle selection of a menu item by index"""
         try:
-            powered_on = self.source_controller.powered_on
-            if powered_on:
-                menu_options = self.source_controller.get_menu_options()
-                execute_action = self.source_controller.execute_menu_action
+            # Always get menu options from kitchen_radio (it will delegate to source_controller when appropriate)
+            menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
+            
+            # Determine which execute_menu_action to use based on menu type
+            if menu_options and menu_options.get('menu_type') == 'playlists':
+                execute_action = self.source_controller.execute_menu_action if self.source_controller else None
             else:
-                menu_options = self.kitchen_radio.get_menu_options() if self.kitchen_radio else None
                 execute_action = self.kitchen_radio.execute_menu_action if self.kitchen_radio else None
+            
             if not menu_options or not menu_options.get('has_menu', False):
                 logger.warning("No menu available")
                 return False
@@ -762,6 +759,16 @@ class ButtonController:
             logger.error(f"Error handling menu selection at index {index}: {e}")
             if self.display_controller:
                 self.display_controller.show_status_message(f"Error: {e}", "❌", "error")
+            return False
+    
+    def _display(self) -> bool:
+        """Display button - show hearts message (especially useful when powered off)"""
+        logger.info("Display button pressed - showing hearts message")
+        if self.display_controller:
+            self.display_controller.show_hearts_message()
+            return True
+        else:
+            logger.warning("Display controller not available")
             return False
     
     def _power(self) -> bool:
@@ -843,10 +850,10 @@ class ButtonController:
             
             logger.info(f"Getting menu items - available sources: {available_sources}, current: {current_source}")
             
-            # Get menu options from kitchen radio for current source
-            if current_source:
+            # Get menu options from kitchen radio (it will delegate to source_controller when appropriate)
+            if current_source and self.kitchen_radio:
                 try:
-                    menu_options = self.source_controller.get_menu_options()
+                    menu_options = self.kitchen_radio.get_menu_options()
                     logger.info(f"Kitchen radio menu options: {menu_options}")
                     
                     if menu_options.get('has_menu', False):

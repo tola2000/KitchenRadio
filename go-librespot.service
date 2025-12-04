@@ -1,0 +1,24 @@
+[Unit]
+Description=go-librespot Spotify Connect server
+After=network.target sound.target
+
+[Service]
+Type=simple
+User=tola2000
+ExecStart=/usr/local/bin/go-librespot --config-dir /home/tola2000/.config/go-librespot
+
+# Automatic restart on crash
+Restart=always
+RestartSec=3
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=go-librespot
+
+[Install]
+WantedBy=multi-user.target

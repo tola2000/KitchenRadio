@@ -24,6 +24,7 @@ from . import spotify
 from . import bluetooth
 from . import display
 from . import buttons
+from . import outputs
 from . import system
 
 # =============================================================================
@@ -99,6 +100,13 @@ LIBRESPOT_MONITOR_POLL_INTERVAL = spotify.MONITOR_POLL_INTERVAL
 BLUETOOTH_MONITOR_POLL_INTERVAL = bluetooth.MONITOR_POLL_INTERVAL
 BLUETOOTH_AVRCP_RETRY_ATTEMPTS = bluetooth.AVRCP_RETRY_ATTEMPTS
 BLUETOOTH_AVRCP_RETRY_DELAY = bluetooth.AVRCP_RETRY_DELAY
+
+# Output Configuration
+AMPLIFIER_PIN = outputs.AMPLIFIER_PIN
+AMPLIFIER_ACTIVE_HIGH = outputs.AMPLIFIER_ACTIVE_HIGH
+AMPLIFIER_POWER_ON_DELAY = outputs.AMPLIFIER_POWER_ON_DELAY
+AMPLIFIER_POWER_OFF_DELAY = outputs.AMPLIFIER_POWER_OFF_DELAY
+OUTPUT_USE_HARDWARE = outputs.OUTPUT_USE_HARDWARE
 
 # System Configuration
 DEFAULT_SOURCE = system.DEFAULT_SOURCE

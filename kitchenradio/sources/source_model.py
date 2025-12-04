@@ -42,6 +42,7 @@ class TrackInfo:
     album: str = ""
     duration: int = 0  # Duration in milliseconds
     file: str = ""     # File path (used by MPD)
+    playlist: str = ""  # Playlist name (if track is from a playlist)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
@@ -51,7 +52,8 @@ class TrackInfo:
             'album': self.album,
             'duration': self.duration,
             'duration_formatted': self.get_duration_formatted(),
-            'file': self.file
+            'file': self.file,
+            'playlist': self.playlist
         }
     
     def get_duration_formatted(self) -> str:
@@ -80,13 +82,17 @@ class SourceInfo:
     device_name: str = "Unknown"
     device_mac: str = ""
     path: str = ""
+    power: bool = False
+    pairing_mode: bool = False  # True when Bluetooth is in pairing/discoverable mode
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             'source': self.source.value,
             'device_name': self.device_name,
             'device_mac': self.device_mac,
-            'path': self.path
+            'path': self.path,
+            'power': self.power,
+            'pairing_mode': self.pairing_mode
         }
 
 

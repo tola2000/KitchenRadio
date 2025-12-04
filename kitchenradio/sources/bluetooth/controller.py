@@ -39,7 +39,8 @@ class BluetoothController:
             adapter_path: Path to Bluetooth adapter (default: /org/bluez/hci0)
         """
         self.client = BlueZClient(adapter_path)
-        self.monitor = BluetoothMonitor(self.client)
+        # Initialize monitor with controller reference for pairing_mode status
+        self.monitor = BluetoothMonitor(self.client, controller=self)
         self.adapter_path = adapter_path
 
         self.mainloop: Optional[GLib.MainLoop] = None
@@ -199,10 +200,25 @@ class BluetoothController:
             if 'Connected' in changed:
                 if changed['Connected']:
                     if address not in self.connected_devices:
+                        # Disconnect previous device if one is connected
+                        if self.current_device_path and self.current_device_path != path:
+                            old_device_name = self.current_device_name or "Unknown"
+                            logger.info(f"🔄 New device connecting - disconnecting previous device: {old_device_name}")
+                            try:
+                                self.client.disconnect_device(self.current_device_path)
+                            except Exception as e:
+                                logger.warning(f"Failed to disconnect previous device: {e}")
+                        
                         self.connected_devices.add(address)
                         self.current_device_path = path
                         self.current_device_name = name
                         logger.info(f"🟢 DEVICE CONNECTED: {name} ({address})")
+                        
+                        # Update active player path for the new device
+                        # MediaPlayer path is device_path + "/player0"
+                        new_player_path = path + "/player0"
+                        logger.info(f"🎵 Setting active player to: {new_player_path}")
+                        self.client.set_active_player(new_player_path)
                         
                         # Trigger callback
                         if self.on_device_connected:
@@ -322,6 +338,10 @@ class BluetoothController:
             logger.info("👁️  Bluetooth is now DISCOVERABLE")
             logger.info("📱 Pair your device now!")
             
+            # Notify monitor to update source_info and trigger display update
+            if self.monitor:
+                self.monitor.update_pairing_mode(True)
+            
             return True
             
         except Exception as e:
@@ -335,6 +355,10 @@ class BluetoothController:
         
         try:
             self.pairing_mode = False
+            
+            # Notify monitor to update source_info and trigger display update
+            if self.monitor:
+                self.monitor.update_pairing_mode(False)
             
             if self.client:
                 self.client.set_adapter_property('Discoverable', False)
