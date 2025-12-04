@@ -308,6 +308,30 @@ class LibrespotMonitor:
         # Fallback if somehow it's not initialized or wrong type
         return PlaybackState(status=PlaybackStatus.UNKNOWN, volume=0)
     
+    def reset_state(self):
+        """
+        Reset playback state and track info to default values.
+        Called when device disconnects.
+        """
+        logger.info("🔄 Resetting Spotify state (device disconnected)")
+        
+        # Store previous state for comparison
+        old_status = self.current_status
+        old_track = self.current_track
+        
+        # Reset to stopped state with no track
+        self.current_status = PlaybackState(status=PlaybackStatus.STOPPED, volume=None)
+        self.current_track = None
+        
+        # Emit events if state changed
+        if old_status.status != PlaybackStatus.STOPPED:
+            logger.info(f"🎵 [Spotify] Playback status changed: {old_status.status.value} → stopped | Track: No track")
+            self._trigger_callbacks('playback_state_changed', playback_state=self.current_status)
+        
+        if old_track is not None:
+            logger.info(f"🎵 [Spotify] Track changed: {old_track.artist} - {old_track.title} → None")
+            self._trigger_callbacks('track_changed', track_info=None)
+    
     def run_forever(self):
         """Run monitoring loop forever."""
         if not self.is_monitoring:

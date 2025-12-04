@@ -38,6 +38,9 @@ class LibrespotController:
     def _on_device_disconnected(self):
         """Handle device disconnection from client"""
         logger.info("🔴 Spotify device disconnected")
+        # Reset monitor state (playback status and track info)
+        self.monitor.reset_state()
+        # Notify source controller
         if self.on_device_disconnected:
             self.on_device_disconnected()
     
