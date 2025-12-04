@@ -460,6 +460,11 @@ class DisplayController:
             power_state_changed = (self.last_powered_on is not None and powered_on != self.last_powered_on)
             if power_state_changed:
                 logger.info(f"Power state transition detected: {self.last_powered_on} -> {powered_on}, source: {current_source}")
+                
+                # If powered on, reset random message timer to prevent immediate display when powering off
+                if powered_on:
+                    self._schedule_next_random_message()
+                    logger.debug("Power ON - reset random message timer")
 
             # Check for overlay dismissal first
             overlay_dismissed = self._dismiss_overlay()
