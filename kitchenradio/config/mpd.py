@@ -5,7 +5,7 @@ MPD (Music Player Daemon) Configuration
 # =============================================================================
 # MPD Server Connection
 # =============================================================================
-HOST = 'localhost'
+HOST = '192.168.1.4'
 PORT = 6600
 PASSWORD = None
 TIMEOUT = 10  # seconds
