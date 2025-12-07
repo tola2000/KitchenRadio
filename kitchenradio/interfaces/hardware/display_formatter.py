@@ -1018,6 +1018,19 @@ class DisplayFormatter:
             artist = track_data.get('artist', '')
             album = track_data.get('album', '')
 
+        # Validate and clean artist and album values
+        #  def is_valid(value):
+        #    return value and value != '' and value != 'Unknown' and value.strip() != ''
+        
+        # Apply validation to title - replace Unknown with "Geen Info"
+        if not is_valid(title):
+            title = 'Geen Info'
+        
+        # Apply validation - set to empty string if invalid
+        if not is_valid(artist):
+            artist = ''
+        if not is_valid(album):
+            album = ''
 
          # Check if playlist name appears in artist or album - if so, exclude that field
         # This prevents redundancy when MPD includes playlist name in metadata
@@ -1047,19 +1060,7 @@ class DisplayFormatter:
                 artist_album_text =  '-'.join(title.split('-')[1:]).strip()
                 title   = title.split('-')[0].strip()
 
-        # Validate and clean artist and album values
-        #  def is_valid(value):
-        #    return value and value != '' and value != 'Unknown' and value.strip() != ''
-        
-        # Apply validation to title - replace Unknown with "Geen Info"
-        if not is_valid(title):
-            title = 'Geen Info'
-        
-        # Apply validation - set to empty string if invalid
-        if not is_valid(artist):
-            artist = ''
-        if not is_valid(album):
-            album = ''
+
             
 
         
