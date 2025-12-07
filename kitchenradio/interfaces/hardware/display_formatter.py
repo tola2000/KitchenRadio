@@ -998,6 +998,13 @@ class DisplayFormatter:
         Returns:
             Tuple of (drawing_function, truncation_info_dict)
         """
+        
+        playing = track_data.get('playing', False)
+        volume = track_data.get('volume', 50)
+        source = track_data.get('source', '')  # Get source information
+        playlist = track_data.get('playlist', '')  # Get playlist information
+        scroll_offsets = track_data.get('scroll_offsets', {})
+
         # Extract data from JSON structure
         track_info_obj = track_data.get('track_info')
         
@@ -1054,11 +1061,7 @@ class DisplayFormatter:
         if not is_valid(album):
             album = ''
             
-        playing = track_data.get('playing', False)
-        volume = track_data.get('volume', 50)
-        source = track_data.get('source', '')  # Get source information
-        playlist = track_data.get('playlist', '')  # Get playlist information
-        scroll_offsets = track_data.get('scroll_offsets', {})
+
         
         # Calculate dimensions
         bar_width = 8
