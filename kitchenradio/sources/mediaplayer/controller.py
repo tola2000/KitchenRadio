@@ -258,8 +258,9 @@ class PlaybackController:
             List of playlist names (strings)
         """
         playlists_data = self.client.get_all_playlists()
-        # Extract just the playlist names from the metadata
-        return [playlist.get('playlist', '') for playlist in playlists_data if 'playlist' in playlist]
+        # Extract just the playlist names from the metadata and sort alphabetically
+        names = [playlist.get('playlist', '') for playlist in playlists_data if 'playlist' in playlist]
+        return sorted(names)
     
 
     # def get_current_song(self) -> Optional[Dict[str, Any]]:
