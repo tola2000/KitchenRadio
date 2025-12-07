@@ -1063,6 +1063,8 @@ class DisplayFormatter:
             if title.find("-") != -1:
                 artist_album_text =  '-'.join(title.split('-')[1:]).strip()
                 title   = title.split('-')[0].strip()
+            else:
+                artist_album_text = ''
 
 
             
