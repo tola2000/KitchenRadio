@@ -975,6 +975,10 @@ class DisplayFormatter:
         return draw_hearts_message
     
     def format_track_info(self, track_data: Dict[str, Any]) -> tuple:
+
+                # Helper to check if value is valid (not Unknown, not empty, and not blank)
+        def is_valid(value):
+            return value and value != '' and value != 'Unknown' and value.strip() != ''
         """
         Format track information display using JSON structure input.
         
@@ -1111,9 +1115,7 @@ class DisplayFormatter:
         # Check if in pairing mode to adjust formatting
         pairing_mode = track_data.get('pairing_mode', False)
         
-        # Helper to check if value is valid (not Unknown, not empty, and not blank)
-        def is_valid(value):
-            return value and value != '' and value != 'Unknown' and value.strip() != ''
+
         
  
         
