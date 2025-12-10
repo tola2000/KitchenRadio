@@ -194,14 +194,14 @@ class LibrespotMonitor:
                 self._trigger_callbacks('track_changed', track_info=self.get_track_info())
 
 
-            device  = status.get('device_name', {})
-            device_changed = self.current_source_info.device_name != device
+            # device  = status.get('device_name', {})
+            # device_changed = self.current_source_info.device_name != device
 
-            if device_changed:
-                old_device = self.current_source_info.device_name
-                self.current_source_info.device_name = device
-                logger.info(f"📱 [Spotify] Source device changed: {old_device} → {device}")
-                self._trigger_callbacks('source_info_changed', source_info=self.get_source_info())
+            # if device_changed:
+            #     old_device = self.current_source_info.device_name
+            #     self.current_source_info.device_name = device
+            #     logger.info(f"📱 [Spotify] Source device changed: {old_device} → {device}")
+            #     self._trigger_callbacks('source_info_changed', source_info=self.get_source_info())
 
 
         except Exception as e:
