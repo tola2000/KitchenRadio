@@ -335,6 +335,7 @@ class SourceController:
                 # Auto-play when switching sources
                 try:
                     if source == SourceType.MPD and self.mpd_monitor:
+                        self.mpd_monitor.start_monitoring()
                         mpd_state = self.mpd_monitor.get_playback_state()
                         # Check if we should resume playback (if paused or stopped)
                         if mpd_state and mpd_state.status in [PlaybackStatus.PAUSED, PlaybackStatus.STOPPED]:
@@ -370,6 +371,7 @@ class SourceController:
         try:
             if source == SourceType.MPD and self.mpd_connected and self.mpd_controller:
                 self.mpd_controller.stop()
+                self.mpd_monitor.stop_monitoring()
                 self.logger.info("🛑 Stopped MPD playback")
             elif source == SourceType.LIBRESPOT and self.librespot_connected and self.librespot_controller:
                 self.librespot_controller.stop()
