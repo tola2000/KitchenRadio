@@ -418,7 +418,9 @@ class KitchenRadioLibrespotClient:
     def get_status(self) -> Optional[Dict[str, Any]]:
         """Get player status."""
         try:
-            return self._send_request("/status")
+            status = self._send_request("/status")
+            logger.debug(f"[Librespot] Received Status: {status}")
+            return status
         except Exception as e:
             logger.error(f"Error getting status: {e}")
             return None
