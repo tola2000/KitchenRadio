@@ -180,7 +180,6 @@ class LibrespotMonitor:
  
                 self.current_status = new_state
                 logger.info(f"🔊 [Spotify] Playback State changed: {self.current_status}")
-
                 self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
 
             # Check for track change
