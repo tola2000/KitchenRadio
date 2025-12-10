@@ -1090,7 +1090,8 @@ class SourceController:
                 event_name = kwargs.pop('event', 'unknown')
                 self._handle_monitor_event(SourceType.MPD, event_name, **kwargs)
             self.mpd_monitor.add_callback('any', mpd_callback)
-            self.mpd_monitor.start_monitoring()
+            # only monitor when source = MPD to reduce load
+            # self.mpd_monitor.start_monitoring()
             self.logger.info("✅ MPD monitoring started")
             
         # Start Librespot monitoring

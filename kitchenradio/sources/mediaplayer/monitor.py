@@ -385,16 +385,16 @@ class MPDMonitor:
         else:
             print("🎵 No track currently playing")
     
-    def run_forever(self):
-        """Run monitoring loop forever."""
-        # if not self.is_monitoring:
-        #    self.start_monitoring()
+    # def run_forever(self):
+    #     """Run monitoring loop forever."""
+    #     # if not self.is_monitoring:
+    #     #    self.start_monitoring()
         
-        try:
-            logger.info("Starting monitoring loop")
-            while True:
-                time.sleep(1.0)
-        except KeyboardInterrupt:
-            logger.info("Monitoring stopped by user")
-        finally:
-            self.stop_monitoring()
+    #     try:
+    #         logger.info("Starting monitoring loop")
+    #         while True:
+    #             time.sleep(1.0)
+    #     except KeyboardInterrupt:
+    #         logger.info("Monitoring stopped by user")
+    #     finally:
+    #         self.stop_monitoring()
