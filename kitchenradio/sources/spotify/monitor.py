@@ -161,6 +161,10 @@ class LibrespotMonitor:
             new_state = self._parse_playback_status(status)
             logger.debug(f"[Spotify] Status check - Current: {self.current_status.status.value}, New: {new_state.status.value}, Vol: {self.current_status.volume}→{new_state.volume}")
             
+ 
+
+
+
             # Compare states (status and volume)
             status_changed = self.current_status.status != new_state.status
             volume_changed = self.current_status.volume != new_state.volume
@@ -189,6 +193,17 @@ class LibrespotMonitor:
                 logger.info(f"🎵 [Spotify] Track changed: {old_display} → {new_display}")
                 self.current_track = new_track
                 self._trigger_callbacks('track_changed', track_info=self.get_track_info())
+
+
+            device  = status.get('device_name', {})
+            device_changed = self.current_source_info.device_name != device
+
+            if device_changed:
+                old_device = self.current_source_info.device_name
+                self.current_source_info.device_name = device
+                logger.info(f"📱 [Spotify] Source device changed: {old_device} → {device}")
+                self._trigger_callbacks('source_info_changed', source_info=self.get_source_info())
+
 
         except Exception as e:
             logger.error(f"Error checking for changes: {e}", exc_info=True)

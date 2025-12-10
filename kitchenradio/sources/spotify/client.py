@@ -258,6 +258,12 @@ class KitchenRadioLibrespotClient:
             message_type = data.get('type', 'unknown')
             logger.debug(f"[Spotify WebSocket] {message_type}")
             
+
+            
+            if message_type == 'active':
+                self._trigger_callbacks('active', data=data)
+                return
+
             if message_type == 'metadata':
                 self._trigger_callbacks('metadata', data=data)
                 return
