@@ -208,18 +208,16 @@ class MPDMonitor:
             
             if status_changed or volume_changed:
                 # Parse track info for logging
-                new_track = self._parse_track_info(song_data)
+                # new_track = self._parse_track_info(song_data)
                 
-                # Log changes with full track details
-                if status_changed:
-                    track_display = f"{new_track.artist} - {new_track.title}" if new_track and new_track.title != 'Unknown' else "No track"
-                    album_display = f" [{new_track.album}]" if new_track and new_track.album else ""
-                    logger.info(f"🎵 [MPD] Playback status changed: {self.current_status.status.value} → {mpd_status.value} | Track: {track_display}{album_display}")
-                if volume_changed:
-                    logger.info(f"🔊 [MPD] Volume changed: {self.current_status.volume} → {mpd_volume}")
-                
+                # # Log changes with full track details
+                # if status_changed:
+                #     track_display = f"{new_track.artist} - {new_track.title}" if new_track and new_track.title != 'Unknown' else "No track"
+                #     album_display = f" [{new_track.album}]" if new_track and new_track.album else ""
+                                
                 # Update current status with actual MPD values
                 self.current_status = PlaybackState(status=mpd_status, volume=mpd_volume)
+                logger.info(f"🎵 [MPD] Playback state changed: {self.current_status}")
                 self._trigger_callbacks('playback_state_changed', playback_state=self.get_playback_state())
                 
             # Check for track change
