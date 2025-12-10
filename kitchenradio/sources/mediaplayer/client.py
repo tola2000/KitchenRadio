@@ -245,7 +245,9 @@ class KitchenRadioClient:
         """Get player status (thread-safe)."""
         with self._command_lock:
             try:
-                return dict(self.client.status())
+                status = dict(self.client.status())
+                logger.debug(f"[MDP] Got status: {status}")
+                return status
             except Exception as e:
                 logger.error(f"Error getting status: {e}")
                 self.check_connection_error(e)
