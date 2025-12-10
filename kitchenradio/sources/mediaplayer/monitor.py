@@ -387,8 +387,8 @@ class MPDMonitor:
     
     def run_forever(self):
         """Run monitoring loop forever."""
-        if not self.is_monitoring:
-            self.start_monitoring()
+        # if not self.is_monitoring:
+        #    self.start_monitoring()
         
         try:
             logger.info("Starting monitoring loop")
