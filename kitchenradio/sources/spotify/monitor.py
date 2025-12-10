@@ -217,7 +217,7 @@ class LibrespotMonitor:
                 
             try:
                 # Wait either for wake_event (set by callback) or timeout
-                self._wake_event.wait(timeout=1)
+                self._wake_event.wait(timeout=10)
                 # Clear wake flag so next wait will block again until next callback
                 self._wake_event.clear()
             except Exception as e:
