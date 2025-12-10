@@ -1002,7 +1002,7 @@ class DisplayFormatter:
         Returns:
             Tuple of (drawing_function, truncation_info_dict)
         """
-        
+        pairing_mode = track_data.get('pairing_mode', False)
         playing = track_data.get('playing', False)
         volume = track_data.get('volume', 50)
         source = track_data.get('source', '')  # Get source information

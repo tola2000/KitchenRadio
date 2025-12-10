@@ -48,7 +48,7 @@ if TYPE_CHECKING:
     from kitchenradio.sources.source_controller import SourceController
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 # Hardware configuration flag
 try:
