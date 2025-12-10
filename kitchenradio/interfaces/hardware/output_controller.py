@@ -54,19 +54,19 @@ logger = logging.getLogger(__name__)
 try:
     import RPi.GPIO as GPIO
     HARDWARE_AVAILABLE = True
-    logger.info("[OK] RPi.GPIO loaded successfully")
+    logger.debug("[OK] RPi.GPIO loaded successfully")
 except ImportError:
     try:
         # Alternative: Use gpiozero as fallback
         from gpiozero import OutputDevice
         HARDWARE_AVAILABLE = True
-        logger.info("[OK] gpiozero loaded successfully")
+        logger.debug("[OK] gpiozero loaded successfully")
         GPIO = None  # Mark that we're using gpiozero
     except ImportError as e:
         HARDWARE_AVAILABLE = False
         GPIO = None
-        logger.info(f"[X] GPIO libraries not available: {e}")
-        logger.info("   To enable GPIO output: pip install RPi.GPIO or pip install gpiozero")
+        logger.error(f"[X] GPIO libraries not available: {e}")
+        logger.warning("   To enable GPIO output: pip install RPi.GPIO or pip install gpiozero")
 
 
 class OutputController:
@@ -108,7 +108,7 @@ class OutputController:
         # GPIO device (for gpiozero)
         self.gpio_device = None
         
-        logger.info(f"OutputController created - Pin: {amplifier_pin}, Hardware: {self.use_hardware}, Active: {'HIGH' if active_high else 'LOW'}")
+        logger.debug(f"OutputController created - Pin: {amplifier_pin}, Hardware: {self.use_hardware}, Active: {'HIGH' if active_high else 'LOW'}")
     
     def initialize(self) -> bool:
         """

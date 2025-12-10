@@ -13,15 +13,7 @@ from kitchenradio.sources.source_model import TrackInfo, SourceInfo, PlaybackSta
 
 from kitchenradio.sources.mediaplayer import PlaybackController as MPDController
 from kitchenradio.sources.spotify import LibrespotController
-
-# Bluetooth imports are optional (Linux only)
-try:
-    from kitchenradio.sources.bluetooth import BluetoothController, BluetoothMonitor
-    BLUETOOTH_AVAILABLE = True
-except ImportError:
-    BLUETOOTH_AVAILABLE = False
-    BluetoothController = None
-    BluetoothMonitor = None
+from kitchenradio.sources.bluetooth import BluetoothController, BluetoothMonitor
 
 
 class SourceController:
@@ -200,9 +192,9 @@ class SourceController:
         """Initialize Bluetooth backend"""
         self.logger.info("Initializing Bluetooth backend...")
         
-        if not BLUETOOTH_AVAILABLE:
-            self.logger.warning("Bluetooth module not available (Linux only)")
-            return False
+        # if not BLUETOOTH_AVAILABLE:
+        #     self.logger.warning("Bluetooth module not available (Linux only)")
+        #     return False
         
         try:
             self.bluetooth_controller = BluetoothController()

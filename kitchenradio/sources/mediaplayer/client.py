@@ -8,7 +8,7 @@ import threading
 from typing import Optional, Callable, Dict, Any, List
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 
 class KitchenRadioClient:
