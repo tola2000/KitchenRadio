@@ -333,18 +333,23 @@ class SourceController:
                 self.logger.info(f"✅ Active source set to: {source.value}")
                 
                 # Auto-play when switching sources
+                play_started = False
                 try:
                     if source == SourceType.MPD:
                         # Always start playing when MPD source is selected
                         self.logger.info(f"Auto-starting playback on {source.value}")
-                        self.play()
+                        play_started = self.play()
                     elif source == SourceType.LIBRESPOT:
                         self.logger.info(f"Auto-starting playback on {source.value}")
-                        self.play()
+                        play_started = self.play()
                 except Exception as e:
                     self.logger.warning(f"Could not auto-start playback on {source.value}: {e}")
         
         # Trigger update for the new source
+        # If we just started playing, add a small delay to let monitor fetch track info
+        if play_started:
+            time.sleep(0.2)
+        
         self._trigger_source_update()
         
         return True
