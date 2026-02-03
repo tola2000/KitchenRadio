@@ -334,13 +334,10 @@ class SourceController:
                 
                 # Auto-play when switching sources
                 try:
-                    if source == SourceType.MPD and self.mpd_monitor:
-                        self.mpd_monitor.start_monitoring()
-                        mpd_state = self.mpd_monitor.get_playback_state()
-                        # Check if we should resume playback (if paused or stopped)
-                        if mpd_state and mpd_state.status in [PlaybackStatus.PAUSED, PlaybackStatus.STOPPED]:
-                            self.logger.info(f"Auto-starting playback on {source.value}")
-                            self.play()
+                    if source == SourceType.MPD:
+                        # Always start playing when MPD source is selected
+                        self.logger.info(f"Auto-starting playback on {source.value}")
+                        self.play()
                     elif source == SourceType.LIBRESPOT:
                         self.logger.info(f"Auto-starting playback on {source.value}")
                         self.play()
