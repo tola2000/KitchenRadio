@@ -325,6 +325,8 @@ class SourceController:
                         self.logger.info(f"✅ Source set to {source.value} - showing disconnected state")
         else:
             # MPD or Librespot - check if connected
+            play_started = False
+            
             if source == SourceType.MPD and not self.mpd_connected:
                 self.logger.warning(f"Source set to {source.value} but backend is not connected")
             elif source == SourceType.LIBRESPOT and not self.librespot_connected:
@@ -333,7 +335,6 @@ class SourceController:
                 self.logger.info(f"✅ Active source set to: {source.value}")
                 
                 # Auto-play when switching sources
-                play_started = False
                 try:
                     if source == SourceType.MPD:
                         # Always start playing when MPD source is selected
