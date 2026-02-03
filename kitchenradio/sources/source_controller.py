@@ -334,6 +334,11 @@ class SourceController:
             else:
                 self.logger.info(f"✅ Active source set to: {source.value}")
                 
+                # Start MPD monitoring if switching to MPD source
+                if source == SourceType.MPD and self.mpd_monitor and not self.mpd_monitor.is_monitoring:
+                    self.logger.info("Starting MPD monitoring for track info")
+                    self.mpd_monitor.start_monitoring()
+                
                 # Auto-play when switching sources
                 try:
                     if source == SourceType.MPD:
